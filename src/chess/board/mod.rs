@@ -13,19 +13,15 @@
 // Bit bits per square
 // 8x8 squares => 8x8x4 = 256;
 
-use std::fmt;
+use self::{position::*, r#move::Move};
+use super::constants::*;
+use crate::chess::board::piece::*;
 
-pub const PAWN_INDEX: u8 = 1;
-pub const KNIGHT_INDEX: u8 = 2;
-pub const BISHOP_INDEX: u8 = 3;
-pub const ROOK_INDEX: u8 = 4;
-pub const QUEEN_INDEX: u8 = 5;
-pub const KING_INDEX: u8 = 6;
-pub const BLACK_MASK: u8 = 8;
-pub const COLOURED_PIECE_MASK: u8 = 15;
-pub const PIECE_MASK: u8 = 7;
+mod piece;
+mod position;
+mod r#move;
+mod utils;
 
-static RANKS: &str = "ABCDEFGH";
 
 pub struct BoardState(pub u64, pub u128);
 
@@ -103,47 +99,6 @@ impl BoardState {
     }
 }
 
-#[derive(Default, Copy, Clone)]
-pub struct Piece {
-    pub file: u8,
-    pub rank: u8,
-    pub code: u8,
-}
-
-impl fmt::Debug for Piece {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let colour = if (&self.code >> 3) > 0 {
-            "Black"
-        } else {
-            "White"
-        };
-        let piece_code = &self.code & PIECE_MASK;
-        let piece_type = match piece_code {
-            PAWN_INDEX => "Pawn",
-            KNIGHT_INDEX => "Knight",
-            BISHOP_INDEX => "Bishop",
-            ROOK_INDEX => "Rook",
-            QUEEN_INDEX => "Queen",
-            KING_INDEX => "King",
-            _ => "Unknown",
-        };
-        let rank_c = RANKS.chars().nth(self.rank.into()).unwrap();
-        let pos = format!("{rank_c}{}", self.file + 1);
-
-        f.debug_struct("Piece")
-            .field("pos", &pos)
-            .field("colour", &colour)
-            .field("type", &piece_type)
-            .finish()
-    }
-}
-
-impl Piece {
-    pub fn empty(&self) -> bool {
-        return &self.code <= &0;
-    }
-}
-
 pub struct Board {
     state: BoardState,
     pub pieces: [Piece; 32],
@@ -159,7 +114,7 @@ impl Board {
                 let file = 7 - y;
                 if state.check_position(file, rank) {
                     let code = state.get_piece(piece_index);
-                    let piece = Piece { file, rank, code };
+                    let piece = Piece { pos: Position {file, rank}, code };
                     pieces[piece_index] = piece;
                     piece_index += 1;
                 }
@@ -170,5 +125,9 @@ impl Board {
             state: state,
             pieces: pieces,
         }
+    }
+
+    pub fn get_moves(&self) -> Vec<Move> {
+        todo!();
     }
 }
