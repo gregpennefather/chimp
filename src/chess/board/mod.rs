@@ -13,7 +13,7 @@
 // Bit bits per square
 // 8x8 squares => 8x8x4 = 256;
 
-use self::{position::*, r#move::Move};
+use self::{position::*, r#move::Move, utils::check_board_position};
 use super::constants::*;
 use crate::chess::board::piece::*;
 
@@ -26,12 +26,6 @@ mod utils;
 pub struct BoardState(pub u64, pub u128);
 
 impl BoardState {
-    pub fn check_position(&self, file: u8, rank: u8) -> bool {
-        let index = (file * 8) + rank;
-        let check_result = self.0 & (1 << index);
-        check_result > 0
-    }
-
     pub fn get_piece(&self, piece_index: usize) -> u8 {
         let pieces = self.1;
         let sub = pieces >> (4 * piece_index) & (COLOURED_PIECE_MASK as u128);
@@ -95,6 +89,8 @@ impl BoardState {
             }
         }
 
+        println!("{}", occ);
+
         BoardState(occ, p)
     }
 }
@@ -112,7 +108,7 @@ impl Board {
         for y in 0..8 {
             for rank in 0..8 {
                 let file = 7 - y;
-                if state.check_position(file, rank) {
+                if check_board_position(state.0, rank, file) {
                     let code = state.get_piece(piece_index);
                     let piece = Piece { pos: Position {file, rank}, code };
                     pieces[piece_index] = piece;

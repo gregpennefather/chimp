@@ -50,7 +50,7 @@ pub fn setup_engine(board: Res<BoardRes>, mut commands: Commands, asset_server: 
     }
 }
 
-fn position_to_translation(file: u8, rank: u8, x_offset: f32, y_offset: f32) -> Vec3 {
+fn position_to_translation(file: i8, rank: i8, x_offset: f32, y_offset: f32) -> Vec3 {
     Vec3::new(
         x_offset + SQUARE_SIZE * (rank as f32),
         y_offset + SQUARE_SIZE * (file as f32),
