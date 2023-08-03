@@ -26,7 +26,9 @@ mod piece;
 mod position;
 mod utils;
 
-pub struct BoardState(pub u64, pub u128);
+// Bitboard, Pieces, Game flags, Half Move Count, Full Move Count
+// Flags: lsb->msb WhiteTurn:WhiteQueenCastling:WhiteKingCastling:BlackQueenCastling:BlackKingCastling:EPRank:EPRank:EPRank
+pub struct BoardState(pub u64, pub u128, pub u8, pub usize, pub usize);
 
 impl BoardState {
     pub fn get_piece(&self, piece_index: usize) -> u8 {
@@ -37,62 +39,115 @@ impl BoardState {
     }
 
     pub fn from_fen(fen: String) -> BoardState {
-        let mut occ: u64 = 0;
+        let mut positions: u64 = 0;
+        let mut pieces: u128 = 0;
+        let mut flags: u8 = 0;
+
         let mut file: i64 = 7;
         let mut rank: u64 = 0;
         let mut piece_index: u16 = 0;
-        let mut p: u128 = 0;
-        let mut clause = 0;
 
-        for i in 0..fen.len() {
+        let mut i: usize = 0;
+        // Pieces
+        while i < fen.len() {
             let char: char = fen.chars().nth(i).unwrap();
+            i += 1;
 
-            if clause == 0 {
-                if char.is_ascii_digit() {
-                    let digit = char as i32 - 0x30;
-                    rank += digit as u64;
-                    continue;
-                }
-
-                if char == '/' {
-                    rank = 0;
-                    file -= 1;
-                    continue;
-                }
-
-                if char == ' ' {
-                    clause += 1;
-                    continue;
-                }
-
-                let piece_position: u64 = 1 << ((file * 8) as u64 + rank);
-
-                occ = occ + piece_position;
-                rank = rank + 1;
-
-                let piece: u8 = match char {
-                    'P' => PAWN_INDEX,
-                    'p' => PAWN_INDEX | BLACK_MASK,
-                    'B' => BISHOP_INDEX,
-                    'b' => BISHOP_INDEX | BLACK_MASK,
-                    'N' => KNIGHT_INDEX,
-                    'n' => KNIGHT_INDEX | BLACK_MASK,
-                    'R' => ROOK_INDEX,
-                    'r' => ROOK_INDEX | BLACK_MASK,
-                    'Q' => QUEEN_INDEX,
-                    'q' => QUEEN_INDEX | BLACK_MASK,
-                    'K' => KING_INDEX,
-                    'k' => KING_INDEX | BLACK_MASK,
-                    _ => 0,
-                };
-
-                let piece_u128: u128 = (piece as u128) << (4 * piece_index);
-                p = p | piece_u128;
-                piece_index += 1;
+            if char.is_ascii_digit() {
+                let digit = char as i32 - 0x30;
+                rank += digit as u64;
+                continue;
             }
+
+            if char == '/' {
+                rank = 0;
+                file -= 1;
+                continue;
+            }
+
+            if char == ' ' {
+                break;
+            }
+
+            let piece_position: u64 = 1 << ((file * 8) as u64 + rank);
+
+            positions = positions + piece_position;
+            rank = rank + 1;
+
+            let piece: u8 = match char {
+                'P' => PAWN_INDEX,
+                'p' => PAWN_INDEX | BLACK_MASK,
+                'B' => BISHOP_INDEX,
+                'b' => BISHOP_INDEX | BLACK_MASK,
+                'N' => KNIGHT_INDEX,
+                'n' => KNIGHT_INDEX | BLACK_MASK,
+                'R' => ROOK_INDEX,
+                'r' => ROOK_INDEX | BLACK_MASK,
+                'Q' => QUEEN_INDEX,
+                'q' => QUEEN_INDEX | BLACK_MASK,
+                'K' => KING_INDEX,
+                'k' => KING_INDEX | BLACK_MASK,
+                _ => 0,
+            };
+
+            let piece_u128: u128 = (piece as u128) << (4 * piece_index);
+            pieces = pieces | piece_u128;
+            piece_index += 1;
         }
 
-        BoardState(occ, p)
+        // Turn
+        let white_turn = if fen.chars().nth(i).unwrap() == 'w' { 1 } else { 0 };
+        flags += white_turn;
+        i += 2;
+
+        // Castling
+        let mut can_castle: u8 = 0;
+        while let c =  fen.chars().nth(i).unwrap() {
+            i += 1;
+            match c {
+                'K' => can_castle += 1,
+                'Q' => can_castle += 2,
+                'k' => can_castle += 4,
+                'q' => can_castle += 8,
+                ' ' => { i -= 1; break; }
+                _ => break
+            }
+        }
+        flags += can_castle << 1;
+        i += 1;
+
+        // En Passant
+        let ep_char = fen.chars().nth(i).unwrap().to_ascii_uppercase();
+        println!("ep_char {ep_char}");
+        if ep_char != '-' {
+            let rank = RANKS.find(ep_char).unwrap() as u8;
+            println!("rank found {rank} aka {rank:b} with current flags {flags:b}");
+            flags += rank << 5;
+            i+=1;
+        }
+        i += 2;
+        println!("Flags: {flags:b}");
+
+        // Half moves
+        let remaining_fen = &fen[i..];
+        let next_space = remaining_fen.find(' ').unwrap();
+        let half_moves_str = &remaining_fen[0..next_space];
+        println!("half_moves_str {half_moves_str}");
+        let half_moves = half_moves_str.parse::<usize>().unwrap();
+
+
+        // Full moves
+        let full_remaining_fen = &remaining_fen[next_space+1..];
+        let next_space = match full_remaining_fen.find(' ') {
+            Some(pos) => pos,
+            _ => full_remaining_fen.len()
+        };
+        let full_moves_str = &full_remaining_fen[0..next_space];
+        println!("full_moves_str {full_moves_str}");
+        let full_moves = full_moves_str.parse::<usize>().unwrap();
+
+
+        BoardState(positions, pieces, flags, half_moves, full_moves)
     }
 }
 
@@ -129,7 +184,12 @@ impl Board {
             }
         }
 
-        print!("num pieces {}, whitebb {}, blackbb {}", pieces.len(), white_bitboard, black_bitboard);
+        print!(
+            "num pieces {}, whitebb {}, blackbb {}",
+            pieces.len(),
+            white_bitboard,
+            black_bitboard
+        );
 
         Self {
             state,
@@ -174,12 +234,9 @@ impl Board {
                         friendly_bitboard,
                         opponent_bitboard,
                     ),
-                    ROOK_INDEX => get_rook_moves(
-                        piece.code,
-                        piece.pos,
-                        friendly_bitboard,
-                        opponent_bitboard,
-                    ),
+                    ROOK_INDEX => {
+                        get_rook_moves(piece.code, piece.pos, friendly_bitboard, opponent_bitboard)
+                    }
                     QUEEN_INDEX => {
                         get_queen_moves(piece.code, piece.pos, friendly_bitboard, opponent_bitboard)
                     }
@@ -194,4 +251,113 @@ impl Board {
         }
         moves
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_fen_white_move() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
+        let flag = state.2 & 1;
+        assert_eq!(flag, 1);
+    }
+
+    #[test]
+    fn from_fen_black_move() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+        let flag = state.2 & 1;
+        assert_eq!(flag, 0);
+    }
+
+    #[test]
+    fn from_white_king_both_castling_available() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+        let white_kingside = (state.2 >> 1) & 1;
+        assert_eq!(white_kingside, 1);
+        let white_queenside = (state.2 >> 2) & 1;
+        assert_eq!(white_queenside, 1);
+    }
+
+    #[test]
+    fn from_black_king_both_castling_available() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+        let black_kingside = (state.2 >> 3) & 1;
+        assert_eq!(black_kingside, 1);
+        let black_queenside = (state.2 >> 4) & 1;
+        assert_eq!(black_queenside, 1);
+    }
+
+    #[test]
+    fn from_white_can_queen_castle_black_can_king() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b Qk e3 0 1".into());
+        assert_eq!(state.2 >> 1 & 0b1111 , 0b0110); // 0110
+    }
+
+    #[test]
+    fn from_no_one_can_castle() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - - 0 1".into());
+        assert_eq!(state.2, 0);
+    }
+
+    #[test]
+    fn from_fen_no_en_passant() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - - 0 1".into());
+        let ep_rank = state.2 >> 5 & 5;
+        assert_eq!(ep_rank, 0);
+    }
+
+    #[test]
+    fn from_fen_e3_en_passant() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - e3 0 1".into());
+        let ep_rank = state.2 >> 5 & 0b111;
+        assert_eq!(ep_rank, 4); // 4 = e rank
+    }
+
+    #[test]
+    fn from_fen_h3_en_passant() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - h3 0 1".into());
+        let ep_rank = state.2 >> 5 & 0b111;
+        assert_eq!(ep_rank, 7); // 7 = h rank
+    }
+
+    #[test]
+    fn from_fen_half_moves() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - h3 23 1".into());
+        assert_eq!(state.3, 23);
+    }
+
+    #[test]
+    fn from_fen_no_half_moves() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
+        assert_eq!(state.3, 0);
+    }
+
+    #[test]
+    fn from_fen_initial_full_moves() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
+        assert_eq!(state.4, 1);
+    }
+
+    #[test]
+    fn from_fen_fifty_full_moves() {
+        let state =
+            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 50".into());
+        assert_eq!(state.4, 50);
+    }
+
+
 }
