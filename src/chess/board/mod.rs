@@ -13,15 +13,18 @@
 // Bit bits per square
 // 8x8 squares => 8x8x4 = 256;
 
-use self::{position::*, r#move::Move, utils::check_board_position};
+use self::{
+    position::*,
+    r#move::Move,
+    utils::{check_board_position, is_white_piece},
+};
 use super::constants::*;
 use crate::chess::board::piece::*;
 
+mod r#move;
 mod piece;
 mod position;
-mod r#move;
 mod utils;
-
 
 pub struct BoardState(pub u64, pub u128);
 
@@ -89,41 +92,106 @@ impl BoardState {
             }
         }
 
-        println!("{}", occ);
-
         BoardState(occ, p)
     }
 }
 
 pub struct Board {
     state: BoardState,
+    white_bitboard: u64,
+    black_bitboard: u64,
     pub pieces: [Piece; 32],
 }
 
 impl Board {
     pub fn new(state: BoardState) -> Board {
         let mut pieces: [Piece; 32] = [Piece::default(); 32];
-
+        let mut white_bitboard: u64 = 0;
+        let mut black_bitboard: u64 = 0;
         let mut piece_index: usize = 0;
         for y in 0..8 {
             for rank in 0..8 {
                 let file = 7 - y;
                 if check_board_position(state.0, rank, file) {
                     let code = state.get_piece(piece_index);
-                    let piece = Piece { pos: Position {file, rank}, code };
+                    let piece = Piece {
+                        pos: Position { file, rank },
+                        code,
+                    };
+                    if is_white_piece(code) {
+                        white_bitboard += 1 << ((file * 8) as u64 + rank as u64);
+                    } else {
+                        black_bitboard += 1 << ((file * 8) as u64 + rank as u64);
+                    }
                     pieces[piece_index] = piece;
                     piece_index += 1;
                 }
             }
         }
 
+        print!("num pieces {}, whitebb {}, blackbb {}", pieces.len(), white_bitboard, black_bitboard);
+
         Self {
-            state: state,
-            pieces: pieces,
+            state,
+            white_bitboard,
+            black_bitboard,
+            pieces,
         }
     }
 
-    pub fn get_moves(&self) -> Vec<Move> {
-        todo!();
+    pub fn get_moves(&self, white_move: bool) -> Vec<Move> {
+        let mut moves = Vec::new();
+        let friendly_bitboard = if white_move {
+            self.white_bitboard
+        } else {
+            self.black_bitboard
+        };
+        let opponent_bitboard = if white_move {
+            self.black_bitboard
+        } else {
+            self.white_bitboard
+        };
+        for piece in self.pieces {
+            if is_white_piece(piece.code) == white_move {
+                let new_moves = match piece.code & PIECE_MASK {
+                    PAWN_INDEX => get_pawn_moves(
+                        piece.code,
+                        piece.pos,
+                        Move::default(),
+                        true,
+                        friendly_bitboard,
+                        opponent_bitboard,
+                    ),
+                    KNIGHT_INDEX => get_knight_moves(
+                        piece.code,
+                        piece.pos,
+                        friendly_bitboard,
+                        opponent_bitboard,
+                    ),
+                    BISHOP_INDEX => get_bishop_moves(
+                        piece.code,
+                        piece.pos,
+                        friendly_bitboard,
+                        opponent_bitboard,
+                    ),
+                    ROOK_INDEX => get_rook_moves(
+                        piece.code,
+                        piece.pos,
+                        friendly_bitboard,
+                        opponent_bitboard,
+                    ),
+                    QUEEN_INDEX => {
+                        get_queen_moves(piece.code, piece.pos, friendly_bitboard, opponent_bitboard)
+                    }
+                    KING_INDEX => {
+                        get_king_moves(piece.code, piece.pos, friendly_bitboard, opponent_bitboard)
+                    }
+                    _ => panic!("Unknown {piece:?}!"),
+                };
+                println!("{} new moves for {piece:?}", new_moves.len());
+                moves.extend(new_moves);
+            }
+        }
+        moves
     }
 }

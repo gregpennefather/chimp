@@ -1,3 +1,4 @@
+use std::fmt;
 use super::position::Position;
 
 #[derive(Default)]
@@ -19,5 +20,19 @@ impl Move {
             castling: false,
             capture: capture,
         }
+    }
+
+    pub(crate) fn empty(&self) -> bool {
+        return self.from.rank == 0 && self.from.file == 0 && self.to.rank == 0 && self.to.file == 0;
+    }
+}
+
+impl fmt::Debug for Move {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+
+        f.debug_struct("Move")
+            .field("From", &self.from)
+            .field("To", &self.to)
+            .finish()
     }
 }

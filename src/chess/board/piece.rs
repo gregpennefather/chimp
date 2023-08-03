@@ -1,10 +1,13 @@
 use super::{
     super::constants::*,
     r#move::Move,
-    utils::{check_board_position, valid_position, is_piece_type},
+    utils::{check_board_position, is_piece_type, valid_position},
 };
 use crate::chess::board::position::*;
 use std::fmt;
+
+const KNIGHT_MOVE_FILE_DELTA: [i8; 8] = [2, 1, -1, -2, -2, -1, 1, 2];
+const KNIGHT_MOVE_RANK_DELTA: [i8; 8] = [1, 2, 2, 1, -1, -2, -2, -1];
 
 #[derive(Default, Copy, Clone)]
 pub struct Piece {
@@ -44,7 +47,7 @@ impl Piece {
     }
 }
 
-fn get_pawn_moves(
+pub fn get_pawn_moves(
     piece_code: u8,
     pos: Position,
     last_opponent_move: Move,
@@ -71,7 +74,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 false,
-                KNIGHT_INDEX
+                KNIGHT_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -81,7 +84,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 false,
-                BISHOP_INDEX
+                BISHOP_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -91,7 +94,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 false,
-                ROOK_INDEX
+                ROOK_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -101,7 +104,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 false,
-                QUEEN_INDEX
+                QUEEN_INDEX,
             ));
         } else {
             moves.push(Move::new(
@@ -112,10 +115,9 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 false,
-                0
+                0,
             ));
         }
-
 
         // Double move Forward
         if (white_orientated && pos.file == 1) || (!white_orientated && pos.file == 6) {
@@ -132,7 +134,7 @@ fn get_pawn_moves(
                     },
                     piece_code,
                     false,
-                    0
+                    0,
                 ));
             }
         }
@@ -152,7 +154,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                KNIGHT_INDEX
+                KNIGHT_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -162,7 +164,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                BISHOP_INDEX
+                BISHOP_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -172,7 +174,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                ROOK_INDEX
+                ROOK_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -182,7 +184,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                QUEEN_INDEX
+                QUEEN_INDEX,
             ));
         } else {
             moves.push(Move::new(
@@ -193,7 +195,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                0
+                0,
             ));
         }
     }
@@ -212,7 +214,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                KNIGHT_INDEX
+                KNIGHT_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -222,7 +224,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                BISHOP_INDEX
+                BISHOP_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -232,7 +234,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                ROOK_INDEX
+                ROOK_INDEX,
             ));
             moves.push(Move::new(
                 pos,
@@ -242,7 +244,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                QUEEN_INDEX
+                QUEEN_INDEX,
             ));
         } else {
             moves.push(Move::new(
@@ -253,7 +255,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                0
+                0,
             ));
         }
     }
@@ -274,7 +276,7 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                0
+                0,
             ));
         }
 
@@ -287,12 +289,259 @@ fn get_pawn_moves(
                 },
                 piece_code,
                 true,
-                0
+                0,
             ));
         }
     }
 
     return moves;
+}
+
+pub fn get_knight_moves(
+    piece_code: u8,
+    pos: Position,
+    friendly_bitboard: u64,
+    opponent_bitboard: u64,
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    for index in 0..8 {
+        let tar_rank = pos.rank + KNIGHT_MOVE_RANK_DELTA[index];
+        if (tar_rank > 7 || tar_rank < 0) {
+            continue;
+        }
+        let tar_file = pos.file + KNIGHT_MOVE_FILE_DELTA[index];
+        if (tar_file > 7 || tar_file < 0) {
+            continue;
+        }
+        if check_board_position(friendly_bitboard, tar_rank, tar_file) {
+            continue;
+        }
+        if check_board_position(opponent_bitboard, tar_rank, tar_file) {
+            moves.push(Move::new(
+                pos,
+                Position {
+                    rank: tar_rank,
+                    file: tar_file,
+                },
+                piece_code,
+                true,
+                0,
+            ));
+        } else {
+            moves.push(Move::new(
+                pos,
+                Position {
+                    rank: tar_rank,
+                    file: tar_file,
+                },
+                piece_code,
+                false,
+                0,
+            ));
+        }
+    }
+    moves
+}
+
+pub fn get_bishop_moves(
+    piece_code: u8,
+    pos: Position,
+    friendly_bitboard: u64,
+    opponent_bitboard: u64,
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    moves.extend(generate_slide_moves(piece_code, pos, 1, 1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, 1, -1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, -1, 1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, -1, -1, friendly_bitboard, opponent_bitboard));
+
+    moves
+}
+
+pub fn get_rook_moves(
+    piece_code: u8,
+    pos: Position,
+    friendly_bitboard: u64,
+    opponent_bitboard: u64,
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    moves.extend(generate_slide_moves(piece_code, pos, 1, 0, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, 0, 1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, -1, 0, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, 0, -1, friendly_bitboard, opponent_bitboard));
+
+    moves
+}
+
+pub fn get_queen_moves(
+    piece_code: u8,
+    pos: Position,
+    friendly_bitboard: u64,
+    opponent_bitboard: u64,
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    moves.extend(generate_slide_moves(piece_code, pos, 1, 1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, 1, -1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, -1, 1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, -1, -1, friendly_bitboard, opponent_bitboard));
+
+    moves.extend(generate_slide_moves(piece_code, pos, 1, 0, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, 0, 1, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, -1, 0, friendly_bitboard, opponent_bitboard));
+    moves.extend(generate_slide_moves(piece_code, pos, 0, -1, friendly_bitboard, opponent_bitboard));
+
+    moves
+}
+
+pub fn get_king_moves(
+    piece_code: u8,
+    pos: Position,
+    friendly_bitboard: u64,
+    opponent_bitboard: u64,
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+
+    let m1 = create_move(piece_code, pos, pos.rank + 1, pos.file, friendly_bitboard, opponent_bitboard);
+    if (!m1.empty()) {
+        moves.push(m1);
+    }
+
+    let m2 = create_move(piece_code, pos, pos.rank + 1, pos.file + 1, friendly_bitboard, opponent_bitboard);
+    if (!m2.empty()) {
+        moves.push(m2);
+    }
+
+    let m3 = create_move(piece_code, pos, pos.rank, pos.file + 1, friendly_bitboard, opponent_bitboard);
+    if (!m3.empty()) {
+        moves.push(m3);
+    }
+
+    let m4 = create_move(piece_code, pos, pos.rank -1 , pos.file + 1, friendly_bitboard, opponent_bitboard);
+    if (!m4.empty()) {
+        moves.push(m4);
+    }
+
+    let m5 = create_move(piece_code, pos, pos.rank -1 , pos.file, friendly_bitboard, opponent_bitboard);
+    if (!m5.empty()) {
+        moves.push(m5);
+    }
+
+
+    let m6 = create_move(piece_code, pos, pos.rank -1 , pos.file -1, friendly_bitboard, opponent_bitboard);
+    if (!m6.empty()) {
+        moves.push(m6);
+    }
+
+    let m7 = create_move(piece_code, pos, pos.rank , pos.file -1, friendly_bitboard, opponent_bitboard);
+    if (!m7.empty()) {
+        moves.push(m7);
+    }
+
+    let m8 = create_move(piece_code, pos, pos.rank + 1 , pos.file -1, friendly_bitboard, opponent_bitboard);
+    if (!m8.empty()) {
+        moves.push(m8);
+    }
+
+
+    moves
+}
+
+
+fn generate_slide_moves(
+    piece_code: u8,
+    pos: Position,
+    rank_offset: i8,
+    file_offset: i8,
+    friendly_bitboard: u64,
+    opponent_bitboard: u64
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+    let mut index = 1;
+    loop {
+        let tar_rank = pos.rank + (rank_offset * index);
+        let tar_file = pos.file + (file_offset * index);
+        if valid_position(tar_rank, tar_file) {
+            if check_board_position(opponent_bitboard, tar_rank, tar_file) {
+                // Add opponent capture
+
+                moves.push(Move::new(
+                    pos,
+                    Position {
+                        rank: tar_rank,
+                        file: tar_file,
+                    },
+                    piece_code,
+                    true,
+                    0,
+                ));
+                return moves;
+            } else if check_board_position(friendly_bitboard, tar_rank, tar_file) {
+                return moves;
+            } else {
+                // Add move
+                moves.push(Move::new(
+                    pos,
+                    Position {
+                        rank: tar_rank,
+                        file: tar_file,
+                    },
+                    piece_code,
+                    false,
+                    0,
+                ));
+                index += 1;
+            }
+        } else {
+            break;
+        }
+    }
+    moves
+}
+
+fn create_move(piece_code: u8, from: Position, rank: i8, file: i8, friendly_bitboard: u64, opponent_bitboard: u64) -> Move {
+    match move_result(rank, file, friendly_bitboard, opponent_bitboard) {
+        1 => Move::new(
+            from,
+            Position {
+                rank: rank,
+                file: file,
+            },
+            piece_code,
+            true,
+            0,
+        ),
+        0 => Move::new(
+            from,
+            Position {
+                rank: rank,
+                file: file,
+            },
+            piece_code,
+            false,
+            0,
+        ),
+        _ => Move::default()
+    }
+}
+
+// -1 = invalid
+// 0 = move
+// 1 = capture
+fn move_result(rank: i8, file: i8, friendly_bitboard: u64, opponent_bitboard: u64) -> i8 {
+    if valid_position(rank, file) {
+        if check_board_position(friendly_bitboard, rank, file) {
+            return -1;
+        }
+        if check_board_position(opponent_bitboard, rank, file) {
+            return 1;
+        }
+        return 0;
+    }
+    -1
 }
 
 #[cfg(test)]
@@ -459,7 +708,13 @@ mod tests {
         let moves: Vec<Move> = get_pawn_moves(
             0,
             Position { rank: 4, file: 4 },
-            Move::new(Position { rank: 5, file: 6 }, Position { rank: 5, file: 4 }, BLACK_MASK | PAWN_INDEX, false, 0),
+            Move::new(
+                Position { rank: 5, file: 6 },
+                Position { rank: 5, file: 4 },
+                BLACK_MASK | PAWN_INDEX,
+                false,
+                0,
+            ),
             true,
             build_bitboard(&[Position { rank: 4, file: 5 }]),
             build_bitboard(&[Position { rank: 5, file: 4 }]),
@@ -478,7 +733,13 @@ mod tests {
         let moves: Vec<Move> = get_pawn_moves(
             0,
             Position { rank: 7, file: 3 },
-            Move::new(Position { rank: 6, file: 2 }, Position { rank: 6, file: 3 }, PAWN_INDEX, false, 0),
+            Move::new(
+                Position { rank: 6, file: 2 },
+                Position { rank: 6, file: 3 },
+                PAWN_INDEX,
+                false,
+                0,
+            ),
             false,
             0,
             build_bitboard(&[Position { rank: 6, file: 3 }]),
@@ -517,7 +778,7 @@ mod tests {
             Move::default(),
             true,
             0,
-            build_bitboard(&[Position{rank: 2, file: 7}, Position { rank: 3, file: 7}]),
+            build_bitboard(&[Position { rank: 2, file: 7 }, Position { rank: 3, file: 7 }]),
         );
         // Assert
         assert_eq!(moves.len(), 4);
@@ -529,5 +790,85 @@ mod tests {
         assert!(moves[2].capture);
         assert_eq!(moves[3].promote, QUEEN_INDEX);
         assert!(moves[3].capture);
+    }
+
+    #[test]
+    fn get_knight_moves_all_moves_valid() {
+        // Arrange
+        let moves: Vec<Move> = get_knight_moves(0, Position { rank: 4, file: 4 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 8)
+    }
+
+    #[test]
+    fn get_knight_moves_left_edge_center() {
+        // Arrange
+        let moves: Vec<Move> = get_knight_moves(0, Position { rank: 0, file: 4 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 4)
+    }
+
+    #[test]
+    fn get_bishop_moves_all_moves_valid() {
+        // Arrange
+        let moves: Vec<Move> = get_bishop_moves(0, Position { rank: 4, file: 4 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 13)
+    }
+
+    #[test]
+    fn get_bishop_moves_starting_position() {
+        // Arrange
+        let moves: Vec<Move> = get_bishop_moves(0, Position { rank: 0, file: 0 }, 65535, 0);
+        // Act
+        assert_eq!(moves.len(), 0)
+    }
+
+    #[test]
+    fn get_rook_moves_all_moves_valid() {
+        // Arrange
+        let moves: Vec<Move> = get_rook_moves(0, Position { rank: 1, file: 1 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 14)
+    }
+
+    #[test]
+    fn get_rook_moves_starting_position() {
+        // Arrange
+        let moves: Vec<Move> = get_rook_moves(0, Position { rank: 0, file: 0 }, 65535, 0);
+        // Act
+        assert_eq!(moves.len(), 0)
+    }
+
+    #[test]
+    fn get_queen_moves_all_moves_valid() {
+        // Arrange
+        let moves: Vec<Move> = get_queen_moves(0, Position { rank: 4, file: 4 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 27)
+    }
+
+    #[test]
+    fn get_queen_moves_starting_position() {
+        // Arrange
+        let moves: Vec<Move> = get_queen_moves(0, Position { rank: 3, file: 0 }, 65535, 0);
+        // Act
+        assert_eq!(moves.len(), 0)
+    }
+
+    #[test]
+    fn get_king_moves_all_moves_valid() {
+        // Arrange
+        let moves: Vec<Move> = get_king_moves(0, Position { rank: 1, file: 1 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 8)
+    }
+
+    #[test]
+    fn get_king_moves_top_corner() {
+        // Arrange
+        let moves: Vec<Move> = get_king_moves(0, Position { rank: 7, file: 7 }, 0, 0);
+        // Act
+        assert_eq!(moves.len(), 3)
     }
 }

@@ -29,3 +29,7 @@ pub fn is_piece_type(piece_code: u8, piece_type: u8) -> bool {
     let colourless_piece_code = piece_code & PIECE_MASK;
     colourless_piece_code == piece_type
 }
+
+pub fn is_white_piece(piece_code: u8) -> bool {
+    return piece_code >> 3 == 0;
+}

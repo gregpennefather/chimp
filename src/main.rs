@@ -6,18 +6,26 @@ mod chess;
 mod play_engine;
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "chimp".into(),
-                resolution: (SQUARE_SIZE * 8., SQUARE_SIZE * 8.).into(),
-                ..default()
-            }),
-            ..Default::default()
-        }))
-        .insert_resource(BoardRes(Board::new(BoardState::from_fen(
-            "8/8/8/8/4p3/8/8/8".into(),
-        ))))
-        .add_systems(Startup, play_engine::setup_engine)
-        .run();
+    // App::new()
+    //     .add_plugins(DefaultPlugins.set(WindowPlugin {
+    //         primary_window: Some(Window {
+    //             title: "chimp".into(),
+    //             resolution: (SQUARE_SIZE * 8., SQUARE_SIZE * 8.).into(),
+    //             ..default()
+    //         }),
+    //         ..Default::default()
+    //     }))
+    //     .insert_resource(BoardRes(Board::new(BoardState::from_fen(
+    //         "8/8/8/8/4p3/8/8/8".into(),
+    //     ))))
+    //     .add_systems(Startup, play_engine::setup_engine)
+    //     .run();
+
+    let board = Board::new(BoardState::from_fen(
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+    ));
+
+    let moves = board.get_moves(true);
+
+    println!("White moves: {}", moves.len());
 }
