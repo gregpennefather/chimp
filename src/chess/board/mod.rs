@@ -14,18 +14,19 @@
 // 8x8 squares => 8x8x4 = 256;
 
 use self::{
+    bin_utils::BinaryModification,
     position::*,
     r#move::Move,
-    utils::{check_board_position, is_white_piece}, bin_utils::BinaryModification,
+    utils::{check_board_position, is_white_piece},
 };
 use super::constants::*;
 use crate::chess::board::piece::*;
 
+mod bin_utils;
 mod r#move;
 mod piece;
 mod position;
 mod utils;
-mod bin_utils;
 
 // Bitboard, Pieces, Game flags, Half Move Count, Full Move Count
 // Flags: lsb->msb WhiteTurn:WhiteQueenCastling:WhiteKingCastling:BlackQueenCastling:BlackKingCastling:EPRank:EPRank:EPRank
@@ -97,21 +98,28 @@ impl BoardState {
         }
 
         // Turn
-        let white_turn = if fen.chars().nth(i).unwrap() == 'w' { 1 } else { 0 };
+        let white_turn = if fen.chars().nth(i).unwrap() == 'w' {
+            1
+        } else {
+            0
+        };
         flags += white_turn;
         i += 2;
 
         // Castling
         let mut can_castle: u8 = 0;
-        while let c =  fen.chars().nth(i).unwrap() {
+        while let c = fen.chars().nth(i).unwrap() {
             i += 1;
             match c {
                 'K' => can_castle += 1,
                 'Q' => can_castle += 2,
                 'k' => can_castle += 4,
                 'q' => can_castle += 8,
-                ' ' => { i -= 1; break; }
-                _ => break
+                ' ' => {
+                    i -= 1;
+                    break;
+                }
+                _ => break,
             }
         }
         flags += can_castle << 1;
@@ -124,7 +132,7 @@ impl BoardState {
             let rank = RANKS.find(ep_char).unwrap() as u8;
             println!("rank found {rank} aka {rank:b} with current flags {flags:b}");
             flags += rank << 5;
-            i+=1;
+            i += 1;
         }
         i += 2;
         println!("Flags: {flags:b}");
@@ -136,17 +144,15 @@ impl BoardState {
         println!("half_moves_str {half_moves_str}");
         let half_moves = half_moves_str.parse::<usize>().unwrap();
 
-
         // Full moves
-        let full_remaining_fen = &remaining_fen[next_space+1..];
+        let full_remaining_fen = &remaining_fen[next_space + 1..];
         let next_space = match full_remaining_fen.find(' ') {
             Some(pos) => pos,
-            _ => full_remaining_fen.len()
+            _ => full_remaining_fen.len(),
         };
         let full_moves_str = &full_remaining_fen[0..next_space];
         println!("full_moves_str {full_moves_str}");
         let full_moves = full_moves_str.parse::<usize>().unwrap();
-
 
         BoardState(positions, pieces, flags, half_moves, full_moves)
     }
@@ -208,8 +214,9 @@ impl Board {
         }
     }
 
-    pub fn get_moves(&self, white_move: bool) -> Vec<Move> {
+    pub fn get_moves(&self) -> Vec<Move> {
         let mut moves = Vec::new();
+        let white_move = (self.flags & 1) > 0;
         let friendly_bitboard = if white_move {
             self.white_bitboard
         } else {
@@ -230,7 +237,7 @@ impl Board {
                         piece.code,
                         piece.pos,
                         Move::default(),
-                        true,
+                        white_move,
                         friendly_bitboard,
                         opponent_bitboard,
                     ),
@@ -266,25 +273,50 @@ impl Board {
 
     pub fn apply_move(&self, m: &Move) -> BoardState {
         let mut bitboard: u64 = self.full_bitboard;
-        let flags: u8 = self.flags;
+        let mut flags: u8 = self.flags;
         let half_moves: usize = self.half_moves;
         let full_moves: usize = self.full_moves;
 
-        let from_index:usize = ((m.from.file * 8) + m.from.rank).try_into().unwrap();
-        bitboard = bitboard ^ (1 << from_index);
-
+        let from_index: usize = ((m.from.file * 8) + m.from.rank).try_into().unwrap();
         let to_index: usize = ((m.to.file * 8) + m.to.rank).try_into().unwrap();
+
+        let piece_position_from: usize = get_piece_index(bitboard, m.from.rank, m.from.file);
+
+        bitboard = bitboard ^ (1 << from_index);
+        let mut piece_position_to: usize = get_piece_index(bitboard, m.to.rank, m.to.file);
+
+        println!("bitboard before {bitboard}");
+        let pb = self.pieces_board;
+        println!("pieces before {pb:b}");
+
+        let pieces: u128 = if !m.capture {
+            println!("Moving from {from_index}->{to_index} aka {piece_position_from}->{piece_position_to}");
+            self.pieces_board
+                .move_b(piece_position_from * 4, piece_position_to * 4, 4)
+        } else {
+            println!("Capturing from {from_index}->{to_index} aka {piece_position_from}->{piece_position_to}");
+            let p = self.pieces_board.copy_b(piece_position_from * 4, 4);
+            let a = self.pieces_board.overwrite_b(piece_position_to * 4, p, 4);
+            a.remove_b(piece_position_from * 4, 4)
+        };
         bitboard = bitboard | (1 << to_index);
+        println!("bitboard after {bitboard}");
+        println!("pieces after {pieces:b}");
 
-        let piece_position_from:usize = bitboard.copy_b(from_index, 64-from_index).count_ones().try_into().unwrap();
-        let piece_position_change :usize = bitboard.copy_b(from_index,to_index).count_ones().try_into().unwrap();
-        let piece_position_to = piece_position_from+piece_position_change;
-        println!("Moving from {from_index}:{to_index}-> aka {piece_position_from}+{piece_position_change}={piece_position_to}");
+        flags = flags ^ 0b1; // Flip colour bit
 
-        let pieces: u128 = self.pieces_board.move_b(piece_position_from*4,piece_position_to*4,4);
+        println!("new flags {flags:b}");
 
         BoardState(bitboard, pieces, flags, half_moves, full_moves)
     }
+}
+
+fn get_piece_index(bitboard: u64, rank: i8, file: i8) -> usize {
+    let preceding = bitboard >> (file * 8) >> (7 - rank);
+    println!("preceding {rank}:{file} {preceding:b}");
+    let preceding_places: usize = preceding.count_ones().try_into().unwrap();
+    let current_occupied = preceding & 1;
+    preceding_places - current_occupied as usize
 }
 
 #[cfg(test)]
@@ -301,16 +333,18 @@ mod tests {
 
     #[test]
     fn from_fen_black_move() {
-        let state =
-            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+        let state = BoardState::from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
+        );
         let flag = state.2 & 1;
         assert_eq!(flag, 0);
     }
 
     #[test]
     fn from_white_king_both_castling_available() {
-        let state =
-            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+        let state = BoardState::from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
+        );
         let white_kingside = (state.2 >> 1) & 1;
         assert_eq!(white_kingside, 1);
         let white_queenside = (state.2 >> 2) & 1;
@@ -319,8 +353,9 @@ mod tests {
 
     #[test]
     fn from_black_king_both_castling_available() {
-        let state =
-            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+        let state = BoardState::from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
+        );
         let black_kingside = (state.2 >> 3) & 1;
         assert_eq!(black_kingside, 1);
         let black_queenside = (state.2 >> 4) & 1;
@@ -329,9 +364,10 @@ mod tests {
 
     #[test]
     fn from_white_can_queen_castle_black_can_king() {
-        let state =
-            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b Qk e3 0 1".into());
-        assert_eq!(state.2 >> 1 & 0b1111 , 0b0110); // 0110
+        let state = BoardState::from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b Qk e3 0 1".into(),
+        );
+        assert_eq!(state.2 >> 1 & 0b1111, 0b0110); // 0110
     }
 
     #[test]
@@ -367,8 +403,9 @@ mod tests {
 
     #[test]
     fn from_fen_half_moves() {
-        let state =
-            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - h3 23 1".into());
+        let state = BoardState::from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b - h3 23 1".into(),
+        );
         assert_eq!(state.3, 23);
     }
 
@@ -388,10 +425,49 @@ mod tests {
 
     #[test]
     fn from_fen_fifty_full_moves() {
-        let state =
-            BoardState::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 50".into());
+        let state = BoardState::from_fen(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 50".into(),
+        );
         assert_eq!(state.4, 50);
     }
 
+    #[test]
+    fn get_piece_index_test_case_1() {
+        let bitboard: u64 = 18446462598732906495;
+        print!("{bitboard:b}");
+        let r = get_piece_index(bitboard, 0, 1);
+        assert_eq!(r, 16)
+    }
 
+    #[test]
+    fn get_piece_index_test_case_2() {
+        let bitboard: u64 = 18446462598732906495;
+        println!("{bitboard:b}");
+        let r = get_piece_index(bitboard, 2, 1);
+        assert_eq!(r, 18)
+    }
+
+    #[test]
+    fn get_piece_index_test_case_3() {
+        let bitboard: u64 = 18446462598732906495;
+        println!("{bitboard:b}");
+        let r = get_piece_index(bitboard, 6, 0);
+        assert_eq!(r, 30)
+    }
+
+    #[test]
+    fn get_piece_index_test_case_4() {
+        let bitboard: u64 = 18446462598732906495;
+        println!("{bitboard:b}");
+        let r = get_piece_index(bitboard, 5, 2);
+        assert_eq!(r, 16)
+    }
+
+    #[test]
+    fn get_piece_index_test_case_5() {
+        let bitboard:u64 = 12271616;
+        println!("{bitboard:b}");
+        let r = get_piece_index(bitboard, 2, 2);
+        assert_eq!(r, 2)
+    }
 }

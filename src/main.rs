@@ -16,7 +16,7 @@ fn main() {
             ..Default::default()
         }))
         .insert_resource(BoardRes(Board::new(BoardState::from_fen(
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(), // "4k3/4p3/8/8/8/8/3KP3/8 w - - 0 1"
+            "8/8/8/8/8/pppppppp/3P4/8 w KQkq - 0 1".into(), // "4k3/4p3/8/8/8/8/3KP3/8 w - - 0 1"
         ))))
         .add_systems(Startup, play_engine::setup_engine)
         .add_event::<BoardStateChange>()

@@ -113,7 +113,7 @@ pub fn keyboard_input(
 ) {
     if keys.just_pressed(KeyCode::Space) {
         // Space was pressed
-        let moves = board.0.get_moves(true);
+        let moves = board.0.get_moves();
 
         println!("White moves: {}", moves.len());
 
