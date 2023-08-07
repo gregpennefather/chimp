@@ -16,7 +16,7 @@
 use self::{
     position::*,
     r#move::Move,
-    utils::{check_board_position, is_white_piece, ShiftBits},
+    utils::{check_board_position, is_white_piece}, bin_utils::BinaryModification,
 };
 use super::constants::*;
 use crate::chess::board::piece::*;
@@ -25,6 +25,7 @@ mod r#move;
 mod piece;
 mod position;
 mod utils;
+mod bin_utils;
 
 // Bitboard, Pieces, Game flags, Half Move Count, Full Move Count
 // Flags: lsb->msb WhiteTurn:WhiteQueenCastling:WhiteKingCastling:BlackQueenCastling:BlackKingCastling:EPRank:EPRank:EPRank
@@ -220,6 +221,9 @@ impl Board {
             self.white_bitboard
         };
         for piece in self.pieces {
+            if piece.empty() {
+                continue;
+            }
             if is_white_piece(piece.code) == white_move {
                 let new_moves = match piece.code & PIECE_MASK {
                     PAWN_INDEX => get_pawn_moves(
@@ -251,7 +255,7 @@ impl Board {
                     KING_INDEX => {
                         get_king_moves(piece.code, piece.pos, friendly_bitboard, opponent_bitboard)
                     }
-                    _ => panic!("Unknown {piece:?}!"),
+                    _ => panic!("Unknown {}:{piece:?}!", piece.code),
                 };
                 println!("{} new moves for {piece:?}", new_moves.len());
                 moves.extend(new_moves);
@@ -262,21 +266,22 @@ impl Board {
 
     pub fn apply_move(&self, m: &Move) -> BoardState {
         let mut bitboard: u64 = self.full_bitboard;
-        let pieces: u128 = self.pieces_board;
         let flags: u8 = self.flags;
         let half_moves: usize = self.half_moves;
         let full_moves: usize = self.full_moves;
 
-        let from_index = (m.from.file * 8) + m.from.rank;
+        let from_index:usize = ((m.from.file * 8) + m.from.rank).try_into().unwrap();
         bitboard = bitboard ^ (1 << from_index);
 
-        let to_index = (m.to.file * 8) + m.to.rank;
+        let to_index: usize = ((m.to.file * 8) + m.to.rank).try_into().unwrap();
         bitboard = bitboard | (1 << to_index);
 
-        let test: u128 = 0b10011;
-        let test_2 = test.shift_bits(3,0,2);
+        let piece_position_from:usize = bitboard.copy_b(from_index, 64-from_index).count_ones().try_into().unwrap();
+        let piece_position_change :usize = bitboard.copy_b(from_index,to_index).count_ones().try_into().unwrap();
+        let piece_position_to = piece_position_from+piece_position_change;
+        println!("Moving from {from_index}:{to_index}-> aka {piece_position_from}+{piece_position_change}={piece_position_to}");
 
-        //let new_pieces = pieces.shift_bits(from_index*4, to_index*4, )
+        let pieces: u128 = self.pieces_board.move_b(piece_position_from*4,piece_position_to*4,4);
 
         BoardState(bitboard, pieces, flags, half_moves, full_moves)
     }
