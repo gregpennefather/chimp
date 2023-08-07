@@ -127,21 +127,17 @@ impl BoardState {
 
         // En Passant
         let ep_char = fen.chars().nth(i).unwrap().to_ascii_uppercase();
-        println!("ep_char {ep_char}");
         if ep_char != '-' {
             let rank = RANKS.find(ep_char).unwrap() as u8;
-            println!("rank found {rank} aka {rank:b} with current flags {flags:b}");
             flags += rank << 5;
             i += 1;
         }
         i += 2;
-        println!("Flags: {flags:b}");
 
         // Half moves
         let remaining_fen = &fen[i..];
         let next_space = remaining_fen.find(' ').unwrap();
         let half_moves_str = &remaining_fen[0..next_space];
-        println!("half_moves_str {half_moves_str}");
         let half_moves = half_moves_str.parse::<usize>().unwrap();
 
         // Full moves
@@ -151,7 +147,6 @@ impl BoardState {
             _ => full_remaining_fen.len(),
         };
         let full_moves_str = &full_remaining_fen[0..next_space];
-        println!("full_moves_str {full_moves_str}");
         let full_moves = full_moves_str.parse::<usize>().unwrap();
 
         BoardState(positions, pieces, flags, half_moves, full_moves)
@@ -195,9 +190,9 @@ impl Board {
             }
         }
 
-        print!(
+        println!(
             "num pieces {}, whitebb {}, blackbb {}",
-            pieces.len(),
+            piece_index,
             white_bitboard,
             black_bitboard
         );
@@ -264,7 +259,6 @@ impl Board {
                     }
                     _ => panic!("Unknown {}:{piece:?}!", piece.code),
                 };
-                println!("{} new moves for {piece:?}", new_moves.len());
                 moves.extend(new_moves);
             }
         }
@@ -282,30 +276,27 @@ impl Board {
 
         let piece_position_from: usize = get_piece_index(bitboard, m.from.rank, m.from.file);
 
-        bitboard = bitboard ^ (1 << from_index);
         let mut piece_position_to: usize = get_piece_index(bitboard, m.to.rank, m.to.file);
 
-        println!("bitboard before {bitboard}");
-        let pb = self.pieces_board;
-        println!("pieces before {pb:b}");
+        if piece_position_to > piece_position_from && !m.capture {
+            piece_position_to -= 1;
+        }
 
+        bitboard = bitboard ^ (1 << from_index);
+        let pb = self.pieces_board;
+
+        println!("{piece_position_from}->{piece_position_to}");
         let pieces: u128 = if !m.capture {
-            println!("Moving from {from_index}->{to_index} aka {piece_position_from}->{piece_position_to}");
             self.pieces_board
                 .move_b(piece_position_from * 4, piece_position_to * 4, 4)
         } else {
-            println!("Capturing from {from_index}->{to_index} aka {piece_position_from}->{piece_position_to}");
             let p = self.pieces_board.copy_b(piece_position_from * 4, 4);
             let a = self.pieces_board.overwrite_b(piece_position_to * 4, p, 4);
             a.remove_b(piece_position_from * 4, 4)
         };
         bitboard = bitboard | (1 << to_index);
-        println!("bitboard after {bitboard}");
-        println!("pieces after {pieces:b}");
 
         flags = flags ^ 0b1; // Flip colour bit
-
-        println!("new flags {flags:b}");
 
         BoardState(bitboard, pieces, flags, half_moves, full_moves)
     }
@@ -313,14 +304,14 @@ impl Board {
 
 fn get_piece_index(bitboard: u64, rank: i8, file: i8) -> usize {
     let preceding = bitboard >> (file * 8) >> (7 - rank);
-    println!("preceding {rank}:{file} {preceding:b}");
     let preceding_places: usize = preceding.count_ones().try_into().unwrap();
-    let current_occupied = preceding & 1;
-    preceding_places - current_occupied as usize
+    preceding_places
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::chess::board;
+
     use super::*;
 
     #[test]
@@ -431,43 +422,145 @@ mod tests {
         assert_eq!(state.4, 50);
     }
 
+    // #[test]
+    // fn get_piece_index_test_case_1() {
+    //     let bitboard: u64 = 18446462598732906495;
+    //     print!("{bitboard:b}");
+    //     let r = get_piece_index(bitboard, 0, 1);
+    //     assert_eq!(r, 16)
+    // }
+
+    // #[test]
+    // fn get_piece_index_test_case_2() {
+    //     let bitboard: u64 = 18446462598732906495;
+    //     println!("{bitboard:b}");
+    //     let r = get_piece_index(bitboard, 2, 1);
+    //     assert_eq!(r, 18)
+    // }
+
+    // #[test]
+    // fn get_piece_index_test_case_3() {
+    //     let bitboard: u64 = 18446462598732906495;
+    //     println!("{bitboard:b}");
+    //     let r = get_piece_index(bitboard, 6, 0);
+    //     assert_eq!(r, 30)
+    // }
+
+    // #[test]
+    // fn get_piece_index_test_case_4() {
+    //     let bitboard: u64 = 18446462598732906495;
+    //     println!("{bitboard:b}");
+    //     let r = get_piece_index(bitboard, 5, 2);
+    //     assert_eq!(r, 16)
+    // }
+
+    // #[test]
+    // fn get_piece_index_test_case_5() {
+    //     let bitboard:u64 = 12271616;
+    //     println!("{bitboard:b}");
+    //     let r = get_piece_index(bitboard, 2, 2);
+    //     assert_eq!(r, 2)
+    // }
+
     #[test]
-    fn get_piece_index_test_case_1() {
-        let bitboard: u64 = 18446462598732906495;
-        print!("{bitboard:b}");
-        let r = get_piece_index(bitboard, 0, 1);
-        assert_eq!(r, 16)
+    fn passed_pawns_integration_test() {
+        let bs = BoardState::from_fen("8/8/8/4p3/8/1P6/8/8 w - - 0 0".into());
+        println!("bs pieces: {:b}", bs.1);
+        assert_eq!(bs.1, 0b00011001);
+
+        let board1 = Board::new(bs);
+        let moves1 = board1.get_moves();
+        assert_eq!(moves1.len(), 1);
+
+        println!("move1 {:?}", &moves1[0]);
+        let board2 = Board::new(board1.apply_move(&moves1[0]));
+        println!("b2 pieces: {:b}", board2.pieces_board);
+        assert_eq!(board2.pieces_board, 0b00011001);
+
+        let moves2 = board2.get_moves();
+        assert_eq!(moves2.len(), 1);
+
+        println!("move2 {:?}", &moves2[0]);
+        let board3 = Board::new(board2.apply_move(&moves2[0]));
+        println!("b3 pieces: {:b}", board3.pieces_board);
+        assert_eq!(board3.pieces_board, 0b00011001);
+
+
+        let moves3 = board3.get_moves();
+        assert_eq!(moves3.len(), 1);
+
+        println!("move3 {:?}", &moves3[0]);
+        let board4 = Board::new(board3.apply_move(&moves3[0]));
+        println!("b4 pieces: {:b}", board4.pieces_board);
+        assert_eq!(board4.pieces_board, 0b10010001);
     }
 
     #[test]
-    fn get_piece_index_test_case_2() {
-        let bitboard: u64 = 18446462598732906495;
-        println!("{bitboard:b}");
-        let r = get_piece_index(bitboard, 2, 1);
-        assert_eq!(r, 18)
+    fn dualing_pawns_integration_test() {
+        let bs = BoardState::from_fen("8/8/8/2p5/8/1P6/8/8 w - - 0 0".into());
+        println!("bs pieces: {:b}", bs.1);
+        assert_eq!(bs.1, 0b00011001);
+
+        let board1 = Board::new(bs);
+        let moves1 = board1.get_moves();
+        assert_eq!(moves1.len(), 1);
+
+        println!("move1 {:?}", &moves1[0]);
+        let board2 = Board::new(board1.apply_move(&moves1[0]));
+        println!("b2 pieces: {:b}", board2.pieces_board);
+        assert_eq!(board2.pieces_board, 0b00011001);
+
+        let moves2 = board2.get_moves();
+        assert_eq!(moves2.len(), 2);
+
+        println!("move2 {:?}", &moves2[1]);
+        let board3 = Board::new(board2.apply_move(&moves2[1]));
+        println!("b3 pieces: {:b}", board3.pieces_board);
+        assert_eq!(board3.pieces_board, 0b1001);
     }
 
     #[test]
-    fn get_piece_index_test_case_3() {
-        let bitboard: u64 = 18446462598732906495;
-        println!("{bitboard:b}");
-        let r = get_piece_index(bitboard, 6, 0);
-        assert_eq!(r, 30)
+    fn white_having_two_pawn_options() {
+        let bs = BoardState::from_fen("8/8/8/8/2ppp3/3P4/8/8 w - - 0 0".into());
+        println!("bs pieces: {:b}", bs.1);
+        assert_eq!(bs.1, 0b0001100110011001);
+
+        let board1 = Board::new(bs);
+        let moves1 = board1.get_moves();
+        assert_eq!(moves1.len(), 2);
+
+        println!("move1 {:?}", &moves1[1]);
+        let board2 = Board::new(board1.apply_move(&moves1[1]));
+        println!("b2 pieces: {:b}", board2.pieces_board);
+
+        let ebs = BoardState::from_fen("8/8/8/8/2ppP3/8/8/8 w - - 0 0".into());
+        println!("ebs {:b}", ebs.1);
+        assert_eq!(board2.pieces_board, ebs.1);
+
+        let moves2 = board2.get_moves();
+        assert_eq!(moves2.len(), 2);
+
+        println!("move2 {:?}", &moves2[0]);
+        let board3 = Board::new(board2.apply_move(&moves2[0]));
+        println!("b3 pieces: {:b}", board3.pieces_board);
+
+        let ebs2 = BoardState::from_fen("8/8/8/8/3pP3/2p5/8/8 w - - 0 0".into());
+        println!("ebs2 {:b}", ebs2.1);
+        assert_eq!(board3.pieces_board, ebs2.1);
+
     }
 
     #[test]
-    fn get_piece_index_test_case_4() {
-        let bitboard: u64 = 18446462598732906495;
-        println!("{bitboard:b}");
-        let r = get_piece_index(bitboard, 5, 2);
-        assert_eq!(r, 16)
-    }
+    fn end_game_scenario_1() {
+        let bs = BoardState::from_fen("4k3/4p3/8/8/8/8/3KP3/8 w - - 0 1".into());
+        println!("bs pieces: {:b}", bs.1);
+        assert_eq!(bs.1, 0b0001011010011110);
 
-    #[test]
-    fn get_piece_index_test_case_5() {
-        let bitboard:u64 = 12271616;
-        println!("{bitboard:b}");
-        let r = get_piece_index(bitboard, 2, 2);
-        assert_eq!(r, 2)
+        let board1 = Board::new(bs);
+        let moves1 = board1.get_moves();
+        assert_eq!(moves1.len(), 9);
+
+        // Keep testing this scenario
+
     }
 }

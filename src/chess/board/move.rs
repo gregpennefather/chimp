@@ -31,6 +31,7 @@ impl fmt::Debug for Move {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 
         f.debug_struct("Move")
+            .field("Piece", &self.piece)
             .field("From", &self.from)
             .field("To", &self.to)
             .finish()

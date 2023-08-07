@@ -50,7 +50,6 @@ impl BinaryModification for u128 {
 
     fn insert_b(&self, start: usize, val: u128, len: usize) -> u128 {
         let a = if start > 0 { self.copy_b(0, start) } else { 0 };
-        println!("start {start}, len: {len}");
         let b = self.copy_b(start, 128-start-len);
         a | (val << start) | (b << (start + len))
     }
@@ -58,7 +57,6 @@ impl BinaryModification for u128 {
     fn move_b(&self, start: usize, end: usize, len: usize) -> u128 {
         let word = self.copy_b(start, len);
         let without = self.remove_b(start, len);
-        println!("Move from start {start} to end {end} with len {len} and word {word:b} which is white:{}", is_white_piece(word.try_into().unwrap()));
         without.insert_b(end, word, len)
     }
 
