@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand::Rng;
 use crate::Board;
 
 pub const SQUARE_SIZE: f32 = 64.;
@@ -33,7 +34,16 @@ pub fn setup_engine(board: Res<BoardRes>, mut commands: Commands, asset_server: 
         }
     }
 
-    for piece in board.0.pieces {
+    let moves = board.0.get_moves(true);
+
+    println!("White moves: {}", moves.len());
+
+    let rand: usize = rand::thread_rng().gen_range(0..moves.len());
+
+    let new_state = board.0.apply_move(&moves[rand]);
+    let bb = Board::new(new_state);
+
+    for piece in bb.pieces {
         if !piece.empty() {
             commands.spawn(SpriteBundle {
                 texture: asset_server.load(get_sprite_file_path(piece.code)),
@@ -42,7 +52,10 @@ pub fn setup_engine(board: Res<BoardRes>, mut commands: Commands, asset_server: 
                     ..default()
                 },
                 transform: Transform::from_translation(position_to_translation(
-                    piece.pos.file, piece.pos.rank, x_offset, y_offset,
+                    piece.pos.file,
+                    piece.pos.rank,
+                    x_offset,
+                    y_offset,
                 )),
                 ..default()
             });

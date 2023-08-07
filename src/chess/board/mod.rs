@@ -16,7 +16,7 @@
 use self::{
     position::*,
     r#move::Move,
-    utils::{check_board_position, is_white_piece},
+    utils::{check_board_position, is_white_piece, ShiftBits},
 };
 use super::constants::*;
 use crate::chess::board::piece::*;
@@ -152,7 +152,11 @@ impl BoardState {
 }
 
 pub struct Board {
-    state: BoardState,
+    full_bitboard: u64,
+    pieces_board: u128,
+    flags: u8,
+    half_moves: usize,
+    full_moves: usize,
     white_bitboard: u64,
     black_bitboard: u64,
     pub pieces: [Piece; 32],
@@ -192,7 +196,11 @@ impl Board {
         );
 
         Self {
-            state,
+            full_bitboard: state.0,
+            pieces_board: state.1,
+            flags: state.2,
+            half_moves: state.3,
+            full_moves: state.4,
             white_bitboard,
             black_bitboard,
             pieces,
@@ -250,6 +258,27 @@ impl Board {
             }
         }
         moves
+    }
+
+    pub fn apply_move(&self, m: &Move) -> BoardState {
+        let mut bitboard: u64 = self.full_bitboard;
+        let pieces: u128 = self.pieces_board;
+        let flags: u8 = self.flags;
+        let half_moves: usize = self.half_moves;
+        let full_moves: usize = self.full_moves;
+
+        let from_index = (m.from.file * 8) + m.from.rank;
+        bitboard = bitboard ^ (1 << from_index);
+
+        let to_index = (m.to.file * 8) + m.to.rank;
+        bitboard = bitboard | (1 << to_index);
+
+        let test: u128 = 0b10011;
+        let test_2 = test.shift_bits(3,0,2);
+
+        //let new_pieces = pieces.shift_bits(from_index*4, to_index*4, )
+
+        BoardState(bitboard, pieces, flags, half_moves, full_moves)
     }
 }
 
