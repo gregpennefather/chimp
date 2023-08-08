@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
-        ".\\Cargo.toml"
+        ".\\chimp\\Cargo.toml",
+        ".\\chimp-school\\Cargo.toml",
     ],
     "cSpell.words": [
         "bitboard"
