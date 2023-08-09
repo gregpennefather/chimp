@@ -24,7 +24,6 @@ impl BoardState {
         let mut i: usize = 0;
         let mut file: i16 = 7;
         let mut rank: i16 = 7;
-        let mut piece_index: u8 = 0;
         // Pieces
         while i < fen.len() {
             let char: char = fen.chars().nth(i).unwrap();
@@ -71,9 +70,8 @@ impl BoardState {
                 _ => 0,
             };
 
-            let piece_u128: u128 = (piece as u128) << (4 * piece_index);
-            pieces = pieces | piece_u128;
-            piece_index += 1;
+            let piece_u128: u128 = piece as u128;
+            pieces = (pieces << 4) | piece_u128;
         }
 
         // Turn
@@ -105,7 +103,7 @@ impl BoardState {
         i += 1;
 
         // En Passant
-        let ep_char = fen.chars().nth(i).unwrap().to_ascii_uppercase();
+        let ep_char = fen.chars().nth(i).unwrap().to_ascii_lowercase();
         if ep_char != '-' {
             let rank = RANKS.find(ep_char).unwrap() as u8;
             flags += rank << 5;
@@ -140,14 +138,14 @@ impl BoardState {
     pub fn to_fen(&self) -> String {
         let mut file_index = 7;
         let mut fen: String = String::default();
-        let mut piece_index = 0;
+        let mut piece_index: i8 = (self.bitboard.count_ones() - 1).try_into().unwrap();
 
         // Pieces
         loop {
             let file: u8 = self.bitboard.copy_b(file_index * 8, 8).try_into().unwrap();
             let pieces_in_row: i8 = file.count_ones().try_into().unwrap();
             fen += &file_to_fen_string(file, &self.pieces, piece_index);
-            piece_index += pieces_in_row;
+            piece_index -= pieces_in_row;
             if (file_index > 0) {
                 file_index -= 1;
                 fen += &"/".to_string();
@@ -185,9 +183,14 @@ impl BoardState {
 
         // En Passant
         let rank = self.flags >> 5;
+        fen += " ";
         if rank > 0 {
+            let rank_char = RANKS.chars().nth(rank as usize).unwrap();
+            fen += &rank_char.to_string();
+            // if it's whites move next then this move was by black
+            fen += if white_move { "6".into() } else { "3".into() };
         } else {
-            fen += " -";
+            fen += "-";
         }
 
         // Half-moves
@@ -213,7 +216,7 @@ fn file_to_fen_string(file: u8, pieces: &u128, piece_index: i8) -> String {
             }
             let piece = get_piece_code(pieces, pi);
             r += &get_piece_char(piece).to_string();
-            pi += 1;
+            pi -= 1;
         } else {
             empty_count += 1;
         }

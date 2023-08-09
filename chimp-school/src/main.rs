@@ -59,7 +59,7 @@ fn from_fen_test_cases() {
     if test_fen_pieces(
         &initial_board_fen,
         "Initial Board State pieces".into(),
-        88011118049658159416542473116092128172,
+        269490179295853796843097322727436280612,
     ) {
         success_count += 1;
     }
@@ -82,7 +82,7 @@ fn from_fen_test_cases() {
     if test_fen_pieces(
         &dualing_kings_fen,
         "Dualing Kings opposite corners pieces".into(),
-        24990,
+        0b1110100100010110,
     ) {
         success_count += 1;
     }
@@ -106,7 +106,7 @@ fn from_fen_test_cases() {
     if test_fen_pieces(
         &white_e_pawn_opening_fen,
         "White E pawn opening pieces".into(),
-        88011118049658159416542473116092128172,
+        269490179295853796843097322727436280612,
     ) {
         success_count += 1;
     }
@@ -164,13 +164,77 @@ fn test_fen_flags(fen: &String, desc: String, expected_flags: u8) -> bool {
 }
 
 fn apply_move_test_cases() {
-    let test_count = 1;
+    let test_count = 9;
     let mut success_count = 0;
 
     if test_move(
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
-        "e2e4".into(),
-        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into()
+        "e2e3".into(),
+        "rnbqkbnr/pppppppp/8/8/8/4P3/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "8/8/8/8/4KP2/8/r3k3/8 w - - 0 1".into(),
+        "f4f5".into(),
+        "8/8/8/5P2/4K3/8/r3k3/8 b - - 0 1".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "8/8/8/8/4KP2/8/r3k3/8 b - - 0 1".into(),
+        "a2a6".into(),
+        "8/8/r7/8/4KP2/8/4k3/8 w - - 1 2".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "8/8/8/5k2/5p2/1P6/1K6/8 w - - 0 1".into(),
+        "b3b4".into(),
+        "8/8/8/5k2/1P3p2/8/1K6/8 b - - 0 1".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "8/8/4k3/4p3/2KP4/8/8/8 b - - 0 1".into(),
+        "e5xd4".into(),
+        "8/8/4k3/8/2Kp4/8/8/8 w - - 0 2".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "8/8/4k3/4p3/2KP4/8/8/8 b - - 5 1".into(),
+        "e5xd4".into(),
+        "8/8/4k3/8/2Kp4/8/8/8 w - - 0 2".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "rnbqkb1r/ppp1pp1p/5np1/3p4/2PP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 5".into(),
+        "c4xd5".into(),
+        "rnbqkb1r/ppp1pp1p/5np1/3P4/3P4/2N5/PP2PPPP/R1BQKBNR b KQkq - 0 5".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
+        "e7e5".into(),
+        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".into()
+    ) {
+        success_count += 1;
+    }
+
+    if test_move(
+        "rnbqkb1r/ppp1pp1p/3p1np1/8/3PPP2/2N5/PPP3PP/R1BQKBNR b KQkq - 0 1".into(),
+        "f6g4".into(),
+        "rnbqkb1r/ppp1pp1p/3p2p1/8/3PPPn1/2N5/PPP3PP/R1BQKBNR w KQkq - 1 2".into()
     ) {
         success_count += 1;
     }
@@ -187,6 +251,7 @@ fn test_move(init_fen: String, m: String, exp_fen: String) -> bool {
     if !r {
         print_test_result("Test Move".into(), "Move output does not match expected".into(), false);
         println!("{} vs {}", after_move_fen.red(), exp_fen.yellow());
+        println!("{}", board_to_string(after_move.bitboard, after_move.pieces).red())
     }
     r
 }
@@ -211,12 +276,12 @@ fn board_to_string(bitboard: u64, pieces: u128) -> String {
     let mut r: String = "".to_string();
 
     let mut index = 63;
-    let mut piece_index = 0;
+    let mut piece_index = (bitboard.count_ones() - 1).try_into().unwrap();
     while index >= 0 {
         let occ = (bitboard >> index) & 1 == 1;
         if occ {
             r += &get_board_square_char(pieces, piece_index).to_string();
-            piece_index += 1;
+            piece_index -= 1;
         } else {
             r += &'0'.to_string();
         }

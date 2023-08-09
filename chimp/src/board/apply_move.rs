@@ -1,41 +1,53 @@
 use super::state::BoardState;
-use crate::board::piece::*;
+use crate::{
+    board::piece::*,
+    shared::{binary_utils::BinaryUtils, BLACK_MASK, PAWN_INDEX, PIECE_MASK},
+};
 
 impl BoardState {
     pub fn apply_move(&self, m: u16) -> BoardState {
         let mut bitboard: u64 = self.bitboard;
         let mut pieces: u128 = self.pieces;
         let mut flags: u8 = self.flags;
-        let half_moves: u8 = self.half_moves;
+        let mut half_moves: u8 = self.half_moves;
 
         let from_file = m >> 13;
         let from_rank = m >> 10 & 0b111;
         let to_file = m >> 7 & 0b111;
         let to_rank = m >> 4 & 0b111;
 
-        let capture = false;
-        let to_piece_index = 0b0u16;
-        let from_piece_index = 0b0u16;
-
-        // if capture {
-        //     pieces = remove_piece_from_pieces_list(&pieces, to_piece_index);
-        // }
-
-        // let piece = get_piece_from_piece_list(&pieces, from_piece_index);
-        // pieces = remove_piece_from_piece_list(&pieces, from_piece_index);
-
-        // pieces = insert_piece_in_piece_list_at_position(&pieces, to_piece_index);
+        let capture = is_capture(m);
 
         let from_index: usize = (((from_file) * 8) + (7 - from_rank)).try_into().unwrap();
         let to_index: usize = (((to_file) * 8) + (7 - to_rank)).try_into().unwrap();
 
-        println!("from_file {from_file} from_rank {from_rank} {from_index} t_f {to_file} t_r {to_rank} {to_index}");
-
+        let (picked_up_piece, mut new_pieces) =
+            pickup_piece(pieces, bitboard, from_file, from_rank);
         bitboard = bitboard ^ (1 << from_index);
+
+        if capture {
+            new_pieces = remove_piece(new_pieces, bitboard, to_file, to_rank);
+        }
+
+        pieces = place_piece(new_pieces, bitboard, to_file, to_rank, picked_up_piece);
         bitboard = bitboard | (1 << to_index);
 
         // Turn
         flags = flags ^ 0b1;
+
+        // Double Pawn Push
+        let piece_u8: u8 = picked_up_piece.try_into().unwrap();
+        if is_double_pawn_push(piece_u8, from_file, to_file) {
+            flags = flags & 0b00011111;
+            flags = flags ^ ((from_rank as u8) << 5);
+        }
+
+        // Half moves
+        if (piece_u8 & PIECE_MASK) == PAWN_INDEX {
+            half_moves = 0;
+        } else {
+            half_moves = half_moves + 1;
+        }
 
         // Full moves
         let full_moves: u32 = self.full_moves + if (flags & 1) == 1 { 1 } else { 0 };
@@ -48,6 +60,46 @@ impl BoardState {
             full_moves,
         }
     }
+}
+
+fn is_double_pawn_push(picked_up_piece: u8, from_file: u16, to_file: u16) -> bool {
+    if (picked_up_piece & PIECE_MASK) != PAWN_INDEX {
+        return false;
+    }
+
+    if picked_up_piece & BLACK_MASK > 0 {
+        return from_file == 6 && to_file == 4;
+    }
+
+    return from_file == 1 && to_file == 3;
+}
+
+fn is_capture(m: u16) -> bool {
+    m >> 2 & 0b1 > 0
+}
+
+fn pickup_piece(pieces: u128, bitboard: u64, file: u16, rank: u16) -> (u128, u128) {
+    let pos: u32 = ((file * 8) + (7 - rank)).into();
+    let bitboard_relevant = bitboard & (u64::pow(2, pos) - 1);
+    let bitboard_pos: usize = bitboard_relevant.count_ones() as usize;
+    let piece = pieces.copy_b(bitboard_pos * 4, 4);
+    let board = pieces.remove_b(bitboard_pos * 4, 4);
+    (piece, board)
+}
+
+fn remove_piece(pieces: u128, bitboard: u64, file: u16, rank: u16) -> u128 {
+    let pos: u32 = ((file * 8) + (7 - rank)).into();
+    let bitboard_relevant = bitboard & (u64::pow(2, pos) - 1);
+    let bitboard_pos: usize = bitboard_relevant.count_ones() as usize;
+    let board = pieces.remove_b(bitboard_pos * 4, 4);
+    board
+}
+
+fn place_piece(pieces: u128, bitboard: u64, file: u16, rank: u16, piece: u128) -> u128 {
+    let pos: u32 = ((file * 8) + (7 - rank)).into();
+    let bitboard_relevant = bitboard & (u64::pow(2, pos) - 1);
+    let bitboard_pos = (bitboard_relevant.count_ones()) as usize;
+    pieces.insert_b(bitboard_pos * 4, piece, 4)
 }
 
 pub fn standard_notation_to_move(std_notation: &str) -> u16 {
@@ -70,6 +122,10 @@ pub fn standard_notation_to_move(std_notation: &str) -> u16 {
         .to_digit(8)
         .unwrap() as u16;
     result = result | ((to_file_char - 1) << 7);
+
+    if capture {
+        result = result | 0b100;
+    }
 
     result
 }
