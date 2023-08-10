@@ -2,12 +2,14 @@ use crate::board::piece::*;
 use crate::shared::binary_utils::BinaryUtils;
 use crate::shared::*;
 
+#[derive(Default, Clone, Copy)]
 pub struct BoardState {
     pub bitboard: u64,
     pub pieces: u128,
     pub flags: u8,
     pub half_moves: u8,
     pub full_moves: u32,
+    pub piece_count: u8
 }
 
 // Concepts:
@@ -125,6 +127,7 @@ impl BoardState {
         };
         let full_moves_str = &full_remaining_fen[0..next_space];
         let full_moves = full_moves_str.parse::<u32>().unwrap();
+        let piece_count = bitboard.count_ones() as u8;
 
         Self {
             bitboard,
@@ -132,6 +135,7 @@ impl BoardState {
             flags,
             half_moves,
             full_moves,
+            piece_count
         }
     }
 
@@ -214,7 +218,7 @@ fn file_to_fen_string(file: u8, pieces: &u128, piece_index: i8) -> String {
                 r += &empty_count.to_string();
                 empty_count = 0;
             }
-            let piece = get_piece_code(pieces, pi);
+            let piece = get_piece_code(pieces, pi as u8);
             r += &get_piece_char(piece).to_string();
             pi -= 1;
         } else {

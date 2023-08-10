@@ -1,6 +1,6 @@
 use crate::shared::*;
 
-pub fn file_from_char(char: char) -> u16 {
+pub fn rank_from_char(char: char) -> u8 {
     match char {
         'a' => 0,
         'b' => 1,
@@ -10,7 +10,21 @@ pub fn file_from_char(char: char) -> u16 {
         'f' => 5,
         'g' => 6,
         'h' => 7,
-        _ => u16::MAX
+        _ => u8::MAX
+    }
+}
+
+pub fn char_from_rank(rank: u8) -> char {
+    match rank {
+        0 => 'a',
+        1 => 'b',
+        2 => 'c',
+        3 => 'd',
+        4 => 'e',
+        5 => 'f',
+        6 => 'g',
+        7 => 'h',
+        _ => '_'
     }
 }
 
@@ -32,7 +46,13 @@ pub fn get_piece_char(piece: u8) -> char {
     }
 }
 
-pub fn get_piece_code(pieces: &u128, piece_index: i8) -> u8 {
+pub fn get_piece_code(pieces: &u128, piece_index: u8) -> u8 {
     let piece: u8 = (pieces >> (piece_index * 4) & 0b1111).try_into().unwrap();
     return piece;
+}
+
+pub fn get_friendly_name_for_index(index: u8) -> String {
+    let file = (index / 8)+1;
+    let rank = index % 8;
+    format!("{}{file}", char_from_rank(rank))
 }
