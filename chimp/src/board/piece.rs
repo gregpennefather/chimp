@@ -51,8 +51,27 @@ pub fn get_piece_code(pieces: &u128, piece_index: u8) -> u8 {
     return piece;
 }
 
+pub fn get_file(index: u8) -> u8 {
+    index / 0b1000u8
+}
+
+pub fn get_rank(index: u8) -> u8 {
+    7 - (index % 8)
+}
+
 pub fn get_friendly_name_for_index(index: u8) -> String {
-    let file = (index / 8)+1;
-    let rank = index % 8;
+    let file = get_file(index)+1;
+    let rank = get_rank(index);
     format!("{}{file}", char_from_rank(rank))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    pub fn get_friendly_name_for_index_0_h1() {
+        let friendly_name = get_friendly_name_for_index(0);
+        assert!(friendly_name.eq("h1".into()), "not h1 but {friendly_name}");
+    }
 }

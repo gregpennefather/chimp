@@ -5,6 +5,8 @@ use crate::shared::*;
 #[derive(Default, Clone, Copy)]
 pub struct BoardState {
     pub bitboard: u64,
+    pub white_bitboard: u64,
+    pub black_bitboard: u64,
     pub pieces: u128,
     pub flags: u8,
     pub half_moves: u8,
@@ -20,6 +22,8 @@ pub struct BoardState {
 impl BoardState {
     pub fn from_fen(fen: &String) -> BoardState {
         let mut bitboard: u64 = 0;
+        let mut white_bitboard: u64 = 0;
+        let mut black_bitboard: u64 = 0;
         let mut pieces: u128 = 0;
         let mut flags = 0;
 
@@ -53,9 +57,6 @@ impl BoardState {
 
             let piece_position: u64 = 1 << ((file * 8) + rank);
 
-            bitboard = bitboard + piece_position;
-            rank = rank - 1;
-
             let piece: u8 = match char {
                 'P' => PAWN_INDEX,
                 'p' => PAWN_INDEX | BLACK_MASK,
@@ -71,6 +72,14 @@ impl BoardState {
                 'k' => KING_INDEX | BLACK_MASK,
                 _ => 0,
             };
+
+            bitboard = bitboard + piece_position;
+            if piece & BLACK_MASK > 0 {
+                black_bitboard += piece_position;
+            } else {
+                white_bitboard += piece_position;
+            }
+            rank = rank - 1;
 
             let piece_u128: u128 = piece as u128;
             pieces = (pieces << 4) | piece_u128;
@@ -131,6 +140,8 @@ impl BoardState {
 
         Self {
             bitboard,
+            white_bitboard,
+            black_bitboard,
             pieces,
             flags,
             half_moves,
@@ -150,7 +161,7 @@ impl BoardState {
             let pieces_in_row: i8 = file.count_ones().try_into().unwrap();
             fen += &file_to_fen_string(file, &self.pieces, piece_index);
             piece_index -= pieces_in_row;
-            if (file_index > 0) {
+            if file_index > 0 {
                 file_index -= 1;
                 fen += &"/".to_string();
             } else {

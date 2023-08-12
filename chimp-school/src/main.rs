@@ -12,7 +12,7 @@ fn main() {
     from_fen_test_cases();
     apply_move_test_cases();
     move_generation_test_cases();
-    perft(5);
+    perft(3);
 }
 
 fn misc_tests() {
@@ -195,7 +195,7 @@ fn test_fen_flags(fen: &String, desc: String, expected_flags: u8) -> bool {
 }
 
 fn apply_move_test_cases() {
-    let test_count = 9;
+    let test_count = 10;
     let mut success_count = 0;
 
     if test_move(
@@ -270,11 +270,19 @@ fn apply_move_test_cases() {
         success_count += 1;
     }
 
+    if test_move(
+        "rnbqkbnr/pppppppp/8/8/8/P7/1PPPPPPP/RNBQKBNR b KQkq - 0 1".into(),
+        "a7a6".into(),
+        "rnbqkbnr/1ppppppp/p7/8/8/P7/1PPPPPPP/RNBQKBNR w KQkq - 0 2".into(),
+    ) {
+        success_count += 1;
+    }
+
     print_test_group_result("apply_move_test_cases".into(), success_count, test_count);
 }
 
 fn move_generation_test_cases() {
-    let test_count = 3;
+    let test_count = 6;
     let mut success_count = 0;
 
     if test_move_generation_count(
@@ -294,6 +302,28 @@ fn move_generation_test_cases() {
     ) {
         success_count += 1;
     }
+
+    if test_move_generation_count(
+        "rnbqkbnr/pppppppp/8/8/8/P7/1PPPPPPP/RNBQKBNR b KQkq - 0 1".into(),
+        20,
+    ) {
+        success_count += 1;
+    }
+
+    if test_move_generation_count(
+        "rnbqkbnr/1ppppppp/p7/8/8/P7/1PPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+        19,
+    ) {
+        success_count += 1;
+    }
+
+    if test_move_generation_count(
+        "rnbqkbnr/1ppppppp/p7/8/8/P7/1PPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+        19,
+    ) {
+        success_count += 1;
+    }
+
 
     print_test_group_result(
         "move_generation_test_cases".into(),
@@ -316,9 +346,16 @@ fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
             ),
             false,
         );
+        let mut vec = Vec::new();
         for m in moves {
-            println!("{}", get_move_uci(m).red());
+            vec.push(get_move_uci(m));
         }
+        vec.sort();
+        for m_s in vec {
+            println!("{}", m_s.red());
+        }
+        println!("{}", bitboard_to_string(board.bitboard).yellow());
+        println!("{}", board_to_string(board.bitboard, board.pieces).red())
     }
     r
 }
@@ -441,13 +478,20 @@ fn perft(desired_depth: usize) {
         move_node_count = HashMap::new();
         let mut new_path_entries = Vec::new();
         for path in paths {
+            // println!("path {} as {}", path.0, get_move_uci(path.0));
             let mut new_board_states = Vec::new();
             for board_state in path.1.iter() {
                 let moves = board_state.generate_moves();
+                if path.0 == 8448 {
+                    println! {"FEN {} moves {}", board_state.to_fen().yellow(), moves.len().to_string().green()}
+                }
                 // println!("{}: move_count = {}", board_state.to_fen(), moves.len());
                 for m in moves {
                     new_board_states.push(board_state.apply_move(m));
-                    move_node_count.entry(path.0).and_modify(|v| *v += 1);
+                    move_node_count
+                        .entry(path.0)
+                        .and_modify(|v| *v += 1)
+                        .or_insert(0);
                     node_count += 1;
                 }
             }
@@ -458,7 +502,11 @@ fn perft(desired_depth: usize) {
 
         print_test_result(
             format!("Perft {}", depth + 1),
-            format!("Nodes {}/{} - ({:?})", node_count, EXPECTED_NODE_COUNT[depth], duration).into(),
+            format!(
+                "Nodes {}/{} - ({:?})",
+                node_count, EXPECTED_NODE_COUNT[depth], duration
+            )
+            .into(),
             node_count == EXPECTED_NODE_COUNT[depth],
         );
 
