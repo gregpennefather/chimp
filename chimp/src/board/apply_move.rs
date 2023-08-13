@@ -2,8 +2,8 @@ use super::{bitboard::BitboardExtensions, state::BoardState};
 use crate::{
     board::piece::*,
     shared::{
-        binary_utils::BinaryUtils, BISHOP_INDEX, BLACK_MASK, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX,
-        PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
+        binary_utils::BinaryUtils, BISHOP_INDEX, BLACK_MASK, CAPTURE_FLAG, EP_CAPTURE_FLAG,
+        KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
     },
 };
 
@@ -83,7 +83,7 @@ impl BoardState {
         let mut piece_index = 0;
         let mut next_start_pos = 0;
         let mut start_count = 0;
-        println!("gen-move-start --------------------------------------");
+        //println!("gen-move-start --------------------------------------");
         while piece_index < self.piece_count {
             let piece = get_piece_code(&self.pieces, piece_index);
             if is_white(piece) == white_turn {
@@ -95,86 +95,127 @@ impl BoardState {
             }
             piece_index += 1;
         }
-        println!("gen-move-end {}:{moves:?} --------------------------------------", moves.len());
 
         moves
     }
 
     pub fn generate_piece_moves(&self, position_index: u8, piece: u8) -> Vec<u16> {
         let piece_code = piece & PIECE_MASK;
+        let is_white = piece & BLACK_MASK == 0;
+        let opponent_bitboard = if is_white {
+            self.black_bitboard
+        } else {
+            self.white_bitboard
+        };
         match piece_code {
             PAWN_INDEX => generate_pawn_moves(
                 self.bitboard,
-                self.white_bitboard,
-                self.black_bitboard,
+                is_white,
+                opponent_bitboard,
                 position_index,
-                piece,
+                self.flags,
             ),
-            KNIGHT_INDEX => generate_knight_moves(self.bitboard, position_index, piece),
-            BISHOP_INDEX => generate_bishop_moves(self.bitboard, position_index, piece),
-            ROOK_INDEX => generate_rook_moves(self.bitboard, position_index, piece),
-            QUEEN_INDEX => generate_queen_moves(self.bitboard, position_index, piece),
-            KING_INDEX => generate_king_moves(self.bitboard, position_index, piece),
+            KNIGHT_INDEX => {
+                generate_knight_moves(self.bitboard, opponent_bitboard, position_index, piece)
+            }
+            BISHOP_INDEX => {
+                generate_bishop_moves(self.bitboard, opponent_bitboard, position_index, piece)
+            }
+            ROOK_INDEX => {
+                generate_rook_moves(self.bitboard, opponent_bitboard, position_index, piece)
+            }
+            QUEEN_INDEX => {
+                generate_queen_moves(self.bitboard, opponent_bitboard, position_index, piece)
+            }
+            KING_INDEX => {
+                generate_king_moves(self.bitboard, opponent_bitboard, position_index, piece)
+            }
             _ => vec![],
         }
     }
 }
 
-fn generate_knight_moves(bitboard: u64, pos: u8, piece: u8) -> Vec<u16> {
+fn generate_knight_moves(bitboard: u64, opponent_bitboard: u64, pos: u8, piece: u8) -> Vec<u16> {
     let mut vec: Vec<_> = Vec::new();
     let rank = pos % 8;
     // U2R1 = +16-1 = 15
-    if pos <= 48 && rank != 0 && !bitboard.occupied(pos + 15) {
-        vec.push(build_move(pos, pos + 15, 0b0));
+    if pos <= 48 && rank != 0 {
+        if opponent_bitboard.occupied(pos + 15) {
+            vec.push(build_move(pos, pos + 15, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos + 15) {
+            vec.push(build_move(pos, pos + 15, 0b0));
+        }
     }
     // U1R2 = +8-2 = 6
-    if pos <= 55 && rank > 1 && !bitboard.occupied(pos + 6) {
-        vec.push(build_move(pos, pos + 6, 0b0));
+    if pos <= 55 && rank > 1 {
+        if opponent_bitboard.occupied(pos + 6) {
+            vec.push(build_move(pos, pos + 6, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos + 6) {
+            vec.push(build_move(pos, pos + 6, 0b0));
+        }
     }
     // D1R2 = -8-2 = -10
     if pos >= 10 && rank > 1 && !bitboard.occupied(pos - 10) {
-        vec.push(build_move(pos, pos - 10, 0b0));
+        if opponent_bitboard.occupied(pos - 10) {
+            vec.push(build_move(pos, pos - 10, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos - 10) {
+            vec.push(build_move(pos, pos - 10, 0b0));
+        }
     }
     // D2R1 = -16-1 = -17
-    if pos >= 17 && rank != 0 && !bitboard.occupied(pos - 17) {
-        vec.push(build_move(pos, pos - 17, 0b0));
+    if pos >= 17 && rank != 0 {
+        if opponent_bitboard.occupied(pos - 17) {
+            vec.push(build_move(pos, pos - 17, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos - 17) {
+            vec.push(build_move(pos, pos - 17, 0b0));
+        }
     }
     // D2L1 = -16+1 = -15
-    if pos >= 15 && rank != 7 && !bitboard.occupied(pos - 15) {
-        vec.push(build_move(pos, pos - 15, 0b0));
+    if pos >= 15 && rank != 7 {
+        if opponent_bitboard.occupied(pos - 15) {
+            vec.push(build_move(pos, pos - 15, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos - 15) {
+            vec.push(build_move(pos, pos - 15, 0b0));
+        }
     }
     // D1L2 = -8+2 = -6
-    if pos >= 6 && rank < 6 && !bitboard.occupied(pos - 6) {
-        vec.push(build_move(pos, pos - 6, 0b0));
+    if pos >= 6 && rank < 6 {
+        if opponent_bitboard.occupied(pos - 6) {
+            vec.push(build_move(pos, pos - 6, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos - 6) {
+            vec.push(build_move(pos, pos - 6, 0b0));
+        }
     }
     // U1L2 = 8+2 = 10
-    if pos <= 53 && rank < 6 && !bitboard.occupied(pos + 10) {
-        vec.push(build_move(pos, pos + 10, 0b0));
+    if pos <= 53 && rank < 6 {
+        if opponent_bitboard.occupied(pos + 10) {
+            vec.push(build_move(pos, pos + 10, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos + 10) {
+            vec.push(build_move(pos, pos + 10, 0b0));
+        }
     }
     // U2L1 = 16+1 = 17
-    if pos <= 46 && rank != 7 && !bitboard.occupied(pos + 17) {
-        vec.push(build_move(pos, pos + 17, 0b0));
+    if pos <= 46 && rank != 7 {
+        if opponent_bitboard.occupied(pos + 17) {
+            vec.push(build_move(pos, pos + 17, CAPTURE_FLAG));
+        } else if !bitboard.occupied(pos + 17) {
+            vec.push(build_move(pos, pos + 17, 0b0));
+        }
     }
     vec
 }
 
 fn generate_pawn_moves(
     bitboard: u64,
-    white_bitboard: u64,
-    black_bitboard: u64,
+    is_white: bool,
+    opponent_bitboard: u64,
     position_index: u8,
-    piece: u8,
+    flags: u8,
 ) -> Vec<u16> {
     let mut vec: Vec<_> = Vec::new();
-    let is_white = piece & BLACK_MASK == 0;
-    let file = position_index / 8;
-    let rank = position_index % 8;
-    let opponent_bitboard = if is_white {
-        black_bitboard
-    } else {
-        white_bitboard
-    };
-
+    let file = get_file(position_index);
+    let rank = get_rank(position_index);
+    let ep_rank = flags >> 5;
     if is_white {
         if !bitboard.occupied(position_index + 8) {
             vec.push(build_move(position_index, position_index + 8, 0b0));
@@ -186,12 +227,28 @@ fn generate_pawn_moves(
             }
         }
 
-        if rank != 0 && opponent_bitboard.occupied(position_index + 7) {
-            vec.push(build_move(position_index, position_index + 7, 0b0));
+        if rank != 7 && opponent_bitboard.occupied(position_index + 7) {
+            vec.push(build_move(position_index, position_index + 7, CAPTURE_FLAG));
         }
 
-        if rank != 7 && opponent_bitboard.occupied(position_index + 9) {
-            vec.push(build_move(position_index, position_index + 9, 0b0));
+        if rank != 0 && opponent_bitboard.occupied(position_index + 9) {
+            vec.push(build_move(position_index, position_index + 9, CAPTURE_FLAG));
+        }
+
+        if ep_rank > 0 {
+            if rank != 0 && ep_rank == rank - 1 {
+                vec.push(build_move(
+                    position_index,
+                    position_index + 9,
+                    EP_CAPTURE_FLAG,
+                ));
+            } else if rank != 7 && ep_rank == rank + 1 {
+                vec.push(build_move(
+                    position_index,
+                    position_index + 7,
+                    EP_CAPTURE_FLAG,
+                ));
+            }
         }
     } else {
         if !bitboard.occupied(position_index - 8) {
@@ -202,37 +259,102 @@ fn generate_pawn_moves(
                     vec.push(build_move(position_index, position_index - 16, 0b0));
                 }
             }
+        }
 
-            if rank != 0 && opponent_bitboard.occupied(position_index - 9) {
-                vec.push(build_move(position_index, position_index - 9, 0b0));
-            }
+        if rank != 7 && opponent_bitboard.occupied(position_index - 9) {
+            vec.push(build_move(position_index, position_index - 9, CAPTURE_FLAG));
+        }
 
-            if rank != 7 && opponent_bitboard.occupied(position_index - 7) {
-                vec.push(build_move(position_index, position_index - 7, 0b0));
+        if rank != 0 && opponent_bitboard.occupied(position_index - 7) {
+            vec.push(build_move(position_index, position_index - 7, CAPTURE_FLAG));
+        }
+
+        if ep_rank > 0 {
+            if rank != 0 && ep_rank == rank - 1 {
+                vec.push(build_move(
+                    position_index,
+                    position_index - 7,
+                    EP_CAPTURE_FLAG,
+                ));
+            } else if rank != 7 && ep_rank == rank + 1 {
+                vec.push(build_move(
+                    position_index,
+                    position_index - 9,
+                    EP_CAPTURE_FLAG,
+                ));
             }
         }
     }
     vec
 }
 
-fn generate_bishop_moves(bitboard: u64, position_index: u8, piece: u8) -> Vec<u16> {
-    sliding_move_generator(bitboard, position_index, true, false, false)
+fn generate_bishop_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+    piece: u8,
+) -> Vec<u16> {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        true,
+        false,
+        false,
+    )
 }
 
-fn generate_rook_moves(bitboard: u64, position_index: u8, piece: u8) -> Vec<u16> {
-    sliding_move_generator(bitboard, position_index, false, true, false)
+fn generate_rook_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+    piece: u8,
+) -> Vec<u16> {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        false,
+        true,
+        false,
+    )
 }
 
-fn generate_queen_moves(bitboard: u64, position_index: u8, piece: u8) -> Vec<u16> {
-    sliding_move_generator(bitboard, position_index, true, true, false)
+fn generate_queen_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+    piece: u8,
+) -> Vec<u16> {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        true,
+        true,
+        false,
+    )
 }
 
-fn generate_king_moves(bitboard: u64, position_index: u8, piece: u8) -> Vec<u16> {
-    sliding_move_generator(bitboard, position_index, true, true, true)
+fn generate_king_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+    piece: u8,
+) -> Vec<u16> {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        true,
+        true,
+        true,
+    )
 }
 
 fn sliding_move_generator(
     bitboard: u64,
+    opponent_bitboard: u64,
     pos: u8,
     diag: bool,
     straight: bool,
@@ -247,7 +369,10 @@ fn sliding_move_generator(
 
         for i in 0..positions_d_l.len() {
             if (i == positions_d_l.len() - 1) && bitboard.occupied(positions_d_l[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_d_l[i]) {
+                    moves.push(build_move(pos, positions_d_l[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_d_l[i], 0b0));
         }
@@ -256,19 +381,22 @@ fn sliding_move_generator(
 
         for i in 0..positions_u_l.len() {
             if (i == positions_u_l.len() - 1) && bitboard.occupied(positions_u_l[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_u_l[i]) {
+                    moves.push(build_move(pos, positions_u_l[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_u_l[i], 0b0));
         }
 
         let positions_u_r = get_available_slide_pos(bitboard, pos, 1, 1, depth);
-        println!("{pos} ur {positions_u_r:?}");
         for i in 0..positions_u_r.len() {
             if (i == positions_u_r.len() - 1) && bitboard.occupied(positions_u_r[i]) {
-                println!("Not adding {}", get_friendly_name_for_index(positions_u_r[i]));
-                continue;
+                if opponent_bitboard.occupied(positions_u_r[i]) {
+                    moves.push(build_move(pos, positions_u_r[i], CAPTURE_FLAG));
+                }
+                break;
             }
-            println!("Adding {} {}", get_friendly_name_for_index(positions_u_r[i]), get_move_uci(build_move(pos, positions_u_r[i], 0b0)));
             moves.push(build_move(pos, positions_u_r[i], 0b0));
         }
 
@@ -276,7 +404,10 @@ fn sliding_move_generator(
 
         for i in 0..positions_d_r.len() {
             if (i == positions_d_r.len() - 1) && bitboard.occupied(positions_d_r[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_d_r[i]) {
+                    moves.push(build_move(pos, positions_d_r[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_d_r[i], 0b0));
         }
@@ -287,7 +418,10 @@ fn sliding_move_generator(
 
         for i in 0..positions_r.len() {
             if (i == positions_r.len() - 1) && bitboard.occupied(positions_r[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_r[i]) {
+                    moves.push(build_move(pos, positions_r[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_r[i], 0b0));
         }
@@ -296,7 +430,10 @@ fn sliding_move_generator(
 
         for i in 0..positions_l.len() {
             if (i == positions_l.len() - 1) && bitboard.occupied(positions_l[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_l[i]) {
+                    moves.push(build_move(pos, positions_l[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_l[i], 0b0));
         }
@@ -305,7 +442,10 @@ fn sliding_move_generator(
 
         for i in 0..positions_u.len() {
             if (i == positions_u.len() - 1) && bitboard.occupied(positions_u[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_u[i]) {
+                    moves.push(build_move(pos, positions_u[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_u[i], 0b0));
         }
@@ -314,13 +454,14 @@ fn sliding_move_generator(
 
         for i in 0..positions_d.len() {
             if (i == positions_d.len() - 1) && bitboard.occupied(positions_d[i]) {
-                continue;
+                if opponent_bitboard.occupied(positions_d[i]) {
+                    moves.push(build_move(pos, positions_d[i], CAPTURE_FLAG));
+                }
+                break;
             }
             moves.push(build_move(pos, positions_d[i], 0b0));
         }
     }
-
-    println!("moves : {moves:?}");
 
     moves
 }
@@ -479,6 +620,8 @@ pub fn get_move_uci(m: u16) -> String {
 
 #[cfg(test)]
 mod test {
+    use crate::shared::bitboard_to_string;
+
     use super::*;
 
     #[test]
@@ -536,10 +679,17 @@ mod test {
         let bitboard = 0b0u64;
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(2, 0), 1, -1, 8);
         assert_eq!(result.len(), 2);
-        assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(1, 1), "1,1 issue");
-        assert_eq!(result.get(1).unwrap(), &rank_and_file_to_index(0, 2), "0,2 issue");
+        assert_eq!(
+            result.get(0).unwrap(),
+            &rank_and_file_to_index(1, 1),
+            "1,1 issue"
+        );
+        assert_eq!(
+            result.get(1).unwrap(),
+            &rank_and_file_to_index(0, 2),
+            "0,2 issue"
+        );
     }
-
 
     #[test]
     pub fn get_available_slide_pos_a3_diag_up_right_blocked_at_d6() {
@@ -580,10 +730,10 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
         );
-        let r = sliding_move_generator(board.bitboard, 0, false, true, false);
+        let r = sliding_move_generator(board.bitboard, 0b0, 0, false, true, false);
         assert_eq!(r.len(), 1);
 
-        let rook_moves = generate_rook_moves(board.bitboard, 0, 0b0);
+        let rook_moves = generate_rook_moves(board.bitboard, 0b0, 0, 0b0);
         assert_eq!(rook_moves.len(), 1);
     }
 
@@ -592,10 +742,10 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
         );
-        let r = sliding_move_generator(board.bitboard, 7, false, true, false);
+        let r = sliding_move_generator(board.bitboard, 0b0, 7, false, true, false);
         assert_eq!(r.len(), 0);
 
-        let rook_moves = generate_rook_moves(board.bitboard, 7, 0b0);
+        let rook_moves = generate_rook_moves(board.bitboard, 0b0, 7, 0b0);
         assert_eq!(rook_moves.len(), 0);
     }
 
@@ -604,7 +754,7 @@ mod test {
         let board = BoardState::from_fen(
             &"r1bqkbnr/pppppppp/n7/8/1P6/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1".into(),
         );
-        let r = generate_bishop_moves(board.bitboard, 5, 0b0);
+        let r = generate_bishop_moves(board.bitboard, 0b0, 5, 0b0);
         assert_eq!(r.len(), 2, "{r:?}");
     }
 
@@ -613,13 +763,57 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
         );
-        let r = get_available_slide_pos(board.bitboard, 5, 1,1,8);
+        let r = get_available_slide_pos(board.bitboard, 5, 1, 1, 8);
         assert_eq!(r.len(), 5, "{r:?}");
         assert_eq!(r.get(0).unwrap(), &rank_and_file_to_index(3, 1));
         assert_eq!(r.get(1).unwrap(), &rank_and_file_to_index(4, 2));
         assert_eq!(r.get(2).unwrap(), &rank_and_file_to_index(5, 3));
         assert_eq!(r.get(3).unwrap(), &rank_and_file_to_index(6, 4));
         assert_eq!(r.get(4).unwrap(), &rank_and_file_to_index(7, 5));
+    }
 
+    #[test]
+    pub fn generate_pawn_moves_en_passant() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/2pppppp/p7/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 1".into(),
+        );
+        println!("{}", bitboard_to_string(board.black_bitboard));
+        let moves = generate_pawn_moves(
+            board.bitboard,
+            true,
+            board.black_bitboard,
+            rank_and_file_to_index(0, 4),
+            board.flags,
+        );
+
+        assert_eq!(moves.len(), 1);
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(39, rank_and_file_to_index(1, 5), EP_CAPTURE_FLAG)
+        );
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_en_passant_black() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/ppppppp1/8/8/6Pp/P6P/1PPPPP2/RNBQKBNR b KQkq g3 0 1".into(),
+        );
+        let moves = generate_pawn_moves(
+            board.bitboard,
+            false,
+            board.white_bitboard,
+            rank_and_file_to_index(7, 3),
+            board.flags,
+        );
+
+        assert_eq!(moves.len(), 1);
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(
+                rank_and_file_to_index(7, 3),
+                rank_and_file_to_index(6, 2),
+                EP_CAPTURE_FLAG
+            )
+        );
     }
 }

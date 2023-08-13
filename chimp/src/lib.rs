@@ -1,2 +1,2 @@
 pub mod board;
-mod shared;
+pub mod shared;

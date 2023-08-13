@@ -4,6 +4,16 @@
         ".\\chimp-school\\Cargo.toml",
     ],
     "cSpell.words": [
-        "bitboard"
+        "bitboard",
+        "bqkbnr",
+        "BQKBNR",
+        "dualing",
+        "flexi",
+        "NBQKBNR",
+        "perft",
+        "Pieceboard",
+        "rnbqkb",
+        "RNBQKB",
+        "rnbqkbnr"
     ]
 }

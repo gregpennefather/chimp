@@ -1,20 +1,18 @@
 use std::{cmp::Ordering, collections::HashMap, time::Instant};
 
-use chimp::board::{
+use chimp::{board::{
     apply_move::{get_move_uci, standard_notation_to_move},
     piece::{get_friendly_name_for_index, get_piece_char},
     state::*,
-};
+}, shared::bitboard_to_string};
 use colored::Colorize;
 
 fn main() {
-    // misc_tests();
-    // from_fen_test_cases();
-    // apply_move_test_cases();
+    misc_tests();
+    from_fen_test_cases();
+    apply_move_test_cases();
     move_generation_test_cases();
-    //perft(3);
-    //flexi_perft("rnbqkbnr/pppppppp/8/8/8/3P4/PPP1PPPP/RNBQKBNR b KQkq - 0 1".into(), 2, 539);
-    test_move_generation_count("rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(), 27);
+    perft(4);
 }
 
 fn misc_tests() {
@@ -460,27 +458,6 @@ fn get_board_square_char(pieces: u128, index: i32) -> char {
     let piece: u8 = (pieces >> (index * 4) & 0b1111).try_into().unwrap();
     return get_piece_char(piece);
 }
-
-fn bitboard_to_string(bitboard: u64) -> String {
-    let mut r: String = "".to_string();
-
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 7)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 6)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 5)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 4)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 3)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 2)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 1)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 0)).as_str();
-
-    r
-}
-
-fn get_bitboard_file(bitboard: u64, file: u8) -> u8 {
-    let r: u8 = (bitboard >> (file * 8) & 255) as u8;
-    r
-}
-
 const EXPECTED_NODE_COUNT: [usize; 6] = [20, 400, 8902, 197281, 4865609, 119060324];
 
 #[derive(Default, Clone)]
@@ -515,14 +492,9 @@ fn perft(desired_depth: usize) {
         move_node_count = HashMap::new();
         let mut new_path_entries = Vec::new();
         for path in paths {
-            // println!("path {} as {}", path.0, get_move_uci(path.0));
             let mut new_board_states = Vec::new();
             for board_state in path.1.iter() {
                 let moves = board_state.generate_moves();
-                if path.0 == 8448 {
-                    println! {"FEN {} moves {}", board_state.to_fen().yellow(), moves.len().to_string().green()}
-                }
-                // println!("{}: move_count = {}", board_state.to_fen(), moves.len());
                 for m in moves {
                     new_board_states.push(board_state.apply_move(m));
                     move_node_count
