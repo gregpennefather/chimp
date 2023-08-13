@@ -58,6 +58,9 @@ pub fn get_file(index: u8) -> u8 {
 pub fn get_rank(index: u8) -> u8 {
     7 - (index % 8)
 }
+pub fn get_rank_i8(index: i8) -> u8 {
+    7 - (index % 8) as u8
+}
 
 pub fn get_friendly_name_for_index(index: u8) -> String {
     let file = get_file(index)+1;

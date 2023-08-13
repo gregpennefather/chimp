@@ -83,6 +83,7 @@ impl BoardState {
         let mut piece_index = 0;
         let mut next_start_pos = 0;
         let mut start_count = 0;
+        println!("gen-move-start --------------------------------------");
         while piece_index < self.piece_count {
             let piece = get_piece_code(&self.pieces, piece_index);
             if is_white(piece) == white_turn {
@@ -94,6 +95,7 @@ impl BoardState {
             }
             piece_index += 1;
         }
+        println!("gen-move-end {}:{moves:?} --------------------------------------", moves.len());
 
         moves
     }
@@ -165,6 +167,8 @@ fn generate_pawn_moves(
 ) -> Vec<u16> {
     let mut vec: Vec<_> = Vec::new();
     let is_white = piece & BLACK_MASK == 0;
+    let file = position_index / 8;
+    let rank = position_index % 8;
     let opponent_bitboard = if is_white {
         black_bitboard
     } else {
@@ -175,35 +179,35 @@ fn generate_pawn_moves(
         if !bitboard.occupied(position_index + 8) {
             vec.push(build_move(position_index, position_index + 8, 0b0));
 
-            if position_index / 8 == 1 {
+            if file == 1 {
                 if !bitboard.occupied(position_index + 16) {
                     vec.push(build_move(position_index, position_index + 16, 0b0));
                 }
             }
         }
 
-        if opponent_bitboard.occupied(position_index + 7) {
+        if rank != 0 && opponent_bitboard.occupied(position_index + 7) {
             vec.push(build_move(position_index, position_index + 7, 0b0));
         }
 
-        if opponent_bitboard.occupied(position_index + 9) {
+        if rank != 7 && opponent_bitboard.occupied(position_index + 9) {
             vec.push(build_move(position_index, position_index + 9, 0b0));
         }
     } else {
         if !bitboard.occupied(position_index - 8) {
             vec.push(build_move(position_index, position_index - 8, 0b0));
 
-            if position_index / 8 == 6 {
+            if file == 6 {
                 if !bitboard.occupied(position_index - 16) {
                     vec.push(build_move(position_index, position_index - 16, 0b0));
                 }
             }
 
-            if opponent_bitboard.occupied(position_index - 9) {
+            if rank != 0 && opponent_bitboard.occupied(position_index - 9) {
                 vec.push(build_move(position_index, position_index - 9, 0b0));
             }
 
-            if opponent_bitboard.occupied(position_index - 7) {
+            if rank != 7 && opponent_bitboard.occupied(position_index - 7) {
                 vec.push(build_move(position_index, position_index - 7, 0b0));
             }
         }
@@ -258,11 +262,13 @@ fn sliding_move_generator(
         }
 
         let positions_u_r = get_available_slide_pos(bitboard, pos, 1, 1, depth);
-
+        println!("{pos} ur {positions_u_r:?}");
         for i in 0..positions_u_r.len() {
             if (i == positions_u_r.len() - 1) && bitboard.occupied(positions_u_r[i]) {
+                println!("Not adding {}", get_friendly_name_for_index(positions_u_r[i]));
                 continue;
             }
+            println!("Adding {} {}", get_friendly_name_for_index(positions_u_r[i]), get_move_uci(build_move(pos, positions_u_r[i], 0b0)));
             moves.push(build_move(pos, positions_u_r[i], 0b0));
         }
 
@@ -314,6 +320,8 @@ fn sliding_move_generator(
         }
     }
 
+    println!("moves : {moves:?}");
+
     moves
 }
 
@@ -328,7 +336,14 @@ fn get_available_slide_pos(
     let delta = (file_delta * 8) + (-1 * rank_delta);
     let mut check_pos = pos as i8 + delta;
     let mut check_file = get_file(pos);
+    let check_rank = get_rank(pos);
     while check_pos > -1 && check_pos < 64 {
+        let cur_rank = get_rank_i8(check_pos);
+
+        if (rank_delta > 0 && cur_rank < check_rank) || (rank_delta < 0 && cur_rank > check_rank) {
+            break;
+        }
+
         results.push(check_pos.try_into().unwrap());
         if bitboard.occupied_i8(check_pos) {
             break;
@@ -337,6 +352,7 @@ fn get_available_slide_pos(
         if file_delta == 0 && check_file != get_file(check_pos as u8) {
             break;
         }
+
         check_file = get_file(check_pos as u8);
 
         if max_depth == 1 {
@@ -516,6 +532,16 @@ mod test {
     }
 
     #[test]
+    pub fn get_available_slide_pos_c1_diag_up_left() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(2, 0), 1, -1, 8);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(1, 1), "1,1 issue");
+        assert_eq!(result.get(1).unwrap(), &rank_and_file_to_index(0, 2), "0,2 issue");
+    }
+
+
+    #[test]
     pub fn get_available_slide_pos_a3_diag_up_right_blocked_at_d6() {
         let bitboard = 0b0u64.flip(rank_and_file_to_index(3, 5));
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(0, 2), 1, 1, 8);
@@ -554,10 +580,10 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
         );
-        let r = sliding_move_generator(board.bitboard, 7, false, true, false);
+        let r = sliding_move_generator(board.bitboard, 0, false, true, false);
         assert_eq!(r.len(), 1);
 
-        let rook_moves = generate_rook_moves(board.bitboard, 7, 0b0);
+        let rook_moves = generate_rook_moves(board.bitboard, 0, 0b0);
         assert_eq!(rook_moves.len(), 1);
     }
 
@@ -566,10 +592,34 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
         );
-        let r = sliding_move_generator(board.bitboard, 0, false, true, false);
+        let r = sliding_move_generator(board.bitboard, 7, false, true, false);
         assert_eq!(r.len(), 0);
 
-        let rook_moves = generate_rook_moves(board.bitboard, 0, 0b0);
+        let rook_moves = generate_rook_moves(board.bitboard, 7, 0b0);
         assert_eq!(rook_moves.len(), 0);
+    }
+
+    #[test]
+    pub fn generate_bishop_moves_b2_pawn_opening() {
+        let board = BoardState::from_fen(
+            &"r1bqkbnr/pppppppp/n7/8/1P6/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+        let r = generate_bishop_moves(board.bitboard, 5, 0b0);
+        assert_eq!(r.len(), 2, "{r:?}");
+    }
+
+    #[test]
+    pub fn generate_bishop_moves_d2_pawn_opening() {
+        let board = BoardState::from_fen(
+            &"rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+        let r = get_available_slide_pos(board.bitboard, 5, 1,1,8);
+        assert_eq!(r.len(), 5, "{r:?}");
+        assert_eq!(r.get(0).unwrap(), &rank_and_file_to_index(3, 1));
+        assert_eq!(r.get(1).unwrap(), &rank_and_file_to_index(4, 2));
+        assert_eq!(r.get(2).unwrap(), &rank_and_file_to_index(5, 3));
+        assert_eq!(r.get(3).unwrap(), &rank_and_file_to_index(6, 4));
+        assert_eq!(r.get(4).unwrap(), &rank_and_file_to_index(7, 5));
+
     }
 }
