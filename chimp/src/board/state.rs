@@ -1,17 +1,22 @@
-use crate::board::piece::*;
+use crate::board::piece_utils::*;
 use crate::shared::binary_utils::BinaryUtils;
 use crate::shared::*;
 
-#[derive(Default, Clone, Copy)]
+use super::board_utils::{rank_and_file_to_index, rank_and_file_to_index_i8};
+
+#[derive(Clone, Copy)]
 pub struct BoardState {
     pub bitboard: u64,
     pub white_bitboard: u64,
     pub black_bitboard: u64,
     pub pieces: u128,
     pub flags: u8,
+    pub ep_rank: u8,
     pub half_moves: u8,
     pub full_moves: u32,
-    pub piece_count: u8
+    pub piece_count: u8,
+    pub white_king_index: u8,
+    pub black_king_index: u8,
 }
 
 // Concepts:
@@ -25,18 +30,21 @@ impl BoardState {
         let mut white_bitboard: u64 = 0;
         let mut black_bitboard: u64 = 0;
         let mut pieces: u128 = 0;
-        let mut flags = 0;
+        let mut flags: u8 = 0;
+        let mut ep_rank: u8 = 0;
+        let mut white_king_index = 0;
+        let mut black_king_index = 0;
 
         let mut i: usize = 0;
-        let mut file: i16 = 7;
-        let mut rank: i16 = 7;
+        let mut file: i8 = 7;
+        let mut rank: i8 = 7;
         // Pieces
         while i < fen.len() {
             let char: char = fen.chars().nth(i).unwrap();
             i += 1;
 
             if char.is_ascii_digit() {
-                let digit = char as i16 - 0x30;
+                let digit = (char as i16 - 0x30) as i8;
                 rank -= digit;
                 continue;
             }
@@ -55,7 +63,8 @@ impl BoardState {
                 panic!("Rank shouldn't be < 0 at {}", &fen[..i]);
             }
 
-            let piece_position: u64 = 1 << ((file * 8) + rank);
+            let position_index = ((file * 8) + rank) as u8; // I dont like this - we should generate the indexes the same everywhere
+            let piece_position: u64 = 1 << ((file * 8) + rank); // This should probably be updated to use the position_index but thats breaking things for some reason
 
             let piece: u8 = match char {
                 'P' => PAWN_INDEX,
@@ -68,8 +77,14 @@ impl BoardState {
                 'r' => ROOK_INDEX | BLACK_MASK,
                 'Q' => QUEEN_INDEX,
                 'q' => QUEEN_INDEX | BLACK_MASK,
-                'K' => KING_INDEX,
-                'k' => KING_INDEX | BLACK_MASK,
+                'K' => {
+                    white_king_index = position_index;
+                    KING_INDEX
+                }
+                'k' => {
+                    black_king_index = position_index;
+                    KING_INDEX | BLACK_MASK
+                }
                 _ => 0,
             };
 
@@ -95,7 +110,7 @@ impl BoardState {
         i += 2;
 
         // Castling
-        let mut can_castle: u8 = 0;
+        let mut can_castle = 0;
         while let c = fen.chars().nth(i).unwrap() {
             i += 1;
             match c {
@@ -116,9 +131,11 @@ impl BoardState {
         // En Passant
         let ep_char = fen.chars().nth(i).unwrap().to_ascii_lowercase();
         if ep_char != '-' {
-            let rank = RANKS.find(ep_char).unwrap() as u8;
-            flags += rank << 5;
+            flags = flags | &0b100000;
+            ep_rank = RANKS.find(ep_char).unwrap() as u8;
             i += 1;
+        } else {
+            flags = flags & 0b011111;
         }
         i += 2;
 
@@ -144,9 +161,12 @@ impl BoardState {
             black_bitboard,
             pieces,
             flags,
+            ep_rank,
             half_moves,
             full_moves,
-            piece_count
+            piece_count,
+            white_king_index,
+            black_king_index,
         }
     }
 
@@ -197,10 +217,9 @@ impl BoardState {
         }
 
         // En Passant
-        let rank = self.flags >> 5;
         fen += " ";
-        if rank > 0 {
-            let rank_char = RANKS.chars().nth(rank as usize).unwrap();
+        if self.flags & 0b100000 > 0 {
+            let rank_char = RANKS.chars().nth(self.ep_rank as usize).unwrap();
             fen += &rank_char.to_string();
             // if it's whites move next then this move was by black
             fen += if white_move { "6".into() } else { "3".into() };
@@ -214,6 +233,12 @@ impl BoardState {
         fen += &format!(" {}", self.full_moves);
 
         fen
+    }
+}
+
+impl Default for BoardState {
+    fn default() -> Self {
+        BoardState::from_fen(&"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into())
     }
 }
 

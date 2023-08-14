@@ -1,10 +1,13 @@
 use std::{cmp::Ordering, collections::HashMap, time::Instant};
 
-use chimp::{board::{
-    apply_move::{get_move_uci, standard_notation_to_move},
-    piece::{get_friendly_name_for_index, get_piece_char},
-    state::*,
-}, shared::bitboard_to_string};
+use chimp::{
+    board::{
+        move_utils::{get_move_uci, standard_notation_to_move},
+        piece_utils::get_piece_char,
+        state::BoardState, board_utils::rank_and_file_to_index,
+    },
+    shared::bitboard_to_string,
+};
 use colored::Colorize;
 
 fn main() {
@@ -12,7 +15,8 @@ fn main() {
     from_fen_test_cases();
     apply_move_test_cases();
     move_generation_test_cases();
-    perft(4);
+    perft(4, true);
+    // flexi_perft("rnbqkbnr/pppp1ppp/8/1B2p3/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 0 1".into(), 0, 26)
 }
 
 fn misc_tests() {
@@ -76,7 +80,7 @@ fn misc_tests() {
 }
 
 fn from_fen_test_cases() {
-    let test_count = 9;
+    let test_count = 10;
     let mut success_count = 0;
     // Initial Board State
     let initial_board_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into();
@@ -97,7 +101,16 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &initial_board_fen,
         "Initial Board State flags".into(),
-        0b00011111,
+        0b011111,
+        0,
+    ) {
+        success_count += 1;
+    }
+    if test_fen_king_positions(
+        &initial_board_fen,
+        "Initial Board State flags".into(),
+        rank_and_file_to_index(4,0),
+        rank_and_file_to_index(4,7),
     ) {
         success_count += 1;
     }
@@ -120,7 +133,8 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &dualing_kings_fen,
         "Dualing Kings opposite corners flags".into(),
-        0b00000000,
+        0b0,
+        0,
     ) {
         success_count += 1;
     }
@@ -144,7 +158,8 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &white_e_pawn_opening_fen,
         "White E pawn opening flags".into(),
-        0b10011110,
+        0b00111110,
+        4,
     ) {
         success_count += 1;
     }
@@ -182,16 +197,39 @@ fn test_fen_pieces(fen: &String, desc: String, expected_pieces: u128) -> bool {
     r
 }
 
-fn test_fen_flags(fen: &String, desc: String, expected_flags: u8) -> bool {
+fn test_fen_flags(fen: &String, desc: String, expected_flags: u8, expected_ep: u8) -> bool {
     let board_state = BoardState::from_fen(fen);
-    let r = board_state.flags == expected_flags;
-    if !r {
-        print_test_result(desc, "FLags do not match expected".into(), false);
+    let r = if board_state.flags != expected_flags {
+        print_test_result(desc, "Flags do not match expected".into(), false);
         let p_r = format!("{:b}", board_state.flags);
         let p_e = format!("{:b}", expected_flags);
         println!("{} vs {}", p_r.red(), p_e.yellow());
+        return false;
+    };
+    if board_state.ep_rank != expected_ep {
+        print_test_result(desc, "EP does not match expected".into(), false);
+        let p_r = format!("{:b}", board_state.ep_rank);
+        let p_e = format!("{:b}", expected_ep);
+        println!("{} vs {}", p_r.red(), p_e.yellow());
+        return false;
     }
-    r
+    true
+}
+
+fn test_fen_king_positions(fen: &String, desc: String, expected_white_king_position_index: u8, expected_black_king_position_index: u8) -> bool {
+    let board_state = BoardState::from_fen(fen);
+    let mut flag = true;
+    if board_state.white_king_index != expected_white_king_position_index {
+        print_test_result(desc.clone(), "White King positions do not match expected".into(), false);
+        println!("white: {} vs {}", board_state.white_king_index.to_string().red(), expected_white_king_position_index.to_string().yellow());
+        flag =  false;
+    };
+    if board_state.black_king_index != expected_black_king_position_index {
+        print_test_result(desc, "Black King positions do not match expected".into(), false);
+        println!("black: {} vs {}", board_state.black_king_index.to_string().red(), expected_black_king_position_index.to_string().yellow());
+        flag = false;
+    }
+    flag
 }
 
 fn apply_move_test_cases() {
@@ -282,7 +320,7 @@ fn apply_move_test_cases() {
 }
 
 fn move_generation_test_cases() {
-    let test_count = 13;
+    let test_count = 14;
     let mut success_count = 0;
 
     if test_move_generation_count(
@@ -345,22 +383,37 @@ fn move_generation_test_cases() {
         success_count += 1;
     }
 
-    if test_move_generation_count("r1bqkbnr/pppppppp/n7/8/1P6/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1".into(), 21) {
+    if test_move_generation_count(
+        "r1bqkbnr/pppppppp/n7/8/1P6/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+        21,
+    ) {
         success_count += 1;
     }
 
-    if test_move_generation_count("rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(), 27) {
+    if test_move_generation_count(
+        "rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
+        27,
+    ) {
         success_count += 1;
     }
 
-    if test_move_generation_count("rnbqkbnr/pppppp1p/8/6p1/8/3P4/PPP1PPPP/RNBQKBNR w KQkq g6 0 1".into(), 26) {
+    if test_move_generation_count(
+        "rnbqkbnr/pppppp1p/8/6p1/8/3P4/PPP1PPPP/RNBQKBNR w KQkq g6 0 1".into(),
+        26,
+    ) {
         success_count += 1;
     }
 
-    if test_move_generation_count("rnbqkbnr/ppppppp1/7p/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(), 27) {
+    if test_move_generation_count(
+        "rnbqkbnr/ppp1pppp/8/1B1p4/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 0 1".into(),
+        5,
+    ) {
         success_count += 1;
     }
 
+    if test_move_generation_count("1k6/1P6/2K5/8/8/8/8/8 b - - 0 1".into(), 1) {
+        success_count += 1;
+    };
 
     print_test_group_result(
         "move_generation_test_cases".into(),
@@ -371,7 +424,8 @@ fn move_generation_test_cases() {
 
 fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
     let board = BoardState::from_fen(&fen);
-    let moves = board.generate_moves();
+    let metrics = board.generate_psudolegals();
+    let moves = board.generate_legal_moves(metrics);
     let r = moves.len() == expected_count;
     if !r {
         print_test_result(
@@ -458,12 +512,12 @@ fn get_board_square_char(pieces: u128, index: i32) -> char {
     let piece: u8 = (pieces >> (index * 4) & 0b1111).try_into().unwrap();
     return get_piece_char(piece);
 }
-const EXPECTED_NODE_COUNT: [usize; 6] = [20, 400, 8902, 197281, 4865609, 119060324];
+const EXPECTED_NODE_COUNT: [usize; 5] = [20, 400, 8902, 197281, 4865609];
 
 #[derive(Default, Clone)]
 struct MovePath(u16, Vec<BoardState>);
 
-fn perft(desired_depth: usize) {
+fn perft(desired_depth: usize, quiet: bool) {
     let mut depth = 0;
     let mut node_count = 0;
     let mut move_node_count: HashMap<u16, usize> = HashMap::new();
@@ -471,8 +525,8 @@ fn perft(desired_depth: usize) {
     let initial_board_state =
         BoardState::from_fen(&"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
     let mut paths: Vec<MovePath> = Vec::new();
-    let initial_moves = initial_board_state.generate_moves();
-    for m in initial_moves {
+    let metrics = initial_board_state.generate_psudolegals();
+    for m in metrics.psudolegal_moves {
         node_count += 1;
         move_node_count.entry(m).or_insert(1);
         let new_board_states = vec![initial_board_state.apply_move(m)];
@@ -494,8 +548,8 @@ fn perft(desired_depth: usize) {
         for path in paths {
             let mut new_board_states = Vec::new();
             for board_state in path.1.iter() {
-                let moves = board_state.generate_moves();
-                for m in moves {
+                let metrics = board_state.generate_psudolegals();
+                for m in metrics.psudolegal_moves {
                     new_board_states.push(board_state.apply_move(m));
                     move_node_count
                         .entry(path.0)
@@ -519,7 +573,7 @@ fn perft(desired_depth: usize) {
             node_count == EXPECTED_NODE_COUNT[depth],
         );
 
-        if node_count != EXPECTED_NODE_COUNT[depth] {
+        if !quiet && node_count != EXPECTED_NODE_COUNT[depth] {
             let mut keys = Vec::new();
             for &key in move_node_count.keys() {
                 keys.push(key)
@@ -544,15 +598,15 @@ fn flexi_perft(fen: String, desired_depth: usize, expected_nodes: usize) {
 
     let initial_board_state = BoardState::from_fen(&fen);
     let mut paths: Vec<MovePath> = Vec::new();
-    let initial_moves = initial_board_state.generate_moves();
-    for m in initial_moves {
+    let metrics = initial_board_state.generate_psudolegals();
+    for m in metrics.psudolegal_moves {
         node_count += 1;
         move_node_count.entry(m).or_insert(1);
         let new_board_states = vec![initial_board_state.apply_move(m)];
         paths.push(MovePath(m, new_board_states))
     }
 
-    if (desired_depth == 1) {
+    if desired_depth == 1 {
         print_test_result(
             format!("Perft {}", depth + 1),
             format!("Nodes {}/{}", node_count, desired_depth).into(),
@@ -572,12 +626,12 @@ fn flexi_perft(fen: String, desired_depth: usize, expected_nodes: usize) {
             // println!("path {} as {}", path.0, get_move_uci(path.0));
             let mut new_board_states = Vec::new();
             for board_state in path.1.iter() {
-                let moves = board_state.generate_moves();
+                let metrics = board_state.generate_psudolegals();
                 if path.0 == 8448 {
-                    println! {"FEN {} moves {}", board_state.to_fen().yellow(), moves.len().to_string().green()}
+                    println! {"FEN {} moves {}", board_state.to_fen().yellow(), metrics.psudolegal_moves.len().to_string().green()}
                 }
                 // println!("{}: move_count = {}", board_state.to_fen(), moves.len());
-                for m in moves {
+                for m in metrics.psudolegal_moves {
                     new_board_states.push(board_state.apply_move(m));
                     move_node_count
                         .entry(path.0)
@@ -591,32 +645,31 @@ fn flexi_perft(fen: String, desired_depth: usize, expected_nodes: usize) {
         paths = new_path_entries;
         let duration = start.elapsed();
 
-        println!("Perft {} - {}", depth+1, node_count);
+        println!("Perft {} - {}", depth + 1, node_count);
         depth += 1;
     }
 
     print_test_result(
         format!("Final outcome Perft {}", depth),
-        format!(
-            "Nodes {}/{}",
-            node_count, expected_nodes
-        )
-        .into(),
+        format!("Nodes {}/{}", node_count, expected_nodes).into(),
         node_count == expected_nodes,
     );
 
-        let mut keys = Vec::new();
-        for &key in move_node_count.keys() {
-            keys.push(key)
-        }
-        keys.sort_by(|a, b| sort_uci(*a, *b));
-        for key in keys {
-            println!(
-                "{}: {}",
-                get_move_uci(key),
-                move_node_count.get(&key).unwrap()
-            )
-        }
+    let mut keys = Vec::new();
+    let mut count = 0;
+    for &key in move_node_count.keys() {
+        keys.push(key)
+    }
+    keys.sort_by(|a, b| sort_uci(*a, *b));
+    for key in keys {
+        println!(
+            "{}: {}",
+            get_move_uci(key),
+            move_node_count.get(&key).unwrap()
+        );
+        count += move_node_count.get(&key).unwrap();
+    }
+    println!("count {count}");
 }
 
 fn sort_uci(a: u16, b: u16) -> Ordering {

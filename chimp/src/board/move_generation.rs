@@ -1,0 +1,1001 @@
+use crate::shared::{
+    BISHOP_INDEX, CAPTURE_FLAG, EP_CAPTURE_FLAG, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX,
+    PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
+};
+
+use super::{
+    bitboard::BitboardExtensions,
+    board_metrics::BoardMetrics,
+    board_utils::{get_file, get_position_index_from_piece_index, get_rank, get_rank_i8},
+    move_utils::build_move,
+    piece_utils::{get_piece_code, is_white},
+    state::BoardState,
+};
+
+impl BoardState {
+    pub fn generate_psudolegals(&self) -> BoardMetrics {
+        let mut moves = Vec::new();
+        let white_turn = self.flags & 0b1 > 0;
+        let mut piece_index = 0;
+        let mut threat_bitboard = 0;
+        let mut opponent_threat_bitboard = 0;
+        let opponent_bitboard = if white_turn {
+            self.black_bitboard
+        } else {
+            self.white_bitboard
+        };
+        //println!("gen-move-start --------------------------------------");
+        while piece_index < self.piece_count {
+            let piece = get_piece_code(&self.pieces, piece_index);
+            let position_index =
+                get_position_index_from_piece_index(self.bitboard, 0, 0, piece_index);
+            if is_white(piece) == white_turn {
+                let (p_threat_bitboard, p_moves) = generate_piece_moves(
+                    self.bitboard,
+                    white_turn,
+                    position_index,
+                    piece,
+                    opponent_bitboard,
+                    self.flags,
+                    self.ep_rank,
+                );
+                threat_bitboard |= p_threat_bitboard;
+                moves.extend(&p_moves);
+            } else {
+                opponent_threat_bitboard |= generate_threat_bitboard(
+                    self.bitboard,
+                    position_index,
+                    piece,
+                    !white_turn
+                )
+            }
+            piece_index += 1;
+        }
+
+        let (white_threat_bitboard, black_threat_bitboard) = if white_turn {
+            (threat_bitboard, opponent_threat_bitboard)
+        } else {
+            (opponent_threat_bitboard, threat_bitboard)
+        };
+
+        BoardMetrics {
+            psudolegal_moves: moves,
+            white_threat_bitboard,
+            black_threat_bitboard,
+        }
+    }
+
+    pub fn generate_legal_moves(&self, metrics: BoardMetrics) -> Vec<u16> {
+        let white_turn = self.flags & 0b1 > 0;
+        let mut moves: Vec<u16> = Vec::new();
+        for psudolegal_move in metrics.psudolegal_moves {
+            let new_state = self.apply_move(psudolegal_move);
+            let new_metrics = new_state.generate_psudolegals();
+            if white_turn {
+                if !new_metrics.black_threat_bitboard.occupied(new_state.white_king_index) {
+                    moves.push(psudolegal_move);
+                }
+            } else {
+                if !new_metrics.white_threat_bitboard.occupied(new_state.black_king_index) {
+                    moves.push(psudolegal_move);
+                }
+            }
+        }
+        moves
+    }
+}
+
+fn generate_piece_moves(
+    bitboard: u64,
+    is_white: bool,
+    position_index: u8,
+    piece: u8,
+    opponent_bitboard: u64,
+    flags: u8,
+    ep_rank: u8,
+) -> (u64, Vec<u16>) {
+    let piece_code = piece & PIECE_MASK;
+    match piece_code {
+        PAWN_INDEX => generate_pawn_moves(
+            bitboard,
+            is_white,
+            opponent_bitboard,
+            position_index,
+            flags,
+            ep_rank,
+        ),
+        KNIGHT_INDEX => generate_knight_moves(bitboard, opponent_bitboard, position_index),
+        BISHOP_INDEX => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
+        ROOK_INDEX => generate_rook_moves(bitboard, opponent_bitboard, position_index),
+        QUEEN_INDEX => generate_queen_moves(bitboard, opponent_bitboard, position_index),
+        KING_INDEX => generate_king_moves(bitboard, opponent_bitboard, position_index),
+        _ => (0, vec![]),
+    }
+}
+
+fn generate_threat_bitboard(bitboard: u64, position_index: u8, piece: u8, is_white: bool) -> u64 {
+    let piece_code = piece & PIECE_MASK;
+    match piece_code {
+        PAWN_INDEX => generate_pawn_threat_board(is_white, position_index),
+        KNIGHT_INDEX => generate_knight_threat_board(position_index),
+        BISHOP_INDEX => generate_bishop_threat_board(bitboard, position_index),
+        ROOK_INDEX => generate_rook_threat_board(bitboard, position_index),
+        QUEEN_INDEX => generate_queen_threat_board(bitboard, position_index),
+        KING_INDEX => generate_king_threat_board(bitboard, position_index),
+        _ => 0
+    }
+}
+
+fn generate_pawn_moves(
+    bitboard: u64,
+    is_white: bool,
+    opponent_bitboard: u64,
+    position_index: u8,
+    flags: u8,
+    ep_rank: u8,
+) -> (u64, Vec<u16>) {
+    let mut results: Vec<_> = Vec::new();
+    let mut threat_bitboard: u64 = 0;
+    let file = get_file(position_index);
+    let rank = get_rank(position_index);
+    let is_ep = (flags & 0b100000) > 0;
+    if is_white {
+        if !bitboard.occupied(position_index + 8) {
+            results.push(build_move(position_index, position_index + 8, 0b0));
+
+            if file == 1 {
+                if !bitboard.occupied(position_index + 16) {
+                    results.push(build_move(position_index, position_index + 16, 0b0));
+                }
+            }
+        }
+
+        if rank != 7 {
+            threat_bitboard |= 1 << (position_index + 7);
+            if opponent_bitboard.occupied(position_index + 7) {
+                results.push(build_move(position_index, position_index + 7, CAPTURE_FLAG));
+            }
+        }
+
+        if rank != 0 {
+            threat_bitboard |= 1 << (position_index + 9);
+            if opponent_bitboard.occupied(position_index + 9) {
+                results.push(build_move(position_index, position_index + 9, CAPTURE_FLAG));
+            }
+        }
+
+        if is_ep && file == 4 {
+            if rank != 0 && ep_rank == rank - 1 {
+                results.push(build_move(
+                    position_index,
+                    position_index + 9,
+                    EP_CAPTURE_FLAG,
+                ));
+            } else if rank != 7 && ep_rank == rank + 1 {
+                results.push(build_move(
+                    position_index,
+                    position_index + 7,
+                    EP_CAPTURE_FLAG,
+                ));
+            }
+        }
+    } else {
+        if !bitboard.occupied(position_index - 8) {
+            results.push(build_move(position_index, position_index - 8, 0b0));
+
+            if file == 6 {
+                if !bitboard.occupied(position_index - 16) {
+                    results.push(build_move(position_index, position_index - 16, 0b0));
+                }
+            }
+        }
+
+        if rank != 7 {
+            threat_bitboard |= 1 << (position_index - 9);
+            if opponent_bitboard.occupied(position_index - 9) {
+                results.push(build_move(position_index, position_index - 9, CAPTURE_FLAG));
+            }
+        }
+
+        if rank != 0 {
+            threat_bitboard |= 1 << (position_index - 7);
+            if opponent_bitboard.occupied(position_index - 7) {
+                results.push(build_move(position_index, position_index - 7, CAPTURE_FLAG));
+            }
+        }
+
+        if is_ep && file == 3 {
+            if rank != 0 && ep_rank == rank - 1 {
+                results.push(build_move(
+                    position_index,
+                    position_index - 7,
+                    EP_CAPTURE_FLAG,
+                ));
+            } else if rank != 7 && ep_rank == rank + 1 {
+                results.push(build_move(
+                    position_index,
+                    position_index - 9,
+                    EP_CAPTURE_FLAG,
+                ));
+            }
+        }
+    }
+    (threat_bitboard, results)
+}
+
+fn generate_pawn_threat_board(is_white: bool, position_index: u8) -> u64 {
+    let mut threat_bitboard: u64 = 0;
+    let rank = get_rank(position_index);
+    if is_white {
+        if rank != 7 {
+            threat_bitboard |= 1 << (position_index + 7);
+        }
+
+        if rank != 0 {
+            threat_bitboard |= 1 << (position_index + 9);
+        }
+    } else {
+        if rank != 7 {
+            threat_bitboard |= 1 << (position_index - 9);
+        }
+
+        if rank != 0 {
+            threat_bitboard |= 1 << (position_index - 7);
+        }
+    }
+    threat_bitboard
+}
+
+fn generate_knight_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+) -> (u64, Vec<u16>) {
+    let mut results: Vec<_> = Vec::new();
+    let rank = get_rank(position_index);
+    let mut threat_bitboard: u64 = 0;
+    // U2R1 = +16-1 = 15
+    if position_index <= 48 && rank != 7 {
+        let tar = position_index + 15;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // U1R2 = +8-2 = 6
+    if position_index <= 55 && rank < 6 {
+        let tar = position_index + 6;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // D1R2 = -8-2 = -10
+    if position_index >= 10 && rank < 6 {
+        let tar = position_index - 10;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // D2R1 = -16-1 = -17
+    if position_index >= 17 && rank != 7 {
+        let tar = position_index - 17;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // D2L1 = -16+1 = -15
+    if position_index >= 15 && rank != 0 {
+        let tar = position_index - 15;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // D1L2 = -8+2 = -6
+    if position_index >= 6 && rank > 1 {
+        let tar = position_index - 6;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // U1L2 = 8+2 = 10
+    if position_index <= 53 && rank > 1 {
+        let tar = position_index + 10;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    // U2L1 = 16+1 = 17
+    if position_index <= 46 && rank != 0 {
+        let tar = position_index + 17;
+        threat_bitboard = threat_bitboard | (1 << tar);
+        if opponent_bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+        } else if !bitboard.occupied(tar) {
+            results.push(build_move(position_index, tar, 0b0));
+        }
+    }
+    (threat_bitboard, results)
+}
+
+fn generate_knight_threat_board(position_index: u8) -> u64 {
+    let mut threat_bitboard: u64 = 0;
+    let rank = get_rank(position_index);
+
+    // U2R1 = +16-1 = 15
+    if position_index <= 48 && rank != 0 {
+        let tar = position_index + 15;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // U1R2 = +8-2 = 6
+    if position_index <= 55 && rank > 1 {
+        let tar = position_index + 6;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // D1R2 = -8-2 = -10
+    if position_index >= 10 && rank > 1 {
+        let tar = position_index - 10;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // D2R1 = -16-1 = -17
+    if position_index >= 17 && rank != 0 {
+        let tar = position_index - 17;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // D2L1 = -16+1 = -15
+    if position_index >= 15 && rank != 7 {
+        let tar = position_index - 15;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // D1L2 = -8+2 = -6
+    if position_index >= 6 && rank < 6 {
+        let tar = position_index - 6;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // U1L2 = 8+2 = 10
+    if position_index <= 53 && rank < 6 {
+        let tar = position_index + 10;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    // U2L1 = 16+1 = 17
+    if position_index <= 46 && rank != 7 {
+        let tar = position_index + 17;
+        threat_bitboard = threat_bitboard | (1 << tar);
+    }
+    threat_bitboard
+}
+
+fn generate_bishop_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+) -> (u64, Vec<u16>) {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        true,
+        false,
+        false,
+    )
+}
+
+fn generate_bishop_threat_board(bitboard: u64, position_index: u8) -> u64 {
+    sliding_threat_generator(bitboard, position_index, true, false, false)
+}
+
+fn generate_rook_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+) -> (u64, Vec<u16>) {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        false,
+        true,
+        false,
+    )
+}
+
+fn generate_rook_threat_board(bitboard: u64, position_index: u8) -> u64 {
+    sliding_threat_generator(bitboard, position_index, false, true, false)
+}
+
+fn generate_queen_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+) -> (u64, Vec<u16>) {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        true,
+        true,
+        false,
+    )
+}
+
+fn generate_queen_threat_board(bitboard: u64, position_index: u8) -> u64 {
+    sliding_threat_generator(bitboard, position_index, true, true, false)
+}
+
+fn generate_king_moves(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    position_index: u8,
+) -> (u64, Vec<u16>) {
+    sliding_move_generator(
+        bitboard,
+        opponent_bitboard,
+        position_index,
+        true,
+        true,
+        true,
+    )
+}
+
+fn generate_king_threat_board(bitboard: u64, position_index: u8) -> u64 {
+    sliding_threat_generator(bitboard, position_index, true, true, true)
+}
+
+fn sliding_move_generator(
+    bitboard: u64,
+    opponent_bitboard: u64,
+    pos: u8,
+    diag: bool,
+    straight: bool,
+    king: bool,
+) -> (u64, Vec<u16>) {
+    let mut moves: Vec<u16> = Vec::new();
+    let mut threat_bitboard = 0;
+
+    let depth = if king { 1 } else { 8 };
+
+    if diag {
+        let positions_d_l = get_available_slide_pos(bitboard, pos, -1, -1, depth);
+
+        for i in 0..positions_d_l.len() {
+            threat_bitboard |= 1 << positions_d_l[i];
+            if (i == positions_d_l.len() - 1) && bitboard.occupied(positions_d_l[i]) {
+                if opponent_bitboard.occupied(positions_d_l[i]) {
+                    moves.push(build_move(pos, positions_d_l[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_d_l[i], 0b0));
+        }
+
+        let positions_u_l = get_available_slide_pos(bitboard, pos, 1, -1, depth);
+
+        for i in 0..positions_u_l.len() {
+            threat_bitboard |= 1 << positions_u_l[i];
+            if (i == positions_u_l.len() - 1) && bitboard.occupied(positions_u_l[i]) {
+                if opponent_bitboard.occupied(positions_u_l[i]) {
+                    moves.push(build_move(pos, positions_u_l[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_u_l[i], 0b0));
+        }
+
+        let positions_u_r = get_available_slide_pos(bitboard, pos, 1, 1, depth);
+        for i in 0..positions_u_r.len() {
+            threat_bitboard |= 1 << positions_u_r[i];
+            if (i == positions_u_r.len() - 1) && bitboard.occupied(positions_u_r[i]) {
+                if opponent_bitboard.occupied(positions_u_r[i]) {
+                    moves.push(build_move(pos, positions_u_r[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_u_r[i], 0b0));
+        }
+
+        let positions_d_r = get_available_slide_pos(bitboard, pos, -1, 1, depth);
+
+        for i in 0..positions_d_r.len() {
+            threat_bitboard |= 1 << positions_d_r[i];
+            if (i == positions_d_r.len() - 1) && bitboard.occupied(positions_d_r[i]) {
+                if opponent_bitboard.occupied(positions_d_r[i]) {
+                    moves.push(build_move(pos, positions_d_r[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_d_r[i], 0b0));
+        }
+    }
+
+    if straight {
+        let positions_r = get_available_slide_pos(bitboard, pos, 0, 1, depth);
+
+        for i in 0..positions_r.len() {
+            threat_bitboard |= 1 << positions_r[i];
+            if (i == positions_r.len() - 1) && bitboard.occupied(positions_r[i]) {
+                if opponent_bitboard.occupied(positions_r[i]) {
+                    moves.push(build_move(pos, positions_r[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_r[i], 0b0));
+        }
+
+        let positions_l = get_available_slide_pos(bitboard, pos, 0, -1, depth);
+
+        for i in 0..positions_l.len() {
+            threat_bitboard |= 1 << positions_l[i];
+            if (i == positions_l.len() - 1) && bitboard.occupied(positions_l[i]) {
+                if opponent_bitboard.occupied(positions_l[i]) {
+                    moves.push(build_move(pos, positions_l[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_l[i], 0b0));
+        }
+
+        let positions_u = get_available_slide_pos(bitboard, pos, 1, 0, depth);
+
+        for i in 0..positions_u.len() {
+            threat_bitboard |= 1 << positions_u[i];
+            if (i == positions_u.len() - 1) && bitboard.occupied(positions_u[i]) {
+                if opponent_bitboard.occupied(positions_u[i]) {
+                    moves.push(build_move(pos, positions_u[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_u[i], 0b0));
+        }
+
+        let positions_d = get_available_slide_pos(bitboard, pos, -1, 0, depth);
+
+        for i in 0..positions_d.len() {
+            threat_bitboard |= 1 << positions_d[i];
+            if (i == positions_d.len() - 1) && bitboard.occupied(positions_d[i]) {
+                if opponent_bitboard.occupied(positions_d[i]) {
+                    moves.push(build_move(pos, positions_d[i], CAPTURE_FLAG));
+                }
+                break;
+            }
+            moves.push(build_move(pos, positions_d[i], 0b0));
+        }
+    }
+
+    (threat_bitboard, moves)
+}
+
+fn sliding_threat_generator(
+    bitboard: u64,
+    position_index: u8,
+    diag: bool,
+    straight: bool,
+    king: bool,
+) -> u64 {
+    let mut threat_bitboard = 0;
+    let depth = if king { 1 } else { 8 };
+    if diag {
+        let positions_d_l = get_available_slide_pos(bitboard, position_index, -1, -1, depth);
+
+        for i in 0..positions_d_l.len() {
+            threat_bitboard |= 1 << positions_d_l[i];
+        }
+
+        let positions_u_l = get_available_slide_pos(bitboard, position_index, 1, -1, depth);
+
+        for i in 0..positions_u_l.len() {
+            threat_bitboard |= 1 << positions_u_l[i];
+        }
+
+        let positions_u_r = get_available_slide_pos(bitboard, position_index, 1, 1, depth);
+        for i in 0..positions_u_r.len() {
+            threat_bitboard |= 1 << positions_u_r[i];
+        }
+
+        let positions_d_r = get_available_slide_pos(bitboard, position_index, -1, 1, depth);
+
+        for i in 0..positions_d_r.len() {
+            threat_bitboard |= 1 << positions_d_r[i];
+        }
+    }
+
+    if straight {
+        let positions_r = get_available_slide_pos(bitboard, position_index, 0, 1, depth);
+
+        for i in 0..positions_r.len() {
+            threat_bitboard |= 1 << positions_r[i];
+        }
+
+        let positions_l = get_available_slide_pos(bitboard, position_index, 0, -1, depth);
+
+        for i in 0..positions_l.len() {
+            threat_bitboard |= 1 << positions_l[i];
+        }
+
+        let positions_u = get_available_slide_pos(bitboard, position_index, 1, 0, depth);
+
+        for i in 0..positions_u.len() {
+            threat_bitboard |= 1 << positions_u[i];
+        }
+
+        let positions_d = get_available_slide_pos(bitboard, position_index, -1, 0, depth);
+
+        for i in 0..positions_d.len() {
+            threat_bitboard |= 1 << positions_d[i];
+        }
+    }
+
+    threat_bitboard
+}
+
+fn get_available_slide_pos(
+    bitboard: u64,
+    pos: u8,
+    file_delta: i8,
+    rank_delta: i8,
+    max_depth: i32,
+) -> Vec<u8> {
+    let mut results = Vec::new();
+    let delta = (file_delta * 8) + (-1 * rank_delta);
+    let mut check_pos = pos as i8 + delta;
+    let mut check_file = get_file(pos);
+    let check_rank = get_rank(pos);
+    while check_pos > -1 && check_pos < 64 {
+        let cur_rank = get_rank_i8(check_pos);
+
+        if (rank_delta > 0 && cur_rank < check_rank) || (rank_delta < 0 && cur_rank > check_rank) {
+            break;
+        }
+
+        results.push(check_pos.try_into().unwrap());
+        if bitboard.occupied_i8(check_pos) {
+            break;
+        }
+        check_pos += delta;
+        if file_delta == 0 && check_file != get_file(check_pos as u8) {
+            break;
+        }
+
+        check_file = get_file(check_pos as u8);
+
+        if max_depth == 1 {
+            break;
+        }
+    }
+    results
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{board::board_utils::rank_and_file_to_index, shared::bitboard_to_string};
+
+    use super::*;
+
+    #[test]
+    pub fn get_available_slide_pos_e4_diag_down_right() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(4, 3), -1, 1, 8);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(0).unwrap(), &18);
+        assert_eq!(result.get(1).unwrap(), &9);
+        assert_eq!(result.get(2).unwrap(), &0);
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_c1_diag_up_left() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(2, 0), 1, -1, 8);
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result.get(0).unwrap(),
+            &rank_and_file_to_index(1, 1),
+            "1,1 issue"
+        );
+        assert_eq!(
+            result.get(1).unwrap(),
+            &rank_and_file_to_index(0, 2),
+            "0,2 issue"
+        );
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_a3_diag_up_right_blocked_at_d6() {
+        let bitboard = 0b0u64.flip(rank_and_file_to_index(3, 5));
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(0, 2), 1, 1, 8);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(1, 3));
+        assert_eq!(result.get(1).unwrap(), &rank_and_file_to_index(2, 4));
+        assert_eq!(result.get(2).unwrap(), &rank_and_file_to_index(3, 5));
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_rook_d7_left_unblocked() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(3, 6), 0, -1, 8);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(2, 6));
+        assert_eq!(result.get(1).unwrap(), &rank_and_file_to_index(1, 6));
+        assert_eq!(result.get(2).unwrap(), &rank_and_file_to_index(0, 6));
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_rook_b3_right_unblocked() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(1, 2), 0, 1, 8);
+        assert_eq!(result.len(), 6);
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_rook_h1_blocked_in() {
+        let bitboard = 0b1111111110u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(7, 0), 1, 0, 8);
+        assert_eq!(result.len(), 1); // blocked in at h2
+    }
+
+    #[test]
+    pub fn generate_rook_moves_with_one_move() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
+        );
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(7, 1))
+            .flip(rank_and_file_to_index(7, 2))
+            .flip(rank_and_file_to_index(6, 0));
+        let (threat_bitboard, rook_moves) = generate_rook_moves(board.bitboard, 0b0, 0);
+
+        println!("{}", bitboard_to_string(expected_bitboard));
+        println!("{}", bitboard_to_string(threat_bitboard));
+
+        assert_eq!(rook_moves.len(), 1);
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_rook_moves_with_zero_moves() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
+        );
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(0, 1))
+            .flip(rank_and_file_to_index(1, 0));
+        let (threat_bitboard, rook_moves) = generate_rook_moves(board.bitboard, 0b0, 7);
+        assert_eq!(rook_moves.len(), 0);
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_bishop_moves_b2_pawn_opening() {
+        let board = BoardState::from_fen(
+            &"r1bqkbnr/pppppppp/n7/8/1P6/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(0, 2))
+            .flip(rank_and_file_to_index(1, 1))
+            .flip(rank_and_file_to_index(3, 1));
+        let (threat_bitboard, moves) = generate_bishop_moves(board.bitboard, 0b0, 5);
+        assert_eq!(moves.len(), 2, "{moves:?}");
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_bishop_moves_d2_pawn_opening() {
+        let board = BoardState::from_fen(
+            &"rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+        let r = get_available_slide_pos(board.bitboard, 5, 1, 1, 8);
+        assert_eq!(r.len(), 5, "{r:?}");
+        assert_eq!(r.get(0).unwrap(), &rank_and_file_to_index(3, 1));
+        assert_eq!(r.get(1).unwrap(), &rank_and_file_to_index(4, 2));
+        assert_eq!(r.get(2).unwrap(), &rank_and_file_to_index(5, 3));
+        assert_eq!(r.get(3).unwrap(), &rank_and_file_to_index(6, 4));
+        assert_eq!(r.get(4).unwrap(), &rank_and_file_to_index(7, 5));
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_en_passant_a5_white_taking_right() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/2pppppp/p7/Pp6/8/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 1".into(),
+        );
+        let expected_bitboard = 0b0u64.flip(rank_and_file_to_index(1, 5));
+        let (threat_bitboard, moves) = generate_pawn_moves(
+            board.bitboard,
+            true,
+            board.black_bitboard,
+            rank_and_file_to_index(0, 4),
+            board.flags,
+            board.ep_rank,
+        );
+
+        assert_eq!(moves.len(), 1);
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(39, rank_and_file_to_index(1, 5), EP_CAPTURE_FLAG)
+        );
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_en_passant_e5_white_taking_left() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/pp2pppp/2p5/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1".into(),
+        );
+        let pos = rank_and_file_to_index(4, 4);
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(3, 5))
+            .flip(rank_and_file_to_index(5, 5));
+        let (threat_bitboard, moves) = generate_pawn_moves(
+            board.bitboard,
+            true,
+            board.black_bitboard,
+            pos,
+            board.flags,
+            board.ep_rank,
+        );
+
+        assert_eq!(moves.len(), 2, "{moves:?}");
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(pos, rank_and_file_to_index(4, 5), 0b0)
+        );
+        assert_eq!(
+            moves.get(1).unwrap(),
+            &build_move(pos, rank_and_file_to_index(3, 5), EP_CAPTURE_FLAG)
+        );
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_en_passant_b5_white_taking_left_to_a_rank() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/2pppppp/1p6/pP6/8/8/P1PPPPPP/RNBQKBNR w KQkq a6 0 1".into(),
+        );
+        let pos = rank_and_file_to_index(1, 4);
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(0, 5))
+            .flip(rank_and_file_to_index(2, 5));
+        let (threat_bitboard, moves) = generate_pawn_moves(
+            board.bitboard,
+            true,
+            board.black_bitboard,
+            pos,
+            board.flags,
+            board.ep_rank,
+        );
+
+        assert_eq!(moves.len(), 1, "{moves:?}");
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(pos, rank_and_file_to_index(0, 5), EP_CAPTURE_FLAG)
+        );
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_b5_white_taking_non_en_passant_in_a_rank() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/2pppppp/1p6/pP6/8/6P1/P1PPPP1P/RNBQKBNR w KQkq - 0 1".into(),
+        );
+        let pos = rank_and_file_to_index(1, 4);
+
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(0, 5))
+            .flip(rank_and_file_to_index(2, 5));
+        let (threat_bitboard, moves) = generate_pawn_moves(
+            board.bitboard,
+            true,
+            board.black_bitboard,
+            pos,
+            board.flags,
+            board.ep_rank,
+        );
+
+        assert_eq!(moves.len(), 0, "{moves:?}");
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_en_passant_black() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/ppppppp1/8/8/6Pp/P6P/1PPPPP2/RNBQKBNR b KQkq g3 0 1".into(),
+        );
+
+        let expected_bitboard = 0b0u64.flip(rank_and_file_to_index(6, 2));
+        let (threat_bitboard, moves) = generate_pawn_moves(
+            board.bitboard,
+            false,
+            board.white_bitboard,
+            rank_and_file_to_index(7, 3),
+            board.flags,
+            board.ep_rank,
+        );
+
+        assert_eq!(moves.len(), 1);
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(
+                rank_and_file_to_index(7, 3),
+                rank_and_file_to_index(6, 2),
+                EP_CAPTURE_FLAG
+            )
+        );
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_pawn_moves_no_en_passant_black_b_pawn_opening() {
+        let board = BoardState::from_fen(
+            &"rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1".into(),
+        );
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(0, 5))
+            .flip(rank_and_file_to_index(2, 5));
+        let (threat_bitboard, moves) = generate_pawn_moves(
+            board.bitboard,
+            false,
+            board.white_bitboard,
+            rank_and_file_to_index(1, 6),
+            board.flags,
+            board.ep_rank,
+        );
+
+        assert_eq!(moves.len(), 2);
+        assert_eq!(
+            moves.get(0).unwrap(),
+            &build_move(
+                rank_and_file_to_index(1, 6),
+                rank_and_file_to_index(1, 5),
+                0b0
+            )
+        );
+        assert_eq!(
+            moves.get(1).unwrap(),
+            &build_move(
+                rank_and_file_to_index(1, 6),
+                rank_and_file_to_index(1, 4),
+                0b0
+            )
+        );
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+
+    #[test]
+    pub fn generate_knight_moves_case_1() {
+        let board = BoardState::from_fen(&"8/8/4p3/1k6/3N4/8/8/8 w - - 0 1".into());
+        let expected_bitboard = 0b0u64
+            .flip(rank_and_file_to_index(2, 1))
+            .flip(rank_and_file_to_index(1, 2))
+            .flip(rank_and_file_to_index(1, 4))
+            .flip(rank_and_file_to_index(2, 5))
+            .flip(rank_and_file_to_index(4, 5))
+            .flip(rank_and_file_to_index(5, 4))
+            .flip(rank_and_file_to_index(5, 2))
+            .flip(rank_and_file_to_index(4, 1));
+
+        let (threat_bitboard, moves) = generate_knight_moves(
+            board.bitboard,
+            board.black_bitboard,
+            rank_and_file_to_index(3, 3),
+        );
+
+        assert_eq!(moves.len(), 8);
+        assert_eq!(threat_bitboard, expected_bitboard);
+    }
+}

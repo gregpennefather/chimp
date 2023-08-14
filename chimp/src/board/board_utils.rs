@@ -1,4 +1,11 @@
-use crate::shared::*;
+pub fn rank_and_file_to_index(rank: u8, file: u8) -> u8 {
+    ((file) * 8) + (7 - rank)
+}
+
+pub fn rank_and_file_to_index_i8(rank: i8, file: i8) -> u8 {
+    (((file) * 8) + (7 - rank)) as u8
+}
+
 
 pub fn rank_from_char(char: char) -> u8 {
     match char {
@@ -10,7 +17,7 @@ pub fn rank_from_char(char: char) -> u8 {
         'f' => 5,
         'g' => 6,
         'h' => 7,
-        _ => u8::MAX
+        _ => u8::MAX,
     }
 }
 
@@ -24,31 +31,8 @@ pub fn char_from_rank(rank: u8) -> char {
         5 => 'f',
         6 => 'g',
         7 => 'h',
-        _ => '_'
+        _ => '_',
     }
-}
-
-pub fn get_piece_char(piece: u8) -> char {
-    match piece {
-        PAWN_INDEX => 'P',
-        BLACK_PAWN => 'p',
-        BISHOP_INDEX => 'B',
-        BLACK_BISHOP => 'b',
-        KNIGHT_INDEX => 'N',
-        BLACK_KNIGHT => 'n',
-        ROOK_INDEX => 'R',
-        BLACK_ROOK => 'r',
-        QUEEN_INDEX => 'Q',
-        BLACK_QUEEN => 'q',
-        KING_INDEX => 'K',
-        BLACK_KING => 'k',
-        _ => 'X',
-    }
-}
-
-pub fn get_piece_code(pieces: &u128, piece_index: u8) -> u8 {
-    let piece: u8 = (pieces >> (piece_index * 4) & 0b1111).try_into().unwrap();
-    return piece;
 }
 
 pub fn get_file(index: u8) -> u8 {
@@ -63,9 +47,30 @@ pub fn get_rank_i8(index: i8) -> u8 {
 }
 
 pub fn get_friendly_name_for_index(index: u8) -> String {
-    let file = get_file(index)+1;
+    let file = get_file(index) + 1;
     let rank = get_rank(index);
     format!("{}{file}", char_from_rank(rank))
+}
+
+pub fn get_position_index_from_piece_index(
+    bitboard: u64,
+    start_index: u8,
+    start_count: u8,
+    search_index: u8,
+) -> u8 {
+    let mut pos: u32 = start_index as u32;
+    let mut count = start_count;
+
+    while pos < 64 {
+        if bitboard & u64::pow(2, pos) > 0 {
+            count += 1;
+            if count > search_index.into() {
+                break;
+            }
+        }
+        pos += 1;
+    }
+    pos.try_into().unwrap()
 }
 
 #[cfg(test)]
