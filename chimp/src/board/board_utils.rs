@@ -1,3 +1,5 @@
+use super::piece_utils::get_piece_char;
+
 pub fn rank_and_file_to_index(rank: u8, file: u8) -> u8 {
     ((file) * 8) + (7 - rank)
 }
@@ -50,6 +52,33 @@ pub fn get_friendly_name_for_index(index: u8) -> String {
     let file = get_file(index) + 1;
     let rank = get_rank(index);
     format!("{}{file}", char_from_rank(rank))
+}
+
+pub fn board_to_string(bitboard: u64, pieces: u128) -> String {
+    let mut r: String = "".to_string();
+
+    let mut index = 63;
+    let mut piece_index = (bitboard.count_ones() - 1).try_into().unwrap();
+    while index >= 0 {
+        let occ = (bitboard >> index) & 1 == 1;
+        if occ {
+            r += &get_board_square_char(pieces, piece_index).to_string();
+            piece_index -= 1;
+        } else {
+            r += &'0'.to_string();
+        }
+        index -= 1;
+        if (index + 1) % 8 == 0 {
+            r += "\n".into();
+        }
+    }
+
+    r
+}
+
+fn get_board_square_char(pieces: u128, index: i32) -> char {
+    let piece: u8 = (pieces >> (index * 4) & 0b1111).try_into().unwrap();
+    return get_piece_char(piece);
 }
 
 pub fn get_position_index_from_piece_index(

@@ -1,6 +1,10 @@
-use crate::shared::{
-    BISHOP_INDEX, CAPTURE_FLAG, EP_CAPTURE_FLAG, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX,
-    PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
+use crate::{
+    board::{board_utils::get_friendly_name_for_index, move_utils::get_move_uci},
+    shared::{
+        bitboard_to_string, BISHOP_INDEX, CAPTURE_FLAG, EP_CAPTURE_FLAG, KING_CASTLING_FLAG,
+        KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_CASTLING_FLAG, QUEEN_INDEX,
+        ROOK_INDEX,
+    },
 };
 
 use super::{
@@ -16,46 +20,57 @@ impl BoardState {
     pub fn generate_psudolegals(&self) -> BoardMetrics {
         let mut moves = Vec::new();
         let white_turn = self.flags & 0b1 > 0;
-        let mut piece_index = 0;
-        let mut threat_bitboard = 0;
+        let mut friendly_threat_bitboard = 0;
         let mut opponent_threat_bitboard = 0;
         let opponent_bitboard = if white_turn {
             self.black_bitboard
         } else {
             self.white_bitboard
         };
-        //println!("gen-move-start --------------------------------------");
+
+        let mut friendly_piece_index_pairs: [(u8, u8); 32] = [(u8::MAX, u8::MAX); 32];
+        let mut friendly_piece_count = 0;
+        let mut opponent_piece_index_pairs: [(u8, u8); 32] = [(u8::MAX, u8::MAX); 32];
+        let mut opponent_piece_count = 0;
+        let mut piece_index = 0;
         while piece_index < self.piece_count {
-            let piece = get_piece_code(&self.pieces, piece_index);
             let position_index =
                 get_position_index_from_piece_index(self.bitboard, 0, 0, piece_index);
+            let piece = get_piece_code(&self.pieces, piece_index);
             if is_white(piece) == white_turn {
-                let (p_threat_bitboard, p_moves) = generate_piece_moves(
-                    self.bitboard,
-                    white_turn,
-                    position_index,
-                    piece,
-                    opponent_bitboard,
-                    self.flags,
-                    self.ep_rank,
-                );
-                threat_bitboard |= p_threat_bitboard;
-                moves.extend(&p_moves);
+                friendly_piece_index_pairs[friendly_piece_count] = (position_index, piece);
+                friendly_piece_count += 1;
             } else {
-                opponent_threat_bitboard |= generate_threat_bitboard(
-                    self.bitboard,
-                    position_index,
-                    piece,
-                    !white_turn
-                )
+                opponent_piece_index_pairs[opponent_piece_count] = (position_index, piece);
+                opponent_piece_count += 1;
             }
             piece_index += 1;
         }
 
+        for pair in opponent_piece_index_pairs {
+            opponent_threat_bitboard |=
+                generate_threat_bitboard(self.bitboard, pair.0, pair.1, !white_turn)
+        }
+
+        for pair in friendly_piece_index_pairs {
+            let (p_threat_bitboard, p_moves) = generate_piece_moves(
+                self.bitboard,
+                white_turn,
+                pair.0,
+                pair.1,
+                opponent_bitboard,
+                self.flags,
+                self.ep_rank,
+                opponent_threat_bitboard,
+            );
+            friendly_threat_bitboard |= p_threat_bitboard;
+            moves.extend(&p_moves);
+        }
+
         let (white_threat_bitboard, black_threat_bitboard) = if white_turn {
-            (threat_bitboard, opponent_threat_bitboard)
+            (friendly_threat_bitboard, opponent_threat_bitboard)
         } else {
-            (opponent_threat_bitboard, threat_bitboard)
+            (opponent_threat_bitboard, friendly_threat_bitboard)
         };
 
         BoardMetrics {
@@ -72,11 +87,17 @@ impl BoardState {
             let new_state = self.apply_move(psudolegal_move);
             let new_metrics = new_state.generate_psudolegals();
             if white_turn {
-                if !new_metrics.black_threat_bitboard.occupied(new_state.white_king_index) {
+                if !new_metrics
+                    .black_threat_bitboard
+                    .occupied(new_state.white_king_index)
+                {
                     moves.push(psudolegal_move);
                 }
             } else {
-                if !new_metrics.white_threat_bitboard.occupied(new_state.black_king_index) {
+                if !new_metrics
+                    .white_threat_bitboard
+                    .occupied(new_state.black_king_index)
+                {
                     moves.push(psudolegal_move);
                 }
             }
@@ -93,8 +114,14 @@ fn generate_piece_moves(
     opponent_bitboard: u64,
     flags: u8,
     ep_rank: u8,
+    opponent_threat_bitboard: u64,
 ) -> (u64, Vec<u16>) {
     let piece_code = piece & PIECE_MASK;
+    let castling_flags = if is_white {
+        flags >> 1 & 0b11
+    } else {
+        (flags >> 3) & 0b11
+    };
     match piece_code {
         PAWN_INDEX => generate_pawn_moves(
             bitboard,
@@ -108,7 +135,13 @@ fn generate_piece_moves(
         BISHOP_INDEX => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
         ROOK_INDEX => generate_rook_moves(bitboard, opponent_bitboard, position_index),
         QUEEN_INDEX => generate_queen_moves(bitboard, opponent_bitboard, position_index),
-        KING_INDEX => generate_king_moves(bitboard, opponent_bitboard, position_index),
+        KING_INDEX => generate_king_moves(
+            bitboard,
+            opponent_bitboard,
+            position_index,
+            castling_flags,
+            opponent_threat_bitboard,
+        ),
         _ => (0, vec![]),
     }
 }
@@ -122,7 +155,7 @@ fn generate_threat_bitboard(bitboard: u64, position_index: u8, piece: u8, is_whi
         ROOK_INDEX => generate_rook_threat_board(bitboard, position_index),
         QUEEN_INDEX => generate_queen_threat_board(bitboard, position_index),
         KING_INDEX => generate_king_threat_board(bitboard, position_index),
-        _ => 0
+        _ => 0,
     }
 }
 
@@ -139,6 +172,7 @@ fn generate_pawn_moves(
     let file = get_file(position_index);
     let rank = get_rank(position_index);
     let is_ep = (flags & 0b100000) > 0;
+
     if is_white {
         if !bitboard.occupied(position_index + 8) {
             results.push(build_move(position_index, position_index + 8, 0b0));
@@ -445,15 +479,51 @@ fn generate_king_moves(
     bitboard: u64,
     opponent_bitboard: u64,
     position_index: u8,
+    castling_flags: u8,
+    opponent_threat_bitboard: u64,
 ) -> (u64, Vec<u16>) {
-    sliding_move_generator(
+    let (threat_board, mut moves) = sliding_move_generator(
         bitboard,
         opponent_bitboard,
         position_index,
         true,
         true,
         true,
-    )
+    );
+
+    if (castling_flags & 0b1) > 0 {
+        // King side castling
+        if (!bitboard.occupied(position_index - 1) && !bitboard.occupied(position_index - 2))
+            && (!opponent_threat_bitboard.occupied(position_index)
+                && !opponent_threat_bitboard.occupied(position_index - 1)
+                && !opponent_threat_bitboard.occupied(position_index - 2))
+        {
+            moves.push(build_move(
+                position_index,
+                position_index - 2,
+                KING_CASTLING_FLAG,
+            ))
+        }
+    }
+    if (castling_flags & 0b10) > 0 {
+        // Queen side castling
+
+        // Multiple square checking could probably be done more efficiently with a | flag and a greater than check
+        if !bitboard.occupied(position_index + 1)
+            && !bitboard.occupied(position_index + 2)
+            && !bitboard.occupied(position_index + 3)
+            && !opponent_threat_bitboard.occupied(position_index)
+            && !opponent_threat_bitboard.occupied(position_index + 1)
+            && !opponent_threat_bitboard.occupied(position_index + 2)
+        {
+            moves.push(build_move(
+                position_index,
+                position_index + 2,
+                QUEEN_CASTLING_FLAG,
+            ))
+        }
+    }
+    (threat_board, moves)
 }
 
 fn generate_king_threat_board(bitboard: u64, position_index: u8) -> u64 {
@@ -760,9 +830,6 @@ mod test {
             .flip(rank_and_file_to_index(7, 2))
             .flip(rank_and_file_to_index(6, 0));
         let (threat_bitboard, rook_moves) = generate_rook_moves(board.bitboard, 0b0, 0);
-
-        println!("{}", bitboard_to_string(expected_bitboard));
-        println!("{}", bitboard_to_string(threat_bitboard));
 
         assert_eq!(rook_moves.len(), 1);
         assert_eq!(threat_bitboard, expected_bitboard);

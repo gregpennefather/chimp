@@ -19,6 +19,8 @@ pub const PIECE_MASK: u8 = 7;
 pub const PROMOTION_FLAG: u16 = 0b1000;
 pub const CAPTURE_FLAG: u16 = 0b0100;
 pub const EP_CAPTURE_FLAG: u16 = 0b0101;
+pub const KING_CASTLING_FLAG: u16 = 0b10;
+pub const QUEEN_CASTLING_FLAG: u16 = 0b11;
 
 pub static RANKS: &str = "abcdefgh";
 

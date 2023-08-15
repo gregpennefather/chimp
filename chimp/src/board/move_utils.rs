@@ -1,6 +1,9 @@
-use crate::{board::board_utils::get_friendly_name_for_index, shared::{PIECE_MASK, PAWN_INDEX, BLACK_MASK}};
+use crate::{
+    board::board_utils::get_friendly_name_for_index,
+    shared::{BLACK_MASK, PAWN_INDEX, PIECE_MASK},
+};
 
-use super::board_utils::{rank_from_char, rank_and_file_to_index};
+use super::board_utils::{rank_and_file_to_index, rank_from_char};
 
 pub fn build_move(from_index: u8, to_index: u8, flags: u16) -> u16 {
     let f: u16 = from_index.into();
@@ -53,6 +56,16 @@ pub fn get_move_uci(m: u16) -> String {
 
 pub fn is_capture(m: u16) -> bool {
     m >> 2 & 0b1 > 0
+}
+
+pub fn is_castling(m: u16) -> bool {
+    let flags = m & 0b1111;
+    flags == 2 || flags == 3
+}
+
+pub fn is_king_castling(m: u16) -> bool {
+    let flags = m & 0b1111;
+    flags == 2
 }
 
 pub fn is_double_pawn_push(picked_up_piece: u8, from_index: u8, to_index: u8) -> bool {

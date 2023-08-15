@@ -155,6 +155,10 @@ impl BoardState {
         let full_moves = full_moves_str.parse::<u32>().unwrap();
         let piece_count = bitboard.count_ones() as u8;
 
+        if piece_count > 32 {
+            panic!("Fen code '{fen}' leading to >32 pieces");
+        }
+
         Self {
             bitboard,
             white_bitboard,
