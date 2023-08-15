@@ -2,6 +2,7 @@ use std::{cmp::Ordering, collections::HashMap, time::Instant};
 
 use chimp::{
     board::{
+        self,
         board_utils::{board_to_string, rank_and_file_to_index},
         move_utils::{get_move_uci, standard_notation_to_move},
         piece_utils::get_piece_char,
@@ -15,12 +16,19 @@ fn main() {
     // misc_tests();
     // from_fen_test_cases();
     // apply_move_test_cases();
-    move_generation_test_cases();
-    //perft(false);
+    apply_move_deep_test_cases();
+    // move_generation_test_cases();
+    // perft(false);
     kiwipete_perft(false);
-    // perft_position_3(false);
+    perft_position_3(false);
     // flexi_perft("rnbqkbnr/pppp1ppp/8/4p1B1/3P4/8/PPP1PPPP/RN1QKBNR b KQkq - 0 1".into(), 0, 28)
-    //node_debug_test("r3k2r/p1ppqpb1/bnN1pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 1 1".into(), vec![41], true)
+
+    // Clearly we have a apply_move issue that we need to start testing for
+    /* node_debug_test(
+        "r3k2r/p1ppqNb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1".into(),
+        vec![44, 2080],
+        false,
+    )*/
 }
 
 fn misc_tests() {
@@ -258,7 +266,7 @@ fn test_fen_king_positions(
 }
 
 fn apply_move_test_cases() {
-    let test_count = 10;
+    let test_count = 11;
     let mut success_count = 0;
 
     if test_move(
@@ -295,7 +303,7 @@ fn apply_move_test_cases() {
 
     if test_move(
         "8/8/4k3/4p3/2KP4/8/8/8 b - - 0 1".into(),
-        "e5xd4".into(),
+        "e5d4".into(),
         "8/8/4k3/8/2Kp4/8/8/8 w - - 0 2".into(),
     ) {
         success_count += 1;
@@ -303,7 +311,7 @@ fn apply_move_test_cases() {
 
     if test_move(
         "8/8/4k3/4p3/2KP4/8/8/8 b - - 5 1".into(),
-        "e5xd4".into(),
+        "e5d4".into(),
         "8/8/4k3/8/2Kp4/8/8/8 w - - 0 2".into(),
     ) {
         success_count += 1;
@@ -311,7 +319,7 @@ fn apply_move_test_cases() {
 
     if test_move(
         "rnbqkb1r/ppp1pp1p/5np1/3p4/2PP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 5".into(),
-        "c4xd5".into(),
+        "c4d5".into(),
         "rnbqkb1r/ppp1pp1p/5np1/3P4/3P4/2N5/PP2PPPP/R1BQKBNR b KQkq - 0 5".into(),
     ) {
         success_count += 1;
@@ -341,11 +349,179 @@ fn apply_move_test_cases() {
         success_count += 1;
     }
 
+    if test_move(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
+        "b4a3".into(),
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/4P3/p1N2Q1p/1PPBBPPP/R3K2R w KQkq - 0 2".into(),
+    ) {
+        success_count += 1;
+    }
+
     print_test_group_result("apply_move_test_cases".into(), success_count, test_count);
 }
 
+fn apply_move_deep_test_cases() {
+    let mut tests: Vec<(String, String, String, String)> = Vec::new();
+    let mut success_count = 0;
+
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
+        "e5f7".into(),
+        "r3k2r/p1ppqNb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 1 1".into(),
+        "Knight takes f7 pawn".into(),
+    ));
+
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
+        "b4a3".into(),
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/4P3/p1N2Q1p/1PPBBPPP/R3K2R w KQkq - 0 2".into(),
+        "Black pawn EP capture into A rank".into(),
+    ));
+
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
+        "e1c1".into(),
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1".into(),
+        "White queenside castle".into(),
+    ));
+
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R b kq - 1 1".into(),
+        "c7c5".into(),
+        "r3k2r/p2pqpb1/bn2pnp1/2pPN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R w kq c6 0 2".into(),
+        "Black double pawn push after white queenside castle".into(),
+    ));
+
+    tests.push((
+        "r3k2r/p2pqpb1/bn2pnp1/2pPN3/1p2P3/2N2Q1p/PPPBBPPP/2KR3R w kq c6 0 2".into(),
+        "h1g1".into(),
+        "r3k2r/p2pqpb1/bn2pnp1/2pPN3/1p2P3/2N2Q1p/PPPBBPPP/2KR2R1 b kq - 1 2".into(),
+        "White castle move following black C double pawn push".into(),
+    ));
+
+    tests.push((
+        "r3k2r/p2pqpb1/bn2pnp1/2pPN3/1p2P3/2N2Q1p/PPPBBPPP/R3K1R1 w Qkq c6 0 2".into(),
+        "e1c1".into(),
+        "r3k2r/p2pqpb1/bn2pnp1/2pPN3/1p2P3/2N2Q1p/PPPBBPPP/2KR2R1 b kq - 1 2".into(),
+        "White castling queenside after black C double pawn push".into(),
+    ));
+
+
+
+
+    for test in &tests {
+        let board = BoardState::from_fen(&test.0);
+        let move_code = board.move_from_string(&test.1);
+        let after_move_board_state = board.apply_move(move_code);
+        let expected_board_state = BoardState::from_fen(&test.2);
+        let r = board_deep_equal(after_move_board_state, expected_board_state);
+        if !r {
+            print_test_result(
+                format!("Apply Move {}", test.3),
+                "After move board state does not match".into(),
+                false,
+            );
+        } else {
+            success_count += 1;
+        }
+    }
+    print_test_group_result(
+        "apply_move_deep_test_cases".into(),
+        success_count,
+        tests.len().try_into().unwrap(),
+    );
+}
+
+fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
+    let mut flag = true;
+
+    if a.bitboard != b.bitboard {
+        println!("Bitboard do not match:");
+        println!("{}", bitboard_to_string(a.bitboard).red());
+        println!("{}", bitboard_to_string(b.bitboard).yellow());
+        flag = false;
+    }
+
+    if a.pieces != b.pieces {
+        println!("Pieces do not match");
+        flag = false;
+    }
+
+    if a.white_bitboard != b.white_bitboard {
+        println!("white_bitboards do not match:");
+        println!("{}", bitboard_to_string(a.white_bitboard).red());
+        println!("{}", bitboard_to_string(b.white_bitboard).yellow());
+        flag = false;
+    }
+
+    if a.black_bitboard != b.black_bitboard {
+        println!("black_bitboards do not match:");
+        println!("{}", bitboard_to_string(a.black_bitboard).red());
+        println!("{}", bitboard_to_string(b.black_bitboard).yellow());
+        flag = false;
+    }
+
+    if a.white_king_index != b.white_king_index {
+        println!(
+            "white_king_index do not match {} vs {}",
+            a.white_king_index.to_string().red(),
+            b.white_king_index.to_string().yellow()
+        );
+        flag = false;
+    }
+
+    if a.black_king_index != b.black_king_index {
+        println!(
+            "black_king_index do not match {} vs {}",
+            a.black_king_index.to_string().red(),
+            b.black_king_index.to_string().yellow()
+        );
+        flag = false;
+    }
+
+    if a.flags != b.flags {
+        println!(
+            "flags do not match {} vs {} aka {:b} vs {:b}",
+            a.flags.to_string().red(),
+            b.flags.to_string().yellow(),
+            a.flags,
+            b.flags
+        );
+        flag = false;
+    }
+
+    if a.ep_rank != b.ep_rank {
+        println!(
+            "ep_rank do not match {} vs {}",
+            a.ep_rank.to_string().red(),
+            b.ep_rank.to_string().yellow()
+        );
+        flag = false;
+    }
+
+    if a.half_moves != b.half_moves {
+        println!(
+            "half_moves do not match {} vs {}",
+            a.half_moves.to_string().red(),
+            b.half_moves.to_string().yellow()
+        );
+        flag = false;
+    }
+
+    if a.full_moves != b.full_moves {
+        println!(
+            "full_moves do not match {} vs {}",
+            a.full_moves.to_string().red(),
+            b.full_moves.to_string().yellow()
+        );
+        flag = false;
+    }
+
+    flag
+}
+
 fn move_generation_test_cases() {
-    let test_count = 17;
+    let test_count = 18;
     let mut success_count = 0;
 
     // 1
@@ -471,7 +647,18 @@ fn move_generation_test_cases() {
     };
 
     // 17
-    if test_move_generation_count("r3k2r/p1pNqpb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1".into(), 45) {
+    if test_move_generation_count(
+        "r3k2r/p1pNqpb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1".into(),
+        45,
+    ) {
+        success_count += 1;
+    };
+
+    // 18
+    if test_move_generation_count(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/4P3/p1N2Q1p/1PPBBPPP/R3K2R w KQkq - 0 2".into(),
+        51,
+    ) {
         success_count += 1;
     };
 
@@ -512,7 +699,7 @@ fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
 
 fn test_move(init_fen: String, m: String, exp_fen: String) -> bool {
     let board = BoardState::from_fen(&init_fen);
-    let move_code = standard_notation_to_move(&m);
+    let move_code = board.move_from_string(&m);
     let after_move = board.apply_move(move_code);
     let after_move_fen = after_move.to_fen();
     let r = exp_fen.eq(&after_move_fen);

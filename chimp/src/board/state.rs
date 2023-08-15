@@ -131,11 +131,10 @@ impl BoardState {
         // En Passant
         let ep_char = fen.chars().nth(i).unwrap().to_ascii_lowercase();
         if ep_char != '-' {
-            flags = flags | &0b100000;
             ep_rank = RANKS.find(ep_char).unwrap() as u8;
             i += 1;
         } else {
-            flags = flags & 0b011111;
+            ep_rank = u8::MAX
         }
         i += 2;
 

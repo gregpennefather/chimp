@@ -1,6 +1,6 @@
 use crate::{
     board::board_utils::get_friendly_name_for_index,
-    shared::{BLACK_MASK, PAWN_INDEX, PIECE_MASK},
+    shared::{BLACK_MASK, PAWN_INDEX, PIECE_MASK, BLACK_PAWN},
 };
 
 use super::board_utils::{rank_and_file_to_index, rank_from_char};
@@ -54,22 +54,28 @@ pub fn get_move_uci(m: u16) -> String {
     )
 }
 
-pub fn is_capture(m: u16) -> bool {
-    m >> 2 & 0b1 > 0
+pub fn is_capture(m: u8) -> bool {
+    m & 0b100 > 0
 }
 
-pub fn is_castling(m: u16) -> bool {
-    let flags = m & 0b1111;
-    flags == 2 || flags == 3
+pub fn is_castling(m: u8) -> bool {
+    m == 2 || m == 3
 }
 
-pub fn is_king_castling(m: u16) -> bool {
-    let flags = m & 0b1111;
-    flags == 2
+pub fn is_king_castling(m: u8) -> bool {
+    m == 2
+}
+
+pub fn is_promotion(m: u8) -> bool {
+    m & 0b1000 > 0
+}
+
+pub fn is_ep_capture(m: u8) -> bool {
+    m == 5
 }
 
 pub fn is_double_pawn_push(picked_up_piece: u8, from_index: u8, to_index: u8) -> bool {
-    if (picked_up_piece & PIECE_MASK) != PAWN_INDEX {
+    if picked_up_piece != PAWN_INDEX && picked_up_piece != BLACK_PAWN {
         return false;
     }
 

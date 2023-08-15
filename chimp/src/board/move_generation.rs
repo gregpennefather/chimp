@@ -1,16 +1,19 @@
 use crate::{
-    board::{board_utils::get_friendly_name_for_index, move_utils::get_move_uci},
+    board::{board_utils::{get_friendly_name_for_index, get_piece_from_position_index}, move_utils::get_move_uci},
     shared::{
         bitboard_to_string, BISHOP_INDEX, CAPTURE_FLAG, EP_CAPTURE_FLAG, KING_CASTLING_FLAG,
         KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_CASTLING_FLAG, QUEEN_INDEX,
-        ROOK_INDEX,
+        ROOK_INDEX, BLACK_MASK, BLACK_PAWN, BLACK_KING,
     },
 };
 
 use super::{
     bitboard::BitboardExtensions,
     board_metrics::BoardMetrics,
-    board_utils::{get_file, get_position_index_from_piece_index, get_rank, get_rank_i8},
+    board_utils::{
+        get_file, get_position_index_from_piece_index, get_rank, get_rank_i8,
+        rank_and_file_to_index, rank_from_char,
+    },
     move_utils::build_move,
     piece_utils::{get_piece_code, is_white},
     state::BoardState,
@@ -104,6 +107,47 @@ impl BoardState {
         }
         moves
     }
+
+    pub fn move_from_string(&self, move_string: &String) -> u16 {
+        let from_rank_char = move_string.chars().nth(0).unwrap();
+        let from_rank = rank_from_char(from_rank_char);
+        let from_file: u8 = move_string.chars().nth(1).unwrap().to_digit(8).unwrap() as u8;
+
+        let from_index = rank_and_file_to_index(from_rank, from_file - 1);
+
+        let to_rank_char = move_string.chars().nth(2).unwrap();
+        let to_rank = rank_from_char(to_rank_char);
+        let to_file: u8 = move_string.chars().nth(3).unwrap().to_digit(8).unwrap() as u8;
+
+        let to_index = rank_and_file_to_index(to_rank, to_file - 1);
+
+        let mut flags = 0;
+
+        if self.bitboard.occupied(to_index) {
+            flags = CAPTURE_FLAG;
+        }
+
+        let piece = get_piece_from_position_index(self.bitboard, self.pieces, from_index);
+        match piece {
+            PAWN_INDEX | BLACK_PAWN => {
+                if self.ep_rank == to_rank && to_rank != from_rank {
+                    flags = EP_CAPTURE_FLAG;
+                }
+            },
+            KING_INDEX | BLACK_KING => {
+                if from_rank == 4 {
+                    if to_rank == 2 {
+                        flags = QUEEN_CASTLING_FLAG
+                    } else if to_rank == 6 {
+                        flags = KING_CASTLING_FLAG
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        build_move(from_index, to_index, flags)
+    }
 }
 
 fn generate_piece_moves(
@@ -128,7 +172,6 @@ fn generate_piece_moves(
             is_white,
             opponent_bitboard,
             position_index,
-            flags,
             ep_rank,
         ),
         KNIGHT_INDEX => generate_knight_moves(bitboard, opponent_bitboard, position_index),
@@ -164,37 +207,66 @@ fn generate_pawn_moves(
     is_white: bool,
     opponent_bitboard: u64,
     position_index: u8,
-    flags: u8,
     ep_rank: u8,
 ) -> (u64, Vec<u16>) {
     let mut results: Vec<_> = Vec::new();
     let mut threat_bitboard: u64 = 0;
     let file = get_file(position_index);
     let rank = get_rank(position_index);
-    let is_ep = (flags & 0b100000) > 0;
+    let is_ep = ep_rank != u8::MAX;
 
     if is_white {
         if !bitboard.occupied(position_index + 8) {
-            results.push(build_move(position_index, position_index + 8, 0b0));
-
-            if file == 1 {
-                if !bitboard.occupied(position_index + 16) {
-                    results.push(build_move(position_index, position_index + 16, 0b0));
+            // Promotion
+            if file == 6 {
+                results.extend(build_promotion_moves(
+                    position_index,
+                    position_index + 8,
+                    false,
+                ));
+            } else {
+                // Move
+                results.push(build_move(position_index, position_index + 8, 0b0));
+                if file == 1 {
+                    if !bitboard.occupied(position_index + 16) {
+                        results.push(build_move(position_index, position_index + 16, 0b0));
+                    }
                 }
             }
         }
 
+        // Capture Right
         if rank != 7 {
             threat_bitboard |= 1 << (position_index + 7);
             if opponent_bitboard.occupied(position_index + 7) {
-                results.push(build_move(position_index, position_index + 7, CAPTURE_FLAG));
+                // Promotion
+                if file == 6 {
+                    results.extend(build_promotion_moves(
+                        position_index,
+                        position_index + 7,
+                        true,
+                    ));
+                } else {
+                    // Double push
+                    results.push(build_move(position_index, position_index + 7, CAPTURE_FLAG));
+                }
             }
         }
 
+        // Capture left
         if rank != 0 {
             threat_bitboard |= 1 << (position_index + 9);
             if opponent_bitboard.occupied(position_index + 9) {
-                results.push(build_move(position_index, position_index + 9, CAPTURE_FLAG));
+                // Promotion
+                if file == 6 {
+                    results.extend(build_promotion_moves(
+                        position_index,
+                        position_index + 9,
+                        true,
+                    ));
+                } else {
+                    results.push(build_move(position_index, position_index + 9, CAPTURE_FLAG));
+                }
             }
         }
 
@@ -215,26 +287,57 @@ fn generate_pawn_moves(
         }
     } else {
         if !bitboard.occupied(position_index - 8) {
-            results.push(build_move(position_index, position_index - 8, 0b0));
+            // Promotion
+            if file == 1 {
+                results.extend(build_promotion_moves(
+                    position_index,
+                    position_index - 8,
+                    true,
+                ));
+            } else {
+                // Move
+                results.push(build_move(position_index, position_index - 8, 0b0));
 
-            if file == 6 {
-                if !bitboard.occupied(position_index - 16) {
-                    results.push(build_move(position_index, position_index - 16, 0b0));
+                // Double push
+                if file == 6 {
+                    if !bitboard.occupied(position_index - 16) {
+                        results.push(build_move(position_index, position_index - 16, 0b0));
+                    }
                 }
             }
         }
 
+        // Capture right
         if rank != 7 {
             threat_bitboard |= 1 << (position_index - 9);
             if opponent_bitboard.occupied(position_index - 9) {
-                results.push(build_move(position_index, position_index - 9, CAPTURE_FLAG));
+                // Promotion
+                if file == 1 {
+                    results.extend(build_promotion_moves(
+                        position_index,
+                        position_index - 9,
+                        true,
+                    ));
+                } else {
+                    results.push(build_move(position_index, position_index - 9, CAPTURE_FLAG));
+                }
             }
         }
 
+        // Capture left
         if rank != 0 {
             threat_bitboard |= 1 << (position_index - 7);
             if opponent_bitboard.occupied(position_index - 7) {
-                results.push(build_move(position_index, position_index - 7, CAPTURE_FLAG));
+                // Promotion
+                if file == 1 {
+                    results.extend(build_promotion_moves(
+                        position_index,
+                        position_index - 7,
+                        true,
+                    ));
+                } else {
+                    results.push(build_move(position_index, position_index - 7, CAPTURE_FLAG));
+                }
             }
         }
 
@@ -255,6 +358,15 @@ fn generate_pawn_moves(
         }
     }
     (threat_bitboard, results)
+}
+
+fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16> {
+    return vec![
+        build_move(from_index, to_index, if !capture { 8 } else { 12 }), // Knight
+        build_move(from_index, to_index, if !capture { 9 } else { 13 }), // Bishop
+        build_move(from_index, to_index, if !capture { 10 } else { 14 }), // Rook
+        build_move(from_index, to_index, if !capture { 11 } else { 15 }), // Queen
+    ];
 }
 
 fn generate_pawn_threat_board(is_white: bool, position_index: u8) -> u64 {
@@ -887,7 +999,6 @@ mod test {
             true,
             board.black_bitboard,
             rank_and_file_to_index(0, 4),
-            board.flags,
             board.ep_rank,
         );
 
@@ -913,7 +1024,6 @@ mod test {
             true,
             board.black_bitboard,
             pos,
-            board.flags,
             board.ep_rank,
         );
 
@@ -943,7 +1053,6 @@ mod test {
             true,
             board.black_bitboard,
             pos,
-            board.flags,
             board.ep_rank,
         );
 
@@ -970,7 +1079,6 @@ mod test {
             true,
             board.black_bitboard,
             pos,
-            board.flags,
             board.ep_rank,
         );
 
@@ -990,7 +1098,6 @@ mod test {
             false,
             board.white_bitboard,
             rank_and_file_to_index(7, 3),
-            board.flags,
             board.ep_rank,
         );
 
@@ -1019,7 +1126,6 @@ mod test {
             false,
             board.white_bitboard,
             rank_and_file_to_index(1, 6),
-            board.flags,
             board.ep_rank,
         );
 

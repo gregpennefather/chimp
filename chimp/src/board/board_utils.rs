@@ -1,4 +1,4 @@
-use super::piece_utils::get_piece_char;
+use super::piece_utils::{get_piece_char, get_piece_code};
 
 pub fn rank_and_file_to_index(rank: u8, file: u8) -> u8 {
     ((file) * 8) + (7 - rank)
@@ -100,6 +100,12 @@ pub fn get_position_index_from_piece_index(
         pos += 1;
     }
     pos.try_into().unwrap()
+}
+
+pub fn get_piece_from_position_index(bitboard: u64, pieces:u128, position_index: u8) -> u8 {
+    let relevant_bb = bitboard & (u64::pow(2,position_index as u32)-1);
+    let piece_index = relevant_bb.count_ones() as u8;
+    get_piece_code(&pieces, piece_index)
 }
 
 #[cfg(test)]
