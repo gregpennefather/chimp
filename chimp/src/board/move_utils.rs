@@ -1,6 +1,6 @@
 use crate::{
     board::board_utils::get_friendly_name_for_index,
-    shared::{BLACK_MASK, PAWN_INDEX, PIECE_MASK, BLACK_PAWN},
+    shared::{BLACK_MASK, PAWN_INDEX, BLACK_PAWN, KNIGHT_PROMOTION, BISHOP_PROMOTION, ROOK_PROMOTION, QUEEN_PROMOTION, KNIGHT_CAPTURE_PROMOTION, BISHOP_CAPTURE_PROMOTION, ROOK_CAPTURE_PROMOTION, QUEEN_CAPTURE_PROMOTION, DOUBLE_PAWN_FLAG},
 };
 
 use super::board_utils::{rank_and_file_to_index, rank_from_char};
@@ -47,10 +47,23 @@ pub fn standard_notation_to_move(std_notation: &str) -> u16 {
 pub fn get_move_uci(m: u16) -> String {
     let from = (m >> 10) as u8;
     let to = (m >> 4 & 0b111111) as u8;
+    let flags = m & 0b1111;
+    let promotion = match flags {
+        KNIGHT_PROMOTION => "n",
+        KNIGHT_CAPTURE_PROMOTION => "n",
+        BISHOP_PROMOTION => "b",
+        BISHOP_CAPTURE_PROMOTION => "b",
+        ROOK_PROMOTION  => "r",
+        ROOK_CAPTURE_PROMOTION => "r",
+        QUEEN_PROMOTION  => "q",
+        QUEEN_CAPTURE_PROMOTION => "q",
+        _ => ""
+    };
     format!(
-        "{}{}",
+        "{}{}{}",
         get_friendly_name_for_index(from),
-        get_friendly_name_for_index(to)
+        get_friendly_name_for_index(to),
+        promotion
     )
 }
 
@@ -74,16 +87,8 @@ pub fn is_ep_capture(m: u8) -> bool {
     m == 5
 }
 
-pub fn is_double_pawn_push(picked_up_piece: u8, from_index: u8, to_index: u8) -> bool {
-    if picked_up_piece != PAWN_INDEX && picked_up_piece != BLACK_PAWN {
-        return false;
-    }
-
-    if picked_up_piece & BLACK_MASK > 0 {
-        return from_index >= 48 && from_index <= 55 && to_index >= 32 && to_index <= 39;
-    }
-
-    return from_index >= 8 && from_index <= 15 && to_index >= 24 && to_index <= 31;
+pub fn is_double_pawn_push(move_flags: u8) -> bool {
+    move_flags == DOUBLE_PAWN_FLAG as u8
 }
 
 #[cfg(test)]

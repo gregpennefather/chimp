@@ -1,13 +1,19 @@
 use super::{
-    board_utils::{get_rank, rank_and_file_to_index, get_file},
-    move_utils::{is_capture, is_castling, is_double_pawn_push, is_king_castling, is_promotion, is_ep_capture},
+    board_utils::{get_file, get_rank, rank_and_file_to_index},
+    move_utils::{
+        is_capture, is_castling, is_double_pawn_push, is_ep_capture, is_king_castling, is_promotion,
+    },
+    piece_utils::get_piece_code,
     state::BoardState,
 };
 use crate::{
-    board::{board_utils::{board_to_string, get_friendly_name_for_index}, move_utils::get_move_uci},
+    board::{
+        board_utils::{board_to_string, get_friendly_name_for_index},
+        move_utils::get_move_uci,
+    },
     shared::{
-        binary_utils::BinaryUtils, bitboard_to_string, BISHOP_INDEX, BLACK_MASK, KING_INDEX,
-        KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
+        binary_utils::BinaryUtils, bitboard_to_string, BISHOP_INDEX, BLACK_KNIGHT, BLACK_MASK,
+        BLACK_ROOK, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
     },
 };
 
@@ -84,8 +90,9 @@ impl BoardState {
             // Increment half-moves
             half_moves += 1;
         } else if is_promotion(move_flags) {
-            let mut new_pieces = remove_piece(pieces, bitboard, from_index);
+            let (removed_piece, mut new_pieces) = pickup_piece(pieces, bitboard, from_index);
             bitboard = bitboard ^ (1 << from_index);
+            black_move = removed_piece & (BLACK_MASK as u128) > 0;
             if black_move {
                 black_bitboard = black_bitboard ^ (1 << from_index);
             } else {
@@ -106,15 +113,24 @@ impl BoardState {
             if capture {
                 new_pieces = remove_piece(new_pieces, bitboard, to_index);
                 bitboard = bitboard ^ (1 << to_index);
+                if !black_move {
+                    black_bitboard = black_bitboard ^ (1 << to_index);
+                } else {
+                    white_bitboard = white_bitboard ^ (1 << to_index);
+                }
             }
 
             pieces = place_piece(new_pieces, bitboard, to_index, primary_piece);
             bitboard = bitboard | (1 << to_index);
+
             if black_move {
                 black_bitboard = black_bitboard | (1 << to_index);
             } else {
                 white_bitboard = white_bitboard | (1 << to_index);
             }
+
+            // a pawn promotion is always a half_moves reset
+            half_moves = 0;
         } else {
             let (picked_up_piece, mut new_pieces) = pickup_piece(pieces, bitboard, from_index);
             primary_piece = picked_up_piece;
@@ -155,12 +171,12 @@ impl BoardState {
 
             // Double Pawn Push
             let piece_u8: u8 = picked_up_piece.try_into().unwrap();
-            if is_double_pawn_push(piece_u8, from_index, to_index) {
+            if is_double_pawn_push(move_flags) {
                 ep_rank = get_rank(from_index);
             }
 
             // Half moves
-            if (piece_u8 & PIECE_MASK) == PAWN_INDEX {
+            if (piece_u8 & PIECE_MASK) == PAWN_INDEX || capture {
                 half_moves = 0;
             } else {
                 half_moves = half_moves + 1;
@@ -190,6 +206,17 @@ impl BoardState {
                         flags = flags & 0b1111_1101;
                     };
                 }
+            }
+        }
+
+        // Rook taken clear castling
+        if capture {
+            match to_index {
+                63 => flags = flags & 0b111_01_11_1, // Clear black queenside castling,
+                56 => flags = flags & 0b111_10_11_1, // Clear black kingside castling,
+                7 => flags = flags & 0b111_11_01_1,  // Clear white queenside castling,
+                0 => flags = flags & 0b111_11_10_1,  // Clear white kingside castling
+                _ => {}
             }
         }
 

@@ -18,9 +18,19 @@ pub const PIECE_MASK: u8 = 7;
 
 pub const PROMOTION_FLAG: u16 = 0b1000;
 pub const CAPTURE_FLAG: u16 = 0b0100;
+pub const DOUBLE_PAWN_FLAG: u16 = 0b0001;
 pub const EP_CAPTURE_FLAG: u16 = 0b0101;
 pub const KING_CASTLING_FLAG: u16 = 0b10;
 pub const QUEEN_CASTLING_FLAG: u16 = 0b11;
+
+pub const KNIGHT_PROMOTION: u16 = 0b1000;
+pub const KNIGHT_CAPTURE_PROMOTION: u16 = 0b1100;
+pub const BISHOP_PROMOTION: u16 = 0b1001;
+pub const BISHOP_CAPTURE_PROMOTION: u16 = 0b1101;
+pub const ROOK_PROMOTION: u16 = 0b1010;
+pub const ROOK_CAPTURE_PROMOTION: u16 = 0b1110;
+pub const QUEEN_PROMOTION: u16 = 0b1011;
+pub const QUEEN_CAPTURE_PROMOTION: u16 = 0b1111;
 
 pub static RANKS: &str = "abcdefgh";
 

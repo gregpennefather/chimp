@@ -5,7 +5,7 @@ use chimp::{
         self,
         board_utils::{board_to_string, rank_and_file_to_index},
         move_utils::{get_move_uci, standard_notation_to_move},
-        piece_utils::get_piece_char,
+        piece_utils::{get_piece_char, get_piece_code},
         state::BoardState,
     },
     shared::bitboard_to_string,
@@ -13,24 +13,24 @@ use chimp::{
 use colored::Colorize;
 
 fn main() {
-    let quiet = true;
+    let quiet = false;
     misc_tests();
     from_fen_test_cases();
     apply_move_test_cases();
-    apply_move_deep_test_cases();
+    apply_move_deep_test_cases(quiet);
     move_generation_test_cases();
-    perft(quiet);
-    kiwipete_perft(quiet);
-    perft_position_3(quiet);
-    perft_position_4(quiet);
-    perft_position_5(quiet);
-    perft_position_6(quiet);
-    // flexi_perft("rnbqkbnr/pppp1ppp/8/4p1B1/3P4/8/PPP1PPPP/RN1QKBNR b KQkq - 0 1".into(), 0, 28)
+    // perft(quiet);
+    // kiwipete_perft(quiet);
+    // perft_position_3(quiet);
+    // perft_position_4(quiet);
+    // perft_position_5(quiet);
+    // perft_position_6(quiet);
 
     // Clearly we have a apply_move issue that we need to start testing for
-    /* node_debug_test(
-        "r3k2r/p1ppqNb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1".into(),
-        vec![44, 2080],
+    //test_move_generation_count("r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(), 44);
+    /*node_debug_test(
+        "r3k2r/p1ppqN2/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 1 2".into(),
+        vec![48, 2074],
         false,
     )*/
 }
@@ -117,7 +117,7 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &initial_board_fen,
         "Initial Board State flags".into(),
-        0b1111,
+        0b11111,
         u8::MAX,
     ) {
         success_count += 1;
@@ -174,7 +174,7 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &white_e_pawn_opening_fen,
         "White E pawn opening flags".into(),
-        0b1110,
+        0b11110,
         4,
     ) {
         success_count += 1;
@@ -270,7 +270,7 @@ fn test_fen_king_positions(
 }
 
 fn apply_move_test_cases() {
-    let test_count = 11;
+    let test_count = 10;
     let mut success_count = 0;
 
     if test_move(
@@ -330,14 +330,6 @@ fn apply_move_test_cases() {
     }
 
     if test_move(
-        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
-        "e7e5".into(),
-        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".into(),
-    ) {
-        success_count += 1;
-    }
-
-    if test_move(
         "rnbqkb1r/ppp1pp1p/3p1np1/8/3PPP2/2N5/PPP3PP/R1BQKBNR b KQkq - 0 1".into(),
         "f6g4".into(),
         "rnbqkb1r/ppp1pp1p/3p2p1/8/3PPPn1/2N5/PPP3PP/R1BQKBNR w KQkq - 1 2".into(),
@@ -364,14 +356,14 @@ fn apply_move_test_cases() {
     print_test_group_result("apply_move_test_cases".into(), success_count, test_count);
 }
 
-fn apply_move_deep_test_cases() {
+fn apply_move_deep_test_cases(quiet: bool) {
     let mut tests: Vec<(String, String, String, String)> = Vec::new();
     let mut success_count = 0;
 
     tests.push((
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
         "e5f7".into(),
-        "r3k2r/p1ppqNb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 1 1".into(),
+        "r3k2r/p1ppqNb1/bn2pnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1".into(),
         "Knight takes f7 pawn".into(),
     ));
 
@@ -417,7 +409,6 @@ fn apply_move_deep_test_cases() {
         "Black rook move to clear king side castling".into(),
     ));
 
-
     tests.push((
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K1R1 b Qkq - 3 2".into(),
         "h8h7".into(),
@@ -432,22 +423,52 @@ fn apply_move_deep_test_cases() {
         "Black rook move to clear king side castling".into(),
     ));
 
+    tests.push((
+        "k7/8/8/8/8/K7/6p1/7R b - - 0 1".into(),
+        "g2g1n".into(),
+        "k7/8/8/8/8/K7/8/6nR w - - 0 2".into(),
+        "Black Pawn Promotion".into(),
+    ));
 
+    tests.push((
+        "r3k2r/p1ppqN2/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 1 2".into(),
+        "f7h8".into(),
+        "r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(),
+        "White takes Knight Black could previously castle with".into(),
+    ));
 
+    tests.push((
+        "r3k2r/p1p1qpb1/bn2pnp1/2NP4/1p2P3/2N2Q2/PPPBBPpP/R3K2R b KQkq - 1 2".into(),
+        "g2h1q".into(),
+        "r3k2r/p1p1qpb1/bn2pnp1/2NP4/1p2P3/2N2Q2/PPPBBP1P/R3K2q w Qkq - 0 3".into(),
+        "Black takes whites kingside rook, promoting to queen and clearing black kingside castling"
+            .into(),
+    ));
+
+    tests.push((
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
+        "e7e5".into(),
+        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".into(),
+        "Black double pawn push in same file as white".into(),
+    ));
 
     for test in &tests {
         let board = BoardState::from_fen(&test.0);
         let move_code = board.move_from_string(&test.1);
         let after_move_board_state = board.apply_move(move_code);
         let expected_board_state = BoardState::from_fen(&test.2);
+        if !quiet {
+            println!("Begin {}", test.3.yellow());
+        }
         let r = board_deep_equal(after_move_board_state, expected_board_state);
-        if !r {
+        if !r || !quiet {
             print_test_result(
                 format!("Apply Move {}", test.3),
                 "After move board state does not match".into(),
-                false,
+                r,
             );
-        } else {
+        }
+        if r {
             success_count += 1;
         }
     }
@@ -469,7 +490,19 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
     }
 
     if a.pieces != b.pieces {
-        println!("Pieces do not match");
+        println!("---Pieces do not match---");
+        for i in 0..32 {
+            let aw = get_piece_code(&a.pieces, i);
+            let bw = get_piece_code(&b.pieces, i);
+            if (aw != bw) {
+                println!(
+                    "{i}: {} vs {}",
+                    aw.to_string().red(),
+                    bw.to_string().yellow()
+                );
+            }
+        }
+        println!("--- End ---");
         flag = false;
     }
 
@@ -547,7 +580,7 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
 }
 
 fn move_generation_test_cases() {
-    let test_count = 18;
+    let test_count = 19;
     let mut success_count = 0;
 
     // 1
@@ -688,6 +721,14 @@ fn move_generation_test_cases() {
         success_count += 1;
     };
 
+    // 19
+    if test_move_generation_count(
+        "r3k2r/p1ppqNb1/bn2pnp1/3P4/1p2P3/2N2Q2/PPPBBPpP/2KR3R b kq - 0 2".into(),
+        53,
+    ) {
+        success_count += 1;
+    };
+
     print_test_group_result(
         "move_generation_test_cases".into(),
         success_count,
@@ -713,7 +754,6 @@ fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
         let mut vec = Vec::new();
         for m in moves {
             vec.push(get_move_uci(m));
-            println!("{} : {}", get_move_uci(m), m)
         }
         vec.sort();
         for m_s in vec {

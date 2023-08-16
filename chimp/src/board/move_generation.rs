@@ -1,9 +1,14 @@
 use crate::{
-    board::{board_utils::{get_friendly_name_for_index, get_piece_from_position_index}, move_utils::get_move_uci},
+    board::{
+        board_utils::{get_friendly_name_for_index, get_piece_from_position_index, board_to_string},
+        move_utils::get_move_uci,
+    },
     shared::{
-        bitboard_to_string, BISHOP_INDEX, CAPTURE_FLAG, EP_CAPTURE_FLAG, KING_CASTLING_FLAG,
-        KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_CASTLING_FLAG, QUEEN_INDEX,
-        ROOK_INDEX, BLACK_MASK, BLACK_PAWN, BLACK_KING,
+        bitboard_to_string, BISHOP_CAPTURE_PROMOTION, BISHOP_INDEX, BISHOP_PROMOTION, BLACK_KING,
+        BLACK_MASK, BLACK_PAWN, CAPTURE_FLAG, EP_CAPTURE_FLAG, KING_CASTLING_FLAG, KING_INDEX,
+        KNIGHT_CAPTURE_PROMOTION, KNIGHT_INDEX, KNIGHT_PROMOTION, PAWN_INDEX, PIECE_MASK,
+        QUEEN_CAPTURE_PROMOTION, QUEEN_CASTLING_FLAG, QUEEN_INDEX, QUEEN_PROMOTION,
+        ROOK_CAPTURE_PROMOTION, ROOK_INDEX, ROOK_PROMOTION, DOUBLE_PAWN_FLAG,
     },
 };
 
@@ -89,6 +94,12 @@ impl BoardState {
         for psudolegal_move in metrics.psudolegal_moves {
             let new_state = self.apply_move(psudolegal_move);
             let new_metrics = new_state.generate_psudolegals();
+            if psudolegal_move == 9246 {
+                println!("{}", get_move_uci(psudolegal_move));
+                println!("{} vs {}", self.piece_count, new_state.piece_count);
+                println!("{}", board_to_string(self.bitboard, self.pieces));
+                println!("{}", board_to_string(new_state.bitboard, new_state.pieces));
+            }
             if white_turn {
                 if !new_metrics
                     .black_threat_bitboard
@@ -130,10 +141,28 @@ impl BoardState {
         let piece = get_piece_from_position_index(self.bitboard, self.pieces, from_index);
         match piece {
             PAWN_INDEX | BLACK_PAWN => {
-                if self.ep_rank == to_rank && to_rank != from_rank {
+                if piece == PAWN_INDEX && from_file == 1 && to_file == 3 {
+                    flags = DOUBLE_PAWN_FLAG;
+                } else if piece == BLACK_PAWN && from_file == 6 && to_file == 4 {
+                    flags = DOUBLE_PAWN_FLAG;
+                } else if self.ep_rank == to_rank && to_rank != from_rank {
                     flags = EP_CAPTURE_FLAG;
+                } else {
+                    let promotion_char = move_string.chars().nth(4);
+                    match promotion_char {
+                        Some(p) => {
+                            flags = match p {
+                                'n' => if flags != CAPTURE_FLAG {KNIGHT_PROMOTION} else {KNIGHT_CAPTURE_PROMOTION},
+                                'b' => if flags != CAPTURE_FLAG {BISHOP_PROMOTION} else {BISHOP_CAPTURE_PROMOTION},
+                                'r' => if flags != CAPTURE_FLAG {ROOK_PROMOTION} else {ROOK_CAPTURE_PROMOTION},
+                                'q' => if flags != CAPTURE_FLAG {QUEEN_PROMOTION} else {QUEEN_CAPTURE_PROMOTION},
+                                _ => 0
+                            }
+                        },
+                        None => {}
+                    }
                 }
-            },
+            }
             KING_INDEX | BLACK_KING => {
                 if from_rank == 4 {
                     if to_rank == 2 {
@@ -178,14 +207,13 @@ fn generate_piece_moves(
         BISHOP_INDEX => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
         ROOK_INDEX => generate_rook_moves(bitboard, opponent_bitboard, position_index),
         QUEEN_INDEX => generate_queen_moves(bitboard, opponent_bitboard, position_index),
-        KING_INDEX => {
-            generate_king_moves(
+        KING_INDEX => generate_king_moves(
             bitboard,
             opponent_bitboard,
             position_index,
             castling_flags,
             opponent_threat_bitboard,
-        )} ,
+        ),
         _ => (0, vec![]),
     }
 }
@@ -293,7 +321,7 @@ fn generate_pawn_moves(
                 results.extend(build_promotion_moves(
                     position_index,
                     position_index - 8,
-                    true,
+                    false,
                 ));
             } else {
                 // Move
@@ -363,10 +391,42 @@ fn generate_pawn_moves(
 
 fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16> {
     return vec![
-        build_move(from_index, to_index, if !capture { 8 } else { 12 }), // Knight
-        build_move(from_index, to_index, if !capture { 9 } else { 13 }), // Bishop
-        build_move(from_index, to_index, if !capture { 10 } else { 14 }), // Rook
-        build_move(from_index, to_index, if !capture { 11 } else { 15 }), // Queen
+        build_move(
+            from_index,
+            to_index,
+            if !capture {
+                KNIGHT_PROMOTION
+            } else {
+                KNIGHT_CAPTURE_PROMOTION
+            },
+        ), // Knight
+        build_move(
+            from_index,
+            to_index,
+            if !capture {
+                BISHOP_PROMOTION
+            } else {
+                BISHOP_CAPTURE_PROMOTION
+            },
+        ), // Bishop
+        build_move(
+            from_index,
+            to_index,
+            if !capture {
+                ROOK_PROMOTION
+            } else {
+                ROOK_CAPTURE_PROMOTION
+            },
+        ), // Rook
+        build_move(
+            from_index,
+            to_index,
+            if !capture {
+                QUEEN_PROMOTION
+            } else {
+                QUEEN_CAPTURE_PROMOTION
+            },
+        ), // Queen
     ];
 }
 
