@@ -88,9 +88,9 @@ impl BoardState {
         }
     }
 
-    pub fn generate_legal_moves(&self, metrics: BoardMetrics) -> Vec<u16> {
+    pub fn generate_legal_moves(&self, metrics: BoardMetrics) -> Vec<(u16, BoardState,BoardMetrics)> {
         let white_turn = self.flags & 0b1 > 0;
-        let mut moves: Vec<u16> = Vec::new();
+        let mut moves = Vec::new();
         for psudolegal_move in metrics.psudolegal_moves {
             let new_state = self.apply_move(psudolegal_move);
             let new_metrics = new_state.generate_psudolegals();
@@ -105,14 +105,14 @@ impl BoardState {
                     .black_threat_bitboard
                     .occupied(new_state.white_king_index)
                 {
-                    moves.push(psudolegal_move);
+                    moves.push((psudolegal_move, new_state, new_metrics));
                 }
             } else {
                 if !new_metrics
                     .white_threat_bitboard
                     .occupied(new_state.black_king_index)
                 {
-                    moves.push(psudolegal_move);
+                    moves.push((psudolegal_move, new_state, new_metrics));
                 }
             }
         }
@@ -258,7 +258,7 @@ fn generate_pawn_moves(
                 results.push(build_move(position_index, position_index + 8, 0b0));
                 if file == 1 {
                     if !bitboard.occupied(position_index + 16) {
-                        results.push(build_move(position_index, position_index + 16, 0b0));
+                        results.push(build_move(position_index, position_index + 16, DOUBLE_PAWN_FLAG));
                     }
                 }
             }
@@ -330,7 +330,7 @@ fn generate_pawn_moves(
                 // Double push
                 if file == 6 {
                     if !bitboard.occupied(position_index - 16) {
-                        results.push(build_move(position_index, position_index - 16, 0b0));
+                        results.push(build_move(position_index, position_index - 16, DOUBLE_PAWN_FLAG));
                     }
                 }
             }

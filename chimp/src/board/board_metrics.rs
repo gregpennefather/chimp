@@ -1,3 +1,5 @@
+
+#[derive(Clone)]
 pub struct BoardMetrics {
     pub psudolegal_moves: Vec<u16>,
     pub white_threat_bitboard: u64,

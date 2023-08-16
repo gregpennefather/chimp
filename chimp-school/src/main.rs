@@ -6,7 +6,7 @@ use chimp::{
         board_utils::{board_to_string, rank_and_file_to_index},
         move_utils::{get_move_uci, standard_notation_to_move},
         piece_utils::{get_piece_char, get_piece_code},
-        state::BoardState,
+        state::BoardState, board_metrics::BoardMetrics,
     },
     shared::bitboard_to_string,
 };
@@ -19,20 +19,20 @@ fn main() {
     apply_move_test_cases();
     apply_move_deep_test_cases(quiet);
     move_generation_test_cases();
-    // perft(quiet);
-    // kiwipete_perft(quiet);
-    // perft_position_3(quiet);
-    // perft_position_4(quiet);
-    // perft_position_5(quiet);
-    // perft_position_6(quiet);
+    perft(quiet);
+    kiwipete_perft(quiet);
+    perft_position_3(quiet);
+    perft_position_4(quiet);
+    perft_position_5(quiet);
+    perft_position_6(quiet);
 
     // Clearly we have a apply_move issue that we need to start testing for
     //test_move_generation_count("r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(), 44);
-    /*node_debug_test(
-        "r3k2r/p1ppqN2/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 1 2".into(),
-        vec![48, 2074],
+    node_debug_test(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
+        vec![44],
         false,
-    )*/
+    )
 }
 
 fn misc_tests() {
@@ -452,6 +452,16 @@ fn apply_move_deep_test_cases(quiet: bool) {
         "Black double pawn push in same file as white".into(),
     ));
 
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
+        "a2a4".into(),
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
+        "White double pawn push opening self up to EP".into(),
+    ));
+
+
+
+
     for test in &tests {
         let board = BoardState::from_fen(&test.0);
         let move_code = board.move_from_string(&test.1);
@@ -580,7 +590,7 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
 }
 
 fn move_generation_test_cases() {
-    let test_count = 19;
+    let test_count = 20;
     let mut success_count = 0;
 
     // 1
@@ -729,6 +739,14 @@ fn move_generation_test_cases() {
         success_count += 1;
     };
 
+    // 20
+    if test_move_generation_count(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
+        44,
+    ) {
+        success_count += 1;
+    };
+
     print_test_group_result(
         "move_generation_test_cases".into(),
         success_count,
@@ -753,7 +771,7 @@ fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
         );
         let mut vec = Vec::new();
         for m in moves {
-            vec.push(get_move_uci(m));
+            vec.push(get_move_uci(m.0));
         }
         vec.sort();
         for m_s in vec {
@@ -801,7 +819,7 @@ fn print_test_group_result(name: String, success_count: i32, test_count: i32) {
 }
 
 #[derive(Default, Clone)]
-struct MovePath(u16, Vec<BoardState>);
+struct MovePath(u16, Vec<(BoardState, BoardMetrics)>);
 
 fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     let mut depth = 0;
@@ -815,9 +833,9 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     let legal_moves = initial_board_state.generate_legal_moves(metrics);
     for m in legal_moves {
         node_count += 1;
-        move_node_count.entry(m).or_insert(1);
-        let new_board_states = vec![initial_board_state.apply_move(m)];
-        paths.push(MovePath(m, new_board_states))
+        move_node_count.entry(m.0).or_insert(1);
+        let new_board_states = vec![(m.1,m.2)];
+        paths.push(MovePath(m.0, new_board_states))
     }
 
     print_test_result(
@@ -849,16 +867,16 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
         let mut new_path_entries = Vec::new();
         for path in paths {
             let mut new_board_states = Vec::new();
-            for board_state in path.1.iter() {
+            for board_state_with_metrics in path.1.iter() {
                 // if depth == 3 {
                 //     println!("path: {}, board: {}, bitboard {}", get_move_uci(path.0), board_state.to_fen(), board_state.bitboard);
                 // }
-                let metrics: chimp::board::board_metrics::BoardMetrics =
-                    board_state.generate_psudolegals();
+                let board_state = board_state_with_metrics.0;
+                let metrics = board_state_with_metrics.1.clone();
 
                 let legal_moves = board_state.generate_legal_moves(metrics);
                 for m in legal_moves {
-                    new_board_states.push(board_state.apply_move(m));
+                    new_board_states.push((m.1,m.2));
                     move_node_count
                         .entry(path.0)
                         .and_modify(|v| *v += 1)
