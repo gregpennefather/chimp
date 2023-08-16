@@ -180,7 +180,7 @@ impl BoardState {
                 if black_move {
                     if from_index == 63 {
                         flags = flags & 0b1110_1111;
-                    } else if from_index == 55 {
+                    } else if from_index == 56 {
                         flags = flags & 0b1111_0111;
                     }
                 } else {
@@ -197,7 +197,7 @@ impl BoardState {
         flags = flags ^ 0b1;
 
         // Full moves
-        let full_moves: u32 = self.full_moves + if (flags & 1) == 1 { 1 } else { 0 };
+        let full_moves: u32 = self.full_moves + if (flags & 0b1) == 1 { 1 } else { 0 };
 
         // Piece Count
         let piece_count = bitboard.count_ones() as u8;

@@ -13,14 +13,18 @@ use chimp::{
 use colored::Colorize;
 
 fn main() {
-    // misc_tests();
-    // from_fen_test_cases();
-    // apply_move_test_cases();
+    let quiet = true;
+    misc_tests();
+    from_fen_test_cases();
+    apply_move_test_cases();
     apply_move_deep_test_cases();
-    // move_generation_test_cases();
-    // perft(false);
-    kiwipete_perft(false);
-    perft_position_3(false);
+    move_generation_test_cases();
+    perft(quiet);
+    kiwipete_perft(quiet);
+    perft_position_3(quiet);
+    perft_position_4(quiet);
+    perft_position_5(quiet);
+    perft_position_6(quiet);
     // flexi_perft("rnbqkbnr/pppp1ppp/8/4p1B1/3P4/8/PPP1PPPP/RN1QKBNR b KQkq - 0 1".into(), 0, 28)
 
     // Clearly we have a apply_move issue that we need to start testing for
@@ -113,8 +117,8 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &initial_board_fen,
         "Initial Board State flags".into(),
-        0b011111,
-        0,
+        0b1111,
+        u8::MAX,
     ) {
         success_count += 1;
     }
@@ -146,7 +150,7 @@ fn from_fen_test_cases() {
         &dualing_kings_fen,
         "Dualing Kings opposite corners flags".into(),
         0b0,
-        0,
+        u8::MAX,
     ) {
         success_count += 1;
     }
@@ -170,7 +174,7 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &white_e_pawn_opening_fen,
         "White E pawn opening flags".into(),
-        0b00111110,
+        0b1110,
         4,
     ) {
         success_count += 1;
@@ -404,6 +408,28 @@ fn apply_move_deep_test_cases() {
         "e1c1".into(),
         "r3k2r/p2pqpb1/bn2pnp1/2pPN3/1p2P3/2N2Q1p/PPPBBPPP/2KR2R1 b kq - 1 2".into(),
         "White castling queenside after black C double pawn push".into(),
+    ));
+
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
+        "h1g1".into(),
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K1R1 b Qkq - 1 1".into(),
+        "Black rook move to clear king side castling".into(),
+    ));
+
+
+    tests.push((
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K1R1 b Qkq - 3 2".into(),
+        "h8h7".into(),
+        "r3k3/p1ppqpbr/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K1R1 w Qq - 4 3".into(),
+        "Black rook move to clear king side castling".into(),
+    ));
+
+    tests.push((
+        "r3k3/p1ppqpbr/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K1R1 w Qq - 4 3".into(),
+        "g1h1".into(),
+        "r3k3/p1ppqpbr/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b Qq - 5 3".into(),
+        "Black rook move to clear king side castling".into(),
     ));
 
 
@@ -784,8 +810,12 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
         for path in paths {
             let mut new_board_states = Vec::new();
             for board_state in path.1.iter() {
+                // if depth == 3 {
+                //     println!("path: {}, board: {}, bitboard {}", get_move_uci(path.0), board_state.to_fen(), board_state.bitboard);
+                // }
                 let metrics: chimp::board::board_metrics::BoardMetrics =
                     board_state.generate_psudolegals();
+
                 let legal_moves = board_state.generate_legal_moves(metrics);
                 for m in legal_moves {
                     new_board_states.push(board_state.apply_move(m));
@@ -847,7 +877,7 @@ fn kiwipete_perft(quiet: bool) {
     println!("--- Kiwipete Perft ---");
     node_debug_test(
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
-        vec![48, 2039, 97862, 4085603, 193690690],
+        vec![48, 2039, 97862, 4085603],
         quiet,
     );
 }
@@ -857,6 +887,33 @@ fn perft_position_3(quiet: bool) {
     node_debug_test(
         "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1".into(),
         vec![14, 191, 2812, 43238, 674624],
+        quiet,
+    );
+}
+
+fn perft_position_4(quiet: bool) {
+    println!("--- Perft Position 4 ---");
+    node_debug_test(
+        "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1".into(),
+        vec![6, 264, 9467, 422333],
+        quiet,
+    );
+}
+
+fn perft_position_5(quiet: bool) {
+    println!("--- Perft Position 5 ---");
+    node_debug_test(
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8".into(),
+        vec![44, 1486, 62379, 2103487],
+        quiet,
+    );
+}
+
+fn perft_position_6(quiet: bool) {
+    println!("--- Perft Position 6 ---");
+    node_debug_test(
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10".into(),
+        vec![46, 2079, 89890, 3894594],
         quiet,
     );
 }

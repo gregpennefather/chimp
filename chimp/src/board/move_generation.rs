@@ -111,15 +111,15 @@ impl BoardState {
     pub fn move_from_string(&self, move_string: &String) -> u16 {
         let from_rank_char = move_string.chars().nth(0).unwrap();
         let from_rank = rank_from_char(from_rank_char);
-        let from_file: u8 = move_string.chars().nth(1).unwrap().to_digit(8).unwrap() as u8;
+        let from_file: u8 = (move_string.chars().nth(1).unwrap().to_digit(16).unwrap() - 1) as u8;
 
-        let from_index = rank_and_file_to_index(from_rank, from_file - 1);
+        let from_index = rank_and_file_to_index(from_rank, from_file);
 
         let to_rank_char = move_string.chars().nth(2).unwrap();
         let to_rank = rank_from_char(to_rank_char);
-        let to_file: u8 = move_string.chars().nth(3).unwrap().to_digit(8).unwrap() as u8;
+        let to_file: u8 = (move_string.chars().nth(3).unwrap().to_digit(16).unwrap() - 1) as u8;
 
-        let to_index = rank_and_file_to_index(to_rank, to_file - 1);
+        let to_index = rank_and_file_to_index(to_rank, to_file);
 
         let mut flags = 0;
 
@@ -178,13 +178,14 @@ fn generate_piece_moves(
         BISHOP_INDEX => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
         ROOK_INDEX => generate_rook_moves(bitboard, opponent_bitboard, position_index),
         QUEEN_INDEX => generate_queen_moves(bitboard, opponent_bitboard, position_index),
-        KING_INDEX => generate_king_moves(
+        KING_INDEX => {
+            generate_king_moves(
             bitboard,
             opponent_bitboard,
             position_index,
             castling_flags,
             opponent_threat_bitboard,
-        ),
+        )} ,
         _ => (0, vec![]),
     }
 }
@@ -603,7 +604,7 @@ fn generate_king_moves(
         true,
     );
 
-    if (castling_flags & 0b1) > 0 {
+    if (castling_flags & 0b01) > 0 {
         // King side castling
         if (!bitboard.occupied(position_index - 1) && !bitboard.occupied(position_index - 2))
             && (!opponent_threat_bitboard.occupied(position_index)
