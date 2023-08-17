@@ -119,7 +119,7 @@ impl BoardState {
         moves
     }
 
-    pub fn move_from_string(&self, move_string: &String) -> u16 {
+    pub fn move_from_string(&self, move_string: &str) -> u16 {
         let from_rank_char = move_string.chars().nth(0).unwrap();
         let from_rank = rank_from_char(from_rank_char);
         let from_file: u8 = (move_string.chars().nth(1).unwrap().to_digit(16).unwrap() - 1) as u8;
@@ -145,7 +145,7 @@ impl BoardState {
                     flags = DOUBLE_PAWN_FLAG;
                 } else if piece == BLACK_PAWN && from_file == 6 && to_file == 4 {
                     flags = DOUBLE_PAWN_FLAG;
-                } else if self.ep_rank == to_rank && to_rank != from_rank {
+                } else if self.ep_rank == to_rank && to_rank != from_rank && ((piece == PAWN_INDEX && to_file == 5) || (piece == BLACK_PAWN && to_file == 2)) {
                     flags = EP_CAPTURE_FLAG;
                 } else {
                     let promotion_char = move_string.chars().nth(4);

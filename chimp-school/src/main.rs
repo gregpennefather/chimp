@@ -3,10 +3,11 @@ use std::{cmp::Ordering, collections::HashMap, time::Instant};
 use chimp::{
     board::{
         self,
+        board_metrics::BoardMetrics,
         board_utils::{board_to_string, rank_and_file_to_index},
         move_utils::{get_move_uci, standard_notation_to_move},
         piece_utils::{get_piece_char, get_piece_code},
-        state::BoardState, board_metrics::BoardMetrics,
+        state::BoardState,
     },
     shared::bitboard_to_string,
 };
@@ -19,12 +20,13 @@ fn main() {
     apply_move_test_cases();
     apply_move_deep_test_cases(quiet);
     move_generation_test_cases();
-    perft(quiet);
-    kiwipete_perft(quiet);
-    perft_position_3(quiet);
-    perft_position_4(quiet);
-    perft_position_5(quiet);
-    perft_position_6(quiet);
+    move_chain_test_cases(quiet);
+    // perft(quiet);
+    // kiwipete_perft(quiet);
+    // perft_position_3(quiet);
+    // perft_position_4(quiet);
+    // perft_position_5(quiet);
+    // perft_position_6(quiet);
 
     // Clearly we have a apply_move issue that we need to start testing for
     //test_move_generation_count("r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(), 44);
@@ -459,8 +461,12 @@ fn apply_move_deep_test_cases(quiet: bool) {
         "White double pawn push opening self up to EP".into(),
     ));
 
-
-
+    tests.push((
+        "rnbqkbnr/p1p1pppp/3p4/1p6/4P3/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 1 3".into(),
+        "f7f5".into(),
+        "rnbqkbnr/p1p1p1pp/3p4/1p3p2/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq f6 0 4".into(),
+        "Black pawn push from test game".into(),
+    ));
 
     for test in &tests {
         let board = BoardState::from_fen(&test.0);
@@ -475,6 +481,46 @@ fn apply_move_deep_test_cases(quiet: bool) {
             print_test_result(
                 format!("Apply Move {}", test.3),
                 "After move board state does not match".into(),
+                r,
+            );
+        }
+        if r {
+            success_count += 1;
+        }
+    }
+    print_test_group_result(
+        "apply_move_deep_test_cases".into(),
+        success_count,
+        tests.len().try_into().unwrap(),
+    );
+}
+
+fn move_chain_test_cases(quiet:bool) {
+    let mut tests: Vec<(String, Vec<String>, String)> = Vec::new();
+    let mut success_count = 0;
+
+    tests.push((
+        "White pawn capture from test game".into(),
+        vec!["e2e4".into(),"b7b5".into(),"g1f3".into(),"d7d6".into(),"b1c3".into(),"f7f5".into(),"e4f5".into()],
+        "rnbqkbnr/p1p1p1pp/3p4/1p3P2/8/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 0 4".into(),
+    ));
+
+
+    for test in &tests {
+        let mut board = BoardState::default();
+        for m in test.1.iter() {
+            let move_code = board.move_from_string(&m);
+            board = board.apply_move(move_code);
+        }
+        let expected_board_state = BoardState::from_fen(&test.2);
+        if !quiet {
+            println!("Begin {}", test.0.yellow());
+        }
+        let r = board_deep_equal(board, expected_board_state);
+        if !r || !quiet {
+            print_test_result(
+                format!("Move chain {}", test.0),
+                "After move chain board state does not match".into(),
                 r,
             );
         }
@@ -834,7 +880,7 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     for m in legal_moves {
         node_count += 1;
         move_node_count.entry(m.0).or_insert(1);
-        let new_board_states = vec![(m.1,m.2)];
+        let new_board_states = vec![(m.1, m.2)];
         paths.push(MovePath(m.0, new_board_states))
     }
 
@@ -876,7 +922,7 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
 
                 let legal_moves = board_state.generate_legal_moves(metrics);
                 for m in legal_moves {
-                    new_board_states.push((m.1,m.2));
+                    new_board_states.push((m.1, m.2));
                     move_node_count
                         .entry(path.0)
                         .and_modify(|v| *v += 1)

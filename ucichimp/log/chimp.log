@@ -1,0 +1,47 @@
+2023-08-17T23:05:51.009609100+02:00 - 
+==================================== Chimp Started ===============================
+
+2023-08-17T23:05:53.494022+02:00 - >> position startpos moves e2e4 b7b5 g1f3 d7d6 b1c3 f7f5 e4f5
+
+2023-08-17T23:05:53.494255500+02:00 - Start position command
+2023-08-17T23:05:53.494329100+02:00 - Current moves: []
+2023-08-17T23:05:53.494372700+02:00 - add_word e2e4
+2023-08-17T23:05:53.494425100+02:00 - add_word b7b5
+2023-08-17T23:05:53.494455400+02:00 - add_word g1f3
+2023-08-17T23:05:53.494483600+02:00 - add_word d7d6
+2023-08-17T23:05:53.494511500+02:00 - add_word b1c3
+2023-08-17T23:05:53.494540900+02:00 - add_word f7f5
+2023-08-17T23:05:53.494568800+02:00 - add_word e4f5
+2023-08-17T23:05:53.494621800+02:00 - position command resulted in fen: Xrnbqkbn/r1p1p1pp/3p4/1p3P2/5p2/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 0 4
+2023-08-17T23:06:08.172064300+02:00 - >> position startpos
+
+2023-08-17T23:06:08.172154+02:00 - Start position command
+2023-08-17T23:06:08.172183200+02:00 - Loading initial boardstate
+2023-08-17T23:06:16.066774700+02:00 - >> go
+
+2023-08-17T23:06:16.068808500+02:00 - bestmove b1c3 of 20
+2023-08-17T23:06:32.884442600+02:00 - >> position startpos moves e2e4 b7b5 g1f3 d7d6 b1c3 f7f5
+
+2023-08-17T23:06:32.884532100+02:00 - Start position command
+2023-08-17T23:06:32.884580700+02:00 - Current moves: ["e2e4", "b7b5", "g1f3", "d7d6", "b1c3", "f7f5", "e4f5"]
+2023-08-17T23:06:32.884692100+02:00 - position command resulted in fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2023-08-17T23:07:07.842583400+02:00 - 
+==================================== Chimp Started ===============================
+
+2023-08-17T23:07:12.107592100+02:00 - >> position startpos moves e2e4 b7b5 g1f3 d7d6 b1c3 f7f5
+
+2023-08-17T23:07:12.107673500+02:00 - Start position command
+2023-08-17T23:07:12.107758900+02:00 - Current moves: []
+2023-08-17T23:07:12.107792300+02:00 - add_word e2e4
+2023-08-17T23:07:12.107892900+02:00 - add_word b7b5
+2023-08-17T23:07:12.107912800+02:00 - add_word g1f3
+2023-08-17T23:07:12.107929300+02:00 - add_word d7d6
+2023-08-17T23:07:12.107945800+02:00 - add_word b1c3
+2023-08-17T23:07:12.107962400+02:00 - add_word f7f5
+2023-08-17T23:07:12.108003700+02:00 - position command resulted in fen: rnbqkbnr/p1p1p1pp/3p4/1p3p2/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 0 4
+2023-08-17T23:07:30.824949500+02:00 - >> position startpos moves e2e4 b7b5 g1f3 d7d6 b1c3 f7f5 e4f5
+
+2023-08-17T23:07:30.825018300+02:00 - Start position command
+2023-08-17T23:07:30.825040500+02:00 - Current moves: ["e2e4", "b7b5", "g1f3", "d7d6", "b1c3", "f7f5"]
+2023-08-17T23:07:30.825095100+02:00 - add_word e4f5
+2023-08-17T23:07:30.825175300+02:00 - position command resulted in fen: Xrnbqkbn/r1p1p1pp/3p4/1p3P2/5p2/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 0 4
