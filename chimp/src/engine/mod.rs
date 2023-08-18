@@ -1,8 +1,11 @@
 use std::str::SplitAsciiWhitespace;
 use rand::Rng;
 use log::info;
-
+use crate::board::move_utils::get_move_san;
+use crate::engine::search::search;
 use crate::board::{state::BoardState, move_utils::get_move_uci};
+mod evaluate;
+mod search;
 
 pub struct ChimpEngine {
     board_state: BoardState,
@@ -57,13 +60,16 @@ impl ChimpEngine {
         info!(target:"app:chimp", "position command resulted in fen: {}", self.board_state.to_fen());
     }
 
-    pub fn best_move(&mut self, mut split_string: SplitAsciiWhitespace<'_>) -> String {
-        let moves = self.get_ordered_moves();
-        let mut rng = rand::thread_rng();
-        let r = rng.gen_range(0..moves.len());
-        let selected_move = moves[r];
-        info!(target:"app:chimp", "bestmove {} of {}", get_move_uci(selected_move), moves.len());
-        get_move_uci(selected_move)
+    pub fn go(&mut self, mut split_string: SplitAsciiWhitespace<'_>) -> String {
+        let best_move = search(self.board_state);
+        info!(target:"app:chimp", "bestmove {}", get_move_uci(best_move.0));
+        get_move_uci(best_move.0)
+    }
+
+    pub fn go_uci_and_san(&mut self) -> (String, String) {
+        let best_move = search(self.board_state);
+        info!(target:"app:chimp", "bestmove {}", get_move_uci(best_move.0));
+        (get_move_uci(best_move.0), get_move_san(self.board_state, best_move.1, best_move.0))
     }
 
     fn load_initial_board_state(&mut self) {

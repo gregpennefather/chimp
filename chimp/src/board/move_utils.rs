@@ -1,9 +1,21 @@
 use crate::{
     board::board_utils::get_friendly_name_for_index,
-    shared::{BLACK_MASK, PAWN_INDEX, BLACK_PAWN, KNIGHT_PROMOTION, BISHOP_PROMOTION, ROOK_PROMOTION, QUEEN_PROMOTION, KNIGHT_CAPTURE_PROMOTION, BISHOP_CAPTURE_PROMOTION, ROOK_CAPTURE_PROMOTION, QUEEN_CAPTURE_PROMOTION, DOUBLE_PAWN_FLAG},
+    shared::{
+        BISHOP_CAPTURE_PROMOTION, BISHOP_PROMOTION, BLACK_PAWN, DOUBLE_PAWN_FLAG,
+        KNIGHT_CAPTURE_PROMOTION, KNIGHT_PROMOTION, PAWN_INDEX, QUEEN_CAPTURE_PROMOTION,
+        QUEEN_PROMOTION, ROOK_CAPTURE_PROMOTION, ROOK_PROMOTION,
+    },
 };
 
-use super::board_utils::{rank_and_file_to_index, rank_from_char};
+use super::{
+    board_metrics::BoardMetrics,
+    board_utils::{
+        char_from_rank, get_piece_from_position_index, get_rank, rank_and_file_to_index,
+        rank_from_char,
+    },
+    piece_utils::get_piece_char,
+    state::BoardState,
+};
 
 pub fn build_move(from_index: u8, to_index: u8, flags: u16) -> u16 {
     let f: u16 = from_index.into();
@@ -53,11 +65,11 @@ pub fn get_move_uci(m: u16) -> String {
         KNIGHT_CAPTURE_PROMOTION => "n",
         BISHOP_PROMOTION => "b",
         BISHOP_CAPTURE_PROMOTION => "b",
-        ROOK_PROMOTION  => "r",
+        ROOK_PROMOTION => "r",
         ROOK_CAPTURE_PROMOTION => "r",
-        QUEEN_PROMOTION  => "q",
+        QUEEN_PROMOTION => "q",
         QUEEN_CAPTURE_PROMOTION => "q",
-        _ => ""
+        _ => "",
     };
     format!(
         "{}{}{}",
@@ -65,6 +77,50 @@ pub fn get_move_uci(m: u16) -> String {
         get_friendly_name_for_index(to),
         promotion
     )
+}
+
+pub fn get_move_san(board_state: BoardState, board_metrics: BoardMetrics, m: u16) -> String {
+    let to = (m >> 4 & 0b111111) as u8;
+    let from = (m >> 10) as u8;
+    let piece = get_piece_from_position_index(board_state.bitboard, board_state.pieces, from);
+    let piece_letter = get_piece_char(piece).to_ascii_uppercase();
+    let flags = (m & 0b1111) as u8;
+
+    let mut r = if piece_letter != 'P' {
+        format!("{}", piece_letter)
+    } else {
+        "".into()
+    };
+
+    if is_castling(flags) {
+        if is_king_castling(flags) {
+            return "O-O".into();
+        } else {
+            return "O-O-O".into();
+        }
+    }
+
+    let mut moves_targeting_square = Vec::new();
+    for c_m in board_metrics.psudolegal_moves {
+        let cm_to = (c_m >> 4 & 0b111111) as u8;
+        let cm_from = (c_m >> 10) as u8;
+        let cm_piece =
+            get_piece_from_position_index(board_state.bitboard, board_state.pieces, cm_from);
+        if cm_to == to && (cm_piece == piece || piece == PAWN_INDEX || piece == BLACK_PAWN) {
+            moves_targeting_square.push(c_m);
+        }
+    }
+
+    if moves_targeting_square.len() >= 1 {
+        let from_rank = char_from_rank(get_rank(from));
+        r = format!("{r}{from_rank}");
+    }
+
+    if is_capture(flags) {
+        r = format!("{r}x");
+    }
+
+    format!("{r}{}", get_friendly_name_for_index(to))
 }
 
 pub fn is_capture(m: u8) -> bool {

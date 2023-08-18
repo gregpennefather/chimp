@@ -49,7 +49,7 @@ fn run() -> bool {
                     engine.position(split_string);
                 }
                 "go" => {
-                    println!("bestmove {}", engine.best_move(split_string));
+                    println!("bestmove {}", engine.go(split_string));
                 }
                 "quit" => break,
                 _ => {
