@@ -1,4 +1,5 @@
 use super::{
+    bitboard::{Bitboard, BitboardExtensions},
     board_utils::{get_file, get_rank, rank_and_file_to_index},
     r#move::{Move, MoveFunctions},
     state::{BoardState, BoardStateFlags, BoardStateFlagsTrait},
@@ -10,9 +11,7 @@ use crate::shared::{
 
 impl BoardState {
     pub fn apply_move(&self, m: Move) -> BoardState {
-        let mut bitboard: u64 = self.bitboard;
-        let mut white_bitboard: u64 = self.white_bitboard;
-        let mut black_bitboard: u64 = self.black_bitboard;
+        let mut bitboard = self.bitboard;
         let mut pieces: u128 = self.pieces;
         let mut flags: BoardStateFlags = self.flags;
         let mut ep_rank: u8 = u8::MAX;
@@ -20,12 +19,19 @@ impl BoardState {
         let mut white_king_index: u8 = self.white_king_index;
         let mut black_king_index: u8 = self.black_king_index;
 
+        let black_move: bool = self.flags.is_black_turn();
+
+        let (mut friendly_bitboard, mut opponent_bitboard) = if black_move {
+            (self.black_bitboard, self.white_bitboard)
+        } else {
+            (self.white_bitboard, self.black_bitboard)
+        };
+
         let from_index: u8 = m.from();
         let to_index: u8 = m.to();
 
         let capture = m.is_capture();
         let mut primary_piece: u128 = 0;
-        let mut black_move: bool = false;
 
         if m.is_castling() {
             let (rook_from_index, rook_to_index) = if m.is_king_castling() {
@@ -36,39 +42,23 @@ impl BoardState {
             // pick-up king
             let (king_piece, new_pieces) = pickup_piece(pieces, bitboard, from_index);
             primary_piece = king_piece;
-            bitboard = bitboard ^ (1 << from_index);
-            // update colour bit_boards
-            black_move = primary_piece & (BLACK_MASK as u128) > 0;
-            if black_move {
-                black_bitboard = black_bitboard ^ (1 << from_index);
-            } else {
-                white_bitboard = white_bitboard ^ (1 << from_index);
-            }
+            bitboard = bitboard.flip(from_index);
+            friendly_bitboard = friendly_bitboard.flip(from_index);
+
             // place king
             pieces = place_piece(new_pieces, bitboard, to_index, king_piece);
-            bitboard = bitboard | (1 << to_index);
-            if black_move {
-                black_bitboard = black_bitboard | (1 << to_index);
-            } else {
-                white_bitboard = white_bitboard | (1 << to_index);
-            }
+            bitboard = bitboard.set(to_index);
+            friendly_bitboard = friendly_bitboard.set(to_index);
 
             // pickup rook
             let (rook_piece, new_pieces) = pickup_piece(pieces, bitboard, rook_from_index);
-            bitboard = bitboard ^ (1 << rook_from_index);
-            if black_move {
-                black_bitboard = black_bitboard ^ (1 << rook_from_index);
-            } else {
-                white_bitboard = white_bitboard ^ (1 << rook_from_index);
-            }
+            bitboard = bitboard.flip(rook_from_index);
+            friendly_bitboard = friendly_bitboard.flip(rook_from_index);
+
             // place rook
             pieces = place_piece(new_pieces, bitboard, rook_to_index, rook_piece);
-            bitboard = bitboard | (1 << rook_to_index);
-            if black_move {
-                black_bitboard = black_bitboard | (1 << rook_to_index);
-            } else {
-                white_bitboard = white_bitboard | (1 << rook_to_index);
-            }
+            bitboard = bitboard.set(rook_to_index);
+            friendly_bitboard = friendly_bitboard.set(rook_to_index);
 
             // Clear castling rights
             if black_move {
@@ -81,13 +71,9 @@ impl BoardState {
             half_moves += 1;
         } else if m.is_promotion() {
             let (removed_piece, mut new_pieces) = pickup_piece(pieces, bitboard, from_index);
-            bitboard = bitboard ^ (1 << from_index);
-            black_move = removed_piece & (BLACK_MASK as u128) > 0;
-            if black_move {
-                black_bitboard = black_bitboard ^ (1 << from_index);
-            } else {
-                white_bitboard = white_bitboard ^ (1 << from_index);
-            }
+            bitboard = bitboard.flip(from_index);
+            friendly_bitboard = friendly_bitboard.flip(from_index);
+
             primary_piece = match m.flags() {
                 8 | 12 => KNIGHT_INDEX.into(),
                 9 | 13 => BISHOP_INDEX.into(),
@@ -102,62 +88,36 @@ impl BoardState {
 
             if capture {
                 new_pieces = remove_piece(new_pieces, bitboard, to_index);
-                bitboard = bitboard ^ (1 << to_index);
-                if !black_move {
-                    black_bitboard = black_bitboard ^ (1 << to_index);
-                } else {
-                    white_bitboard = white_bitboard ^ (1 << to_index);
-                }
+                bitboard = bitboard.flip(to_index);
+                opponent_bitboard = opponent_bitboard.flip(to_index);
             }
 
             pieces = place_piece(new_pieces, bitboard, to_index, primary_piece);
-            bitboard = bitboard | (1 << to_index);
-
-            if black_move {
-                black_bitboard = black_bitboard | (1 << to_index);
-            } else {
-                white_bitboard = white_bitboard | (1 << to_index);
-            }
+            bitboard = bitboard.set(to_index);
+            friendly_bitboard = friendly_bitboard.set(to_index);
 
             // a pawn promotion is always a half_moves reset
             half_moves = 0;
         } else {
             let (picked_up_piece, mut new_pieces) = pickup_piece(pieces, bitboard, from_index);
             primary_piece = picked_up_piece;
-            black_move = (picked_up_piece as u8) & BLACK_MASK > 0;
-            bitboard = bitboard ^ (1 << from_index);
-            if black_move {
-                black_bitboard = black_bitboard ^ (1 << from_index);
-            } else {
-                white_bitboard = white_bitboard ^ (1 << from_index);
-            }
+            bitboard = bitboard.flip(from_index);
+            friendly_bitboard = friendly_bitboard.flip(from_index);
 
             if m.is_ep_capture() {
                 let ep_capture_index = rank_and_file_to_index(self.ep_rank, get_file(from_index));
                 new_pieces = remove_piece(new_pieces, bitboard, ep_capture_index);
-                bitboard = bitboard ^ (1 << ep_capture_index);
-                if !black_move {
-                    black_bitboard = black_bitboard ^ (1 << ep_capture_index);
-                } else {
-                    white_bitboard = white_bitboard ^ (1 << ep_capture_index);
-                }
+                bitboard = bitboard.flip(ep_capture_index);
+                opponent_bitboard = opponent_bitboard.flip(ep_capture_index);
             } else if capture {
                 new_pieces = remove_piece(new_pieces, bitboard, to_index);
-                bitboard = bitboard ^ (1 << to_index);
-                if !black_move {
-                    black_bitboard = black_bitboard ^ (1 << to_index);
-                } else {
-                    white_bitboard = white_bitboard ^ (1 << to_index);
-                }
+                bitboard = bitboard.flip(to_index);
+                opponent_bitboard = opponent_bitboard.flip(to_index);
             }
 
             pieces = place_piece(new_pieces, bitboard, to_index, picked_up_piece);
-            bitboard = bitboard | (1 << to_index);
-            if black_move {
-                black_bitboard = black_bitboard | (1 << to_index);
-            } else {
-                white_bitboard = white_bitboard | (1 << to_index);
-            }
+            bitboard = bitboard.set(to_index);
+            friendly_bitboard = friendly_bitboard.set(to_index);
 
             // Double Pawn Push
             let piece_u8: u8 = picked_up_piece.try_into().unwrap();
@@ -237,6 +197,12 @@ impl BoardState {
             }
         }
 
+        let (white_bitboard, black_bitboard) = if black_move {
+            (opponent_bitboard, friendly_bitboard)
+        } else {
+            (friendly_bitboard, opponent_bitboard)
+        };
+
         BoardState {
             bitboard,
             white_bitboard,
@@ -253,23 +219,20 @@ impl BoardState {
     }
 }
 
-fn pickup_piece(pieces: u128, bitboard: u64, index: u8) -> (u128, u128) {
-    let bitboard_relevant = bitboard & (u64::pow(2, index.into()) - 1);
-    let bitboard_pos: usize = bitboard_relevant.count_ones() as usize;
-    let piece = pieces.copy_b(bitboard_pos * 4, 4);
-    let board = pieces.remove_b(bitboard_pos * 4, 4);
+fn pickup_piece(pieces: u128, bitboard: Bitboard, position_index: u8) -> (u128, u128) {
+    let piece_index = bitboard.position_to_piece_index(position_index);
+    let piece = pieces.copy_b(piece_index * 4, 4);
+    let board = pieces.remove_b(piece_index * 4, 4);
     (piece, board)
 }
 
-fn remove_piece(pieces: u128, bitboard: u64, index: u8) -> u128 {
-    let bitboard_relevant = bitboard & (u64::pow(2, index.into()) - 1);
-    let bitboard_pos: usize = bitboard_relevant.count_ones() as usize;
-    let board = pieces.remove_b(bitboard_pos * 4, 4);
+fn remove_piece(pieces: u128, bitboard: u64, position_index: u8) -> u128 {
+    let piece_index = bitboard.position_to_piece_index(position_index);
+    let board = pieces.remove_b(piece_index * 4, 4);
     board
 }
 
-fn place_piece(pieces: u128, bitboard: u64, index: u8, piece: u128) -> u128 {
-    let bitboard_relevant = bitboard & (u64::pow(2, index.into()) - 1);
-    let bitboard_pos = (bitboard_relevant.count_ones()) as usize;
-    pieces.insert_b(bitboard_pos * 4, piece, 4)
+fn place_piece(pieces: u128, bitboard: u64, position_index: u8, piece: u128) -> u128 {
+    let piece_index = bitboard.position_to_piece_index(position_index);
+    pieces.insert_b(piece_index * 4, piece, 4)
 }

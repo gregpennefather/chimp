@@ -12,7 +12,7 @@ use chimp::{
 use colored::Colorize;
 
 fn main() {
-    let quiet = false;
+    let quiet = true;
 
     misc_tests();
     from_fen_test_cases();

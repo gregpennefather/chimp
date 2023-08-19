@@ -1,7 +1,7 @@
-use crate::shared::{BLACK_KING, KING_INDEX, PIECE_MASK, bitboard_to_string, PAWN_INDEX, KNIGHT_INDEX, BISHOP_INDEX, ROOK_INDEX, QUEEN_INDEX};
+use crate::shared::{BLACK_KING, KING_INDEX, PIECE_MASK, PAWN_INDEX, KNIGHT_INDEX, BISHOP_INDEX, ROOK_INDEX, QUEEN_INDEX};
 
 use super::{
-    bitboard::BitboardExtensions,
+    bitboard::{BitboardExtensions, Bitboard},
     board_utils::{get_piece_from_position_index, get_position_index_from_piece_index, get_rank},
     move_utils::get_available_slide_pos,
     piece_utils::is_piece_black,
@@ -10,10 +10,10 @@ use super::{
 
 #[derive(Clone)]
 pub struct BoardMetrics {
-    pub white_threat_board: u64,
-    pub black_threat_board: u64,
-    pub white_mobility_board: u64,
-    pub black_mobility_board: u64,
+    pub white_threat_board: Bitboard,
+    pub black_threat_board: Bitboard,
+    pub white_mobility_board: Bitboard,
+    pub black_mobility_board: Bitboard,
     pub white_king_position: u8,
     pub black_king_position: u8,
     pub white_in_check: bool,
@@ -22,10 +22,10 @@ pub struct BoardMetrics {
 
 impl BoardState {
     pub fn generate_metrics(&self) -> BoardMetrics {
-        let mut white_threat_board = 0;
-        let mut black_threat_board = 0;
-        let mut white_mobility_board = 0;
-        let mut black_mobility_board = 0;
+        let mut white_threat_board = Bitboard::default();
+        let mut black_threat_board = Bitboard::default();
+        let mut white_mobility_board = Bitboard::default();
+        let mut black_mobility_board = Bitboard::default();
         let mut white_king_position = u8::MAX;
         let mut black_king_position = u8::MAX;
 
@@ -70,7 +70,7 @@ impl BoardState {
     }
 }
 
-fn generate_threat_board(bitboard: u64, position_index: u8, piece: u8, is_black: bool) -> u64 {
+fn generate_threat_board(bitboard: Bitboard, position_index: u8, piece: u8, is_black: bool) -> Bitboard {
     let piece_code = piece & PIECE_MASK;
     match piece_code {
         PAWN_INDEX => generate_pawn_threat_board(is_black, position_index),
@@ -83,12 +83,12 @@ fn generate_threat_board(bitboard: u64, position_index: u8, piece: u8, is_black:
     }
 }
 
-fn generate_mobility_board(bitboard: u64, position_index: u8, piece: u8, is_black: bool) -> u64 {
+fn generate_mobility_board(bitboard: Bitboard, position_index: u8, piece: u8, is_black: bool) -> Bitboard {
     0
 }
 
-fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> u64 {
-    let mut threat_bitboard: u64 = 0;
+fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> Bitboard {
+    let mut threat_bitboard = Bitboard::default();
     let rank = get_rank(position_index);
     if !is_black {
         if rank != 7 && position_index <= 56 {
@@ -110,8 +110,8 @@ fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> u64 {
     threat_bitboard
 }
 
-fn generate_knight_threat_board(position_index: u8) -> u64 {
-    let mut threat_bitboard: u64 = 0;
+fn generate_knight_threat_board(position_index: u8) -> Bitboard {
+    let mut threat_bitboard= Bitboard::default();
     let rank = get_rank(position_index);
 
     // U2R1 = +16-1 = 15
@@ -157,30 +157,30 @@ fn generate_knight_threat_board(position_index: u8) -> u64 {
     threat_bitboard
 }
 
-fn generate_bishop_threat_board(bitboard: u64, position_index: u8) -> u64 {
+fn generate_bishop_threat_board(bitboard: Bitboard, position_index: u8) -> Bitboard {
     sliding_threat_generator(bitboard, position_index, true, false, false)
 }
 
-fn generate_rook_threat_board(bitboard: u64, position_index: u8) -> u64 {
+fn generate_rook_threat_board(bitboard: Bitboard, position_index: u8) -> Bitboard {
     sliding_threat_generator(bitboard, position_index, false, true, false)
 }
 
-fn generate_queen_threat_board(bitboard: u64, position_index: u8) -> u64 {
+fn generate_queen_threat_board(bitboard: Bitboard, position_index: u8) -> Bitboard {
     sliding_threat_generator(bitboard, position_index, true, true, false)
 }
 
-fn generate_king_threat_board(bitboard: u64, position_index: u8) -> u64 {
+fn generate_king_threat_board(bitboard: Bitboard, position_index: u8) -> Bitboard {
     sliding_threat_generator(bitboard, position_index, true, true, true)
 }
 
 fn sliding_threat_generator(
-    bitboard: u64,
+    bitboard: Bitboard,
     position_index: u8,
     diag: bool,
     straight: bool,
     king: bool,
-) -> u64 {
-    let mut threat_bitboard = 0;
+) -> Bitboard {
+    let mut threat_bitboard= Bitboard::default();
     let depth = if king { 1 } else { 8 };
     if diag {
         let positions_d_l = get_available_slide_pos(bitboard, position_index, -1, -1, depth);
@@ -234,35 +234,4 @@ fn sliding_threat_generator(
     }
 
     threat_bitboard
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    // #[test]
-    // pub fn is_white_check_starting_pos() {
-    //     assert!(!BoardState::default().generate_metrics().is_white_check());
-    // }
-
-    // #[test]
-    // pub fn is_black_check_starting_pos() {
-    //     assert!(!BoardState::default().is_black_check());
-    // }
-
-    // #[test]
-    // pub fn is_black_check_early_b5_bishop() {
-    //     assert!(BoardState::from_fen(
-    //         &"rnbqkbnr/ppp1pppp/8/1B1p4/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 0 1".into()
-    //     )
-    //     .is_black_check())
-    // }
-
-    // #[test]
-    // pub fn is_white_check_early_c2_knight() {
-    //     assert!(BoardState::from_fen(
-    //         &"r1bqkbnr/pppppppp/8/8/4P3/3P4/PPnB1PPP/RN1QKBNR w KQkq - 0 1".into()
-    //     )
-    //     .is_white_check())
-    // }
 }

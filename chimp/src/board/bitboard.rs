@@ -1,10 +1,14 @@
+pub type Bitboard = u64;
+
 pub trait BitboardExtensions {
     fn occupied(&self, index: u8) -> bool;
     fn occupied_i8(&self, index: i8) -> bool;
-    fn flip(&self, index: u8) -> u64;
+    fn flip(&self, index: u8) -> Bitboard;
+    fn set(&self, index: u8) -> Bitboard;
+    fn position_to_piece_index(&self, position_index: u8) -> usize;
 }
 
-impl BitboardExtensions for u64 {
+impl BitboardExtensions for Bitboard {
     fn occupied(&self, index: u8) -> bool {
         self >> index & 0b1 > 0
     }
@@ -13,8 +17,17 @@ impl BitboardExtensions for u64 {
         self >> index & 0b1 > 0
     }
 
-    fn flip(&self, index: u8) -> u64 {
-        self ^ u64::pow(2, index.into())
+    fn flip(&self, index: u8) -> Bitboard {
+        self ^ (1 << index)
+    }
+
+    fn set(&self, index: u8) -> Bitboard {
+        self | (1 << index)
+    }
+
+    fn position_to_piece_index(&self, position_index: u8) -> usize {
+        let bitboard_relevant = self & (u64::pow(2, position_index.into()) - 1);
+        bitboard_relevant.count_ones() as usize // TODO: replace with u8 or something
     }
 }
 
