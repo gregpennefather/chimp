@@ -85,8 +85,9 @@ impl ChimpEngine {
     }
 
     fn get_ordered_moves(&self) -> Vec<u16> {
-        let metrics = self.board_state.generate_psudolegals();
-        let legal_moves = self.board_state.generate_legal_moves(metrics);
+        let psudolegal_moves = self.board_state.generate_psudolegals();
+        let metrics = self.board_state.generate_metrics();
+        let legal_moves = self.board_state.generate_legal_moves(&psudolegal_moves, &metrics);
         let mut result = Vec::new();
         for m in legal_moves {
             result.push(m.0);

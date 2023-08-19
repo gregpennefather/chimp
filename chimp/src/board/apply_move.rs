@@ -4,7 +4,7 @@ use super::{
         is_capture, is_castling, is_double_pawn_push, is_ep_capture, is_king_castling, is_promotion,
     },
     piece_utils::get_piece_code,
-    state::BoardState,
+    state::{BoardState, BoardStateFlags, BoardStateFlagsTrait},
 };
 use crate::{
     board::{
@@ -23,7 +23,7 @@ impl BoardState {
         let mut white_bitboard: u64 = self.white_bitboard;
         let mut black_bitboard: u64 = self.black_bitboard;
         let mut pieces: u128 = self.pieces;
-        let mut flags = self.flags;
+        let mut flags: BoardStateFlags = self.flags;
         let mut ep_rank: u8 = u8::MAX;
         let mut half_moves: u8 = self.half_moves;
         let mut white_king_index: u8 = self.white_king_index;
@@ -221,10 +221,10 @@ impl BoardState {
         }
 
         // Turn
-        flags = flags ^ 0b1;
+        flags.alternate_turn();
 
         // Full moves
-        let full_moves: u32 = self.full_moves + if (flags & 0b1) == 1 { 1 } else { 0 };
+        let full_moves: u32 = self.full_moves + if !flags.is_black_turn() { 1 } else { 0 };
 
         // Piece Count
         let piece_count = bitboard.count_ones() as u8;

@@ -18,8 +18,18 @@ pub fn get_piece_char(piece: u8) -> char {
     }
 }
 
-pub fn is_white(piece: u8) -> bool {
-    piece & BLACK_MASK == 0
+// Todo - maybe refactor this out
+pub fn is_piece_white(piece: u8) -> bool {
+    !is_piece_black(piece)
+}
+
+pub fn is_piece_black(piece: u8) -> bool {
+    piece & BLACK_MASK > 1
+}
+
+// team_flag 1 = black; 0 = white
+pub fn matches_team(piece:u8, team_flag: u8) -> bool {
+    piece >> 3 == team_flag
 }
 
 pub fn get_piece_code(pieces: &u128, piece_index: u8) -> u8 {

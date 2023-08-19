@@ -2,7 +2,31 @@ use crate::board::piece_utils::*;
 use crate::shared::binary_utils::BinaryUtils;
 use crate::shared::*;
 
-use super::board_utils::{rank_and_file_to_index, rank_and_file_to_index_i8};
+pub type BoardStateFlags = u8;
+
+pub trait BoardStateFlagsTrait {
+    fn is_black_turn(&self) -> bool;
+    fn set_black_turn(&mut self, is_black_turn: bool);
+    fn alternate_turn(&mut self);
+}
+
+impl BoardStateFlagsTrait for BoardStateFlags {
+    fn is_black_turn(&self) -> bool {
+        self & 0b1 > 0
+    }
+
+    fn set_black_turn(&mut self, is_black_turn: bool) {
+        if is_black_turn {
+            *self |=  0b1;
+        } else {
+            *self &= 0b0;
+        }
+    }
+
+    fn alternate_turn(&mut self) {
+        *self ^=  0b1
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct BoardState {
@@ -10,7 +34,7 @@ pub struct BoardState {
     pub white_bitboard: u64,
     pub black_bitboard: u64,
     pub pieces: u128,
-    pub flags: u8,
+    pub flags: BoardStateFlags,
     pub ep_rank: u8,
     pub half_moves: u8,
     pub full_moves: u32,
@@ -30,7 +54,7 @@ impl BoardState {
         let mut white_bitboard: u64 = 0;
         let mut black_bitboard: u64 = 0;
         let mut pieces: u128 = 0;
-        let mut flags: u8 = 0;
+        let mut flags: BoardStateFlags = BoardStateFlags::default();
         let mut ep_rank: u8 = 0;
         let mut white_king_index = 0;
         let mut black_king_index = 0;
@@ -101,12 +125,12 @@ impl BoardState {
         }
 
         // Turn
-        let white_turn = if fen.chars().nth(i).unwrap() == 'w' {
-            1
+        if fen.chars().nth(i).unwrap() == 'b' {
+            flags.set_black_turn(true);
         } else {
-            0
+            flags.set_black_turn(false);
         };
-        flags += white_turn;
+
         i += 2;
 
         // Castling
@@ -197,8 +221,8 @@ impl BoardState {
 
         // Flags
         // Move
-        let white_move = (self.flags & 1) > 0;
-        fen += if white_move { " w" } else { " b" };
+        let black_turn: bool = self.flags.is_black_turn();
+        fen += if black_turn { " b" } else { " w" };
 
         // Castling
         fen += " ";
@@ -225,7 +249,7 @@ impl BoardState {
             let rank_char = RANKS.chars().nth(self.ep_rank as usize).unwrap();
             fen += &rank_char.to_string();
             // if it's whites move next then this move was by black
-            fen += if white_move { "6".into() } else { "3".into() };
+            fen += if black_turn { "3".into() } else { "6".into() };
         } else {
             fen += "-";
         }

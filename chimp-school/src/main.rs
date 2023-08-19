@@ -2,11 +2,10 @@ use std::{cmp::Ordering, collections::HashMap, time::Instant};
 
 use chimp::{
     board::{
-        self,
         board_metrics::BoardMetrics,
         board_utils::{board_to_string, rank_and_file_to_index},
-        move_utils::{get_move_uci, standard_notation_to_move},
-        piece_utils::{get_piece_char, get_piece_code},
+        move_utils::{get_move_uci},
+        piece_utils::{get_piece_code},
         state::BoardState,
     },
     shared::bitboard_to_string,
@@ -14,27 +13,29 @@ use chimp::{
 use colored::Colorize;
 
 fn main() {
-    let quiet = false;
+    let quiet = true;
+
     misc_tests();
     from_fen_test_cases();
     apply_move_test_cases();
     apply_move_deep_test_cases(quiet);
+    metric_generation_check_test_cases(quiet);
     move_generation_test_cases();
     move_chain_test_cases(quiet);
-    // perft(quiet);
-    // kiwipete_perft(quiet);
-    // perft_position_3(quiet);
-    // perft_position_4(quiet);
-    // perft_position_5(quiet);
-    // perft_position_6(quiet);
+    perft(quiet);
+    kiwipete_perft(quiet);
+    perft_position_3(quiet);
+    perft_position_4(quiet);
+    perft_position_5(quiet);
+    perft_position_6(quiet);
 
     // Clearly we have a apply_move issue that we need to start testing for
     //test_move_generation_count("r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(), 44);
-    node_debug_test(
+    /*node_debug_test(
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
         vec![44],
         false,
-    )
+    )*/
 }
 
 fn misc_tests() {
@@ -119,7 +120,7 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &initial_board_fen,
         "Initial Board State flags".into(),
-        0b11111,
+        0b11110,
         u8::MAX,
     ) {
         success_count += 1;
@@ -151,7 +152,7 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &dualing_kings_fen,
         "Dualing Kings opposite corners flags".into(),
-        0b0,
+        0b1,
         u8::MAX,
     ) {
         success_count += 1;
@@ -176,7 +177,7 @@ fn from_fen_test_cases() {
     if test_fen_flags(
         &white_e_pawn_opening_fen,
         "White E pawn opening flags".into(),
-        0b11110,
+        0b11111,
         4,
     ) {
         success_count += 1;
@@ -636,7 +637,7 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
 }
 
 fn move_generation_test_cases() {
-    let test_count = 20;
+    let test_count = 21;
     let mut success_count = 0;
 
     // 1
@@ -648,7 +649,7 @@ fn move_generation_test_cases() {
     }
 
     // 2
-    if test_move_generation_count("8/7p/8/8/8/7N/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into(), 2) {
+    if test_move_generation_count("7k/7p/8/8/8/7N/PPPPPPPP/RNBQKB1R b KQ - 1 1".into(), 4) {
         success_count += 1;
     }
 
@@ -793,6 +794,14 @@ fn move_generation_test_cases() {
         success_count += 1;
     };
 
+    // 21
+    if test_move_generation_count(
+        "r2q1rk1/pP1p2pp/Q4n2/bb2p3/Npp5/1B3NBn/pPPP1PPP/R3K2R w KQ - 0 2".into(),
+        43,
+    ) {
+        success_count += 1;
+    };
+
     print_test_group_result(
         "move_generation_test_cases".into(),
         success_count,
@@ -802,8 +811,9 @@ fn move_generation_test_cases() {
 
 fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
     let board = BoardState::from_fen(&fen);
-    let metrics = board.generate_psudolegals();
-    let moves = board.generate_legal_moves(metrics);
+    let metrics = board.generate_metrics();
+    let pl_moves = board.generate_psudolegals();
+    let moves = board.generate_legal_moves(&pl_moves, &metrics);
     let r = moves.len() == expected_count;
     if !r {
         print_test_result(
@@ -848,6 +858,39 @@ fn test_move(init_fen: String, m: String, exp_fen: String) -> bool {
     r
 }
 
+fn metric_generation_check_test_cases(quiet: bool) {
+    let mut tests: Vec<(String, String, bool, bool)> = Vec::new();
+    let mut success_count = 0;
+
+    tests.push((
+        "Bishop threatens Black King".into(),
+        "rnbqkbnr/ppp1pppp/8/1B1p4/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 0 1".into(),
+        false,
+        true
+    ));
+
+    for test in &tests {
+        let board = BoardState::from_fen(&test.1);
+        let metrics = board.generate_metrics();
+        let r = metrics.white_in_check == test.2 && metrics.black_in_check == test.3;
+        if !r || !quiet {
+            print_test_result(
+                format!("Metrics Check Tests {}", test.0),
+                format!("Expected: {},{}. Result: {},{}", test.2.to_string().yellow(), test.3.to_string().yellow(), metrics.white_in_check.to_string().red(), metrics.black_in_check.to_string().red()),
+                r,
+            );
+        }
+        if r {
+            success_count += 1;
+        }
+    }
+    print_test_group_result(
+        "apply_move_deep_test_cases".into(),
+        success_count,
+        tests.len().try_into().unwrap(),
+    );
+}
+
 fn print_test_result(name: String, result: String, success: bool) {
     match success {
         true => println!("{name}: {} - {result}", "SUCCESS".green()),
@@ -873,10 +916,13 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     let mut node_count = 0;
     let mut move_node_count: HashMap<u16, usize> = HashMap::new();
 
+
     let initial_board_state = BoardState::from_fen(&fen);
     let mut paths: Vec<MovePath> = Vec::new();
-    let metrics = initial_board_state.generate_psudolegals();
-    let legal_moves = initial_board_state.generate_legal_moves(metrics);
+    // Todo: refactor to all happen in the loop
+    let metrics = initial_board_state.generate_metrics();
+    let pl_moves = initial_board_state.generate_psudolegals();
+    let legal_moves = initial_board_state.generate_legal_moves(&pl_moves, &metrics);
     for m in legal_moves {
         node_count += 1;
         move_node_count.entry(m.0).or_insert(1);
@@ -919,8 +965,9 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
                 // }
                 let board_state = board_state_with_metrics.0;
                 let metrics = board_state_with_metrics.1.clone();
+                let pl_moves = board_state.generate_psudolegals();
 
-                let legal_moves = board_state.generate_legal_moves(metrics);
+                let legal_moves = board_state.generate_legal_moves(&pl_moves, &metrics);
                 for m in legal_moves {
                     new_board_states.push((m.1, m.2));
                     move_node_count

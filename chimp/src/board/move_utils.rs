@@ -8,13 +8,12 @@ use crate::{
 };
 
 use super::{
-    board_metrics::BoardMetrics,
     board_utils::{
         char_from_rank, get_piece_from_position_index, get_rank, rank_and_file_to_index,
-        rank_from_char,
+        rank_from_char, get_file, get_rank_i8,
     },
     piece_utils::get_piece_char,
-    state::BoardState,
+    state::BoardState, bitboard::BitboardExtensions,
 };
 
 pub fn build_move(from_index: u8, to_index: u8, flags: u16) -> u16 {
@@ -22,6 +21,43 @@ pub fn build_move(from_index: u8, to_index: u8, flags: u16) -> u16 {
     let t: u16 = to_index.into();
     let m: u16 = f << 10 | t << 4 | flags;
     m
+}
+
+pub fn get_available_slide_pos(
+    bitboard: u64,
+    pos: u8,
+    file_delta: i8,
+    rank_delta: i8,
+    max_depth: i32,
+) -> Vec<u8> {
+    let mut results = Vec::new();
+    let delta = (file_delta * 8) + (-1 * rank_delta);
+    let mut check_pos = pos as i8 + delta;
+    let mut check_file = get_file(pos);
+    let check_rank = get_rank(pos);
+    while check_pos > -1 && check_pos < 64 {
+        let cur_rank = get_rank_i8(check_pos);
+
+        if (rank_delta > 0 && cur_rank < check_rank) || (rank_delta < 0 && cur_rank > check_rank) {
+            break;
+        }
+
+        results.push(check_pos.try_into().unwrap());
+        if bitboard.occupied_i8(check_pos) {
+            break;
+        }
+        check_pos += delta;
+        if file_delta == 0 && check_file != get_file(check_pos as u8) {
+            break;
+        }
+
+        check_file = get_file(check_pos as u8);
+
+        if max_depth == 1 {
+            break;
+        }
+    }
+    results
 }
 
 pub fn standard_notation_to_move(std_notation: &str) -> u16 {
@@ -79,7 +115,7 @@ pub fn get_move_uci(m: u16) -> String {
     )
 }
 
-pub fn get_move_san(board_state: BoardState, board_metrics: BoardMetrics, m: u16) -> String {
+pub fn get_move_san(board_state: BoardState, psudolegal_moves: Vec<u16>, m: u16) -> String {
     let to = (m >> 4 & 0b111111) as u8;
     let from = (m >> 10) as u8;
     let piece = get_piece_from_position_index(board_state.bitboard, board_state.pieces, from);
@@ -101,7 +137,7 @@ pub fn get_move_san(board_state: BoardState, board_metrics: BoardMetrics, m: u16
     }
 
     let mut moves_targeting_square = Vec::new();
-    for c_m in board_metrics.psudolegal_moves {
+    for c_m in psudolegal_moves {
         let cm_to = (c_m >> 4 & 0b111111) as u8;
         let cm_from = (c_m >> 10) as u8;
         let cm_piece =
@@ -130,6 +166,8 @@ pub fn is_capture(m: u8) -> bool {
 pub fn is_castling(m: u8) -> bool {
     m == 2 || m == 3
 }
+
+
 
 pub fn is_king_castling(m: u8) -> bool {
     m == 2
@@ -189,5 +227,78 @@ mod test {
         let r = build_move(from_index, to_index, 0b0u16);
         println!("{r:#018b}");
         assert_eq!(r, 0b1111111101110000);
+    }#[test]
+    pub fn get_available_slide_pos_e4_diag_down_right() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(4, 3), -1, 1, 8);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(0).unwrap(), &18);
+        assert_eq!(result.get(1).unwrap(), &9);
+        assert_eq!(result.get(2).unwrap(), &0);
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_c1_diag_up_left() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(2, 0), 1, -1, 8);
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result.get(0).unwrap(),
+            &rank_and_file_to_index(1, 1),
+            "1,1 issue"
+        );
+        assert_eq!(
+            result.get(1).unwrap(),
+            &rank_and_file_to_index(0, 2),
+            "0,2 issue"
+        );
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_a3_diag_up_right_blocked_at_d6() {
+        let bitboard = 0b0u64.flip(rank_and_file_to_index(3, 5));
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(0, 2), 1, 1, 8);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(1, 3));
+        assert_eq!(result.get(1).unwrap(), &rank_and_file_to_index(2, 4));
+        assert_eq!(result.get(2).unwrap(), &rank_and_file_to_index(3, 5));
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_rook_d7_left_unblocked() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(3, 6), 0, -1, 8);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(2, 6));
+        assert_eq!(result.get(1).unwrap(), &rank_and_file_to_index(1, 6));
+        assert_eq!(result.get(2).unwrap(), &rank_and_file_to_index(0, 6));
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_rook_b3_right_unblocked() {
+        let bitboard = 0b0u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(1, 2), 0, 1, 8);
+        assert_eq!(result.len(), 6);
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_rook_h1_blocked_in() {
+        let bitboard = 0b1111111110u64;
+        let result = get_available_slide_pos(bitboard, rank_and_file_to_index(7, 0), 1, 0, 8);
+        assert_eq!(result.len(), 1); // blocked in at h2
+    }
+
+    #[test]
+    pub fn get_available_slide_pos_bishop_moves_d2_pawn_opening() {
+        let board = BoardState::from_fen(
+            &"rnbqkb1r/pppppppp/5n2/8/8/3P4/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+        let r = get_available_slide_pos(board.bitboard, 5, 1, 1, 8);
+        assert_eq!(r.len(), 5, "{r:?}");
+        assert_eq!(r.get(0).unwrap(), &rank_and_file_to_index(3, 1));
+        assert_eq!(r.get(1).unwrap(), &rank_and_file_to_index(4, 2));
+        assert_eq!(r.get(2).unwrap(), &rank_and_file_to_index(5, 3));
+        assert_eq!(r.get(3).unwrap(), &rank_and_file_to_index(6, 4));
+        assert_eq!(r.get(4).unwrap(), &rank_and_file_to_index(7, 5));
     }
 }
