@@ -1,24 +1,15 @@
 use super::{
     board_utils::{get_file, get_rank, rank_and_file_to_index},
-    move_utils::{
-        is_capture, is_castling, is_double_pawn_push, is_ep_capture, is_king_castling, is_promotion,
-    },
-    piece_utils::get_piece_code,
+    r#move::{Move, MoveFunctions},
     state::{BoardState, BoardStateFlags, BoardStateFlagsTrait},
 };
-use crate::{
-    board::{
-        board_utils::{board_to_string, get_friendly_name_for_index},
-        move_utils::get_move_uci,
-    },
-    shared::{
-        binary_utils::BinaryUtils, bitboard_to_string, BISHOP_INDEX, BLACK_KNIGHT, BLACK_MASK,
-        BLACK_ROOK, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
-    },
+use crate::shared::{
+    binary_utils::BinaryUtils, BISHOP_INDEX, BLACK_MASK, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX,
+    PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
 };
 
 impl BoardState {
-    pub fn apply_move(&self, m: u16) -> BoardState {
+    pub fn apply_move(&self, m: Move) -> BoardState {
         let mut bitboard: u64 = self.bitboard;
         let mut white_bitboard: u64 = self.white_bitboard;
         let mut black_bitboard: u64 = self.black_bitboard;
@@ -29,16 +20,15 @@ impl BoardState {
         let mut white_king_index: u8 = self.white_king_index;
         let mut black_king_index: u8 = self.black_king_index;
 
-        let from_index: u8 = (m >> 10).try_into().unwrap();
-        let to_index: u8 = (m >> 4 & 0b111111).try_into().unwrap();
-        let move_flags: u8 = (m & 0b1111).try_into().unwrap();
+        let from_index: u8 = m.from();
+        let to_index: u8 = m.to();
 
-        let capture = is_capture(move_flags);
+        let capture = m.is_capture();
         let mut primary_piece: u128 = 0;
         let mut black_move: bool = false;
 
-        if is_castling(move_flags) {
-            let (rook_from_index, rook_to_index) = if is_king_castling(move_flags) {
+        if m.is_castling() {
+            let (rook_from_index, rook_to_index) = if m.is_king_castling() {
                 (from_index - 3, to_index + 1)
             } else {
                 (from_index + 4, to_index - 1)
@@ -89,7 +79,7 @@ impl BoardState {
 
             // Increment half-moves
             half_moves += 1;
-        } else if is_promotion(move_flags) {
+        } else if m.is_promotion() {
             let (removed_piece, mut new_pieces) = pickup_piece(pieces, bitboard, from_index);
             bitboard = bitboard ^ (1 << from_index);
             black_move = removed_piece & (BLACK_MASK as u128) > 0;
@@ -98,7 +88,7 @@ impl BoardState {
             } else {
                 white_bitboard = white_bitboard ^ (1 << from_index);
             }
-            primary_piece = match move_flags {
+            primary_piece = match m.flags() {
                 8 | 12 => KNIGHT_INDEX.into(),
                 9 | 13 => BISHOP_INDEX.into(),
                 10 | 14 => ROOK_INDEX.into(),
@@ -142,7 +132,7 @@ impl BoardState {
                 white_bitboard = white_bitboard ^ (1 << from_index);
             }
 
-            if is_ep_capture(move_flags) {
+            if m.is_ep_capture() {
                 let ep_capture_index = rank_and_file_to_index(self.ep_rank, get_file(from_index));
                 new_pieces = remove_piece(new_pieces, bitboard, ep_capture_index);
                 bitboard = bitboard ^ (1 << ep_capture_index);
@@ -171,7 +161,7 @@ impl BoardState {
 
             // Double Pawn Push
             let piece_u8: u8 = picked_up_piece.try_into().unwrap();
-            if is_double_pawn_push(move_flags) {
+            if m.is_double_pawn_push() {
                 ep_rank = get_rank(from_index);
             }
 
@@ -232,8 +222,8 @@ impl BoardState {
         if piece_count > 32 {
             panic!(
                 "Move {} leading to >32 pieces ({piece_count}) (isCastling:{}) fen: {}",
-                get_move_uci(m),
-                is_castling(move_flags),
+                m.uci(),
+                m.is_castling(),
                 &self.to_fen()
             );
         }

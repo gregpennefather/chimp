@@ -1,9 +1,8 @@
-use std::str::SplitAsciiWhitespace;
-use rand::Rng;
-use log::info;
-use crate::board::move_utils::get_move_san;
+use crate::board::r#move::MoveFunctions;
+use crate::board::state::BoardState;
 use crate::engine::search::search;
-use crate::board::{state::BoardState, move_utils::get_move_uci};
+use log::info;
+use std::str::SplitAsciiWhitespace;
 mod evaluate;
 mod search;
 
@@ -28,8 +27,8 @@ impl ChimpEngine {
                 if !word.eq_ignore_ascii_case("startpos") {
                     panic!("unexpected word");
                 }
-            },
-            None => panic!("unexpected lack of word")
+            }
+            None => panic!("unexpected lack of word"),
         }
 
         let second_word = split_string.next();
@@ -38,11 +37,11 @@ impl ChimpEngine {
                 if !word.eq_ignore_ascii_case("moves") {
                     panic!("unexpected word");
                 }
-            },
+            }
             None => {
                 info!(target:"app:chimp", "Loading initial boardstate");
                 self.load_initial_board_state();
-                return
+                return;
             }
         }
 
@@ -62,14 +61,17 @@ impl ChimpEngine {
 
     pub fn go(&mut self, mut split_string: SplitAsciiWhitespace<'_>) -> String {
         let best_move = search(self.board_state);
-        info!(target:"app:chimp", "bestmove {}", get_move_uci(best_move.0));
-        get_move_uci(best_move.0)
+        info!(target:"app:chimp", "bestmove {}", best_move.0.uci());
+        best_move.0.uci()
     }
 
     pub fn go_uci_and_san(&mut self) -> (String, String) {
         let best_move = search(self.board_state);
-        info!(target:"app:chimp", "bestmove {}", get_move_uci(best_move.0));
-        (get_move_uci(best_move.0), get_move_san(self.board_state, best_move.1, best_move.0))
+        info!(target:"app:chimp", "bestmove {}", best_move.0.uci());
+        (
+            best_move.0.uci(),
+            best_move.0.san(self.board_state, best_move.1)
+        )
     }
 
     fn load_initial_board_state(&mut self) {
@@ -87,13 +89,13 @@ impl ChimpEngine {
     fn get_ordered_moves(&self) -> Vec<u16> {
         let psudolegal_moves = self.board_state.generate_psudolegals();
         let metrics = self.board_state.generate_metrics();
-        let legal_moves = self.board_state.generate_legal_moves(&psudolegal_moves, &metrics);
+        let legal_moves = self
+            .board_state
+            .generate_legal_moves(&psudolegal_moves, &metrics);
         let mut result = Vec::new();
         for m in legal_moves {
             result.push(m.0);
         }
         result
     }
-
-
 }

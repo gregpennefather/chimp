@@ -1,4 +1,4 @@
-use chimp::{engine::ChimpEngine, board::move_utils::get_move_uci};
+use chimp::engine::ChimpEngine;
 
 const MOVE_2_PLY_COUNT: usize = 20;
 

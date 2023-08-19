@@ -6,3 +6,4 @@ pub mod move_utils;
 pub mod piece_utils;
 pub mod state;
 pub mod board_metrics;
+pub mod r#move;

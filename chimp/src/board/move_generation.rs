@@ -1,11 +1,8 @@
 use crate::{
     board::board_utils::get_piece_from_position_index,
     shared::{
-        BISHOP_CAPTURE_PROMOTION, BISHOP_INDEX, BISHOP_PROMOTION, BLACK_KING,
-        BLACK_PAWN, CAPTURE_FLAG, DOUBLE_PAWN_FLAG, EP_CAPTURE_FLAG, KING_CASTLING_FLAG,
-        KING_INDEX, KNIGHT_CAPTURE_PROMOTION, KNIGHT_INDEX, KNIGHT_PROMOTION, PAWN_INDEX,
-        PIECE_MASK, QUEEN_CAPTURE_PROMOTION, QUEEN_CASTLING_FLAG, QUEEN_INDEX, QUEEN_PROMOTION,
-        ROOK_CAPTURE_PROMOTION, ROOK_INDEX, ROOK_PROMOTION, bitboard_to_string,
+        BISHOP_INDEX, BLACK_KING, BLACK_PAWN, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK,
+        QUEEN_INDEX, ROOK_INDEX,
     },
 };
 
@@ -16,13 +13,14 @@ use super::{
         get_file, get_position_index_from_piece_index, get_rank, rank_and_file_to_index,
         rank_from_char,
     },
-    move_utils::{build_move, get_available_slide_pos, is_castling, is_king_castling},
+    move_utils::get_available_slide_pos,
     piece_utils::{get_piece_code, is_piece_black},
+    r#move::{Move, MoveFunctions, CAPTURE, DOUBLE_PAWN_PUSH, EP_CAPTURE, KNIGHT_PROMOTION, KNIGHT_CAPTURE_PROMOTION, BISHOP_PROMOTION, BISHOP_CAPTURE_PROMOTION, ROOK_PROMOTION, ROOK_CAPTURE_PROMOTION, QUEEN_PROMOTION, QUEEN_CAPTURE_PROMOTION, QUEEN_CASTLING, KING_CASTLING},
     state::{BoardState, BoardStateFlagsTrait},
 };
 
 impl BoardState {
-    pub fn generate_psudolegals(&self) -> Vec<u16> {
+    pub fn generate_psudolegals(&self) -> Vec<Move> {
         let mut moves = Vec::new();
         let black_turn = self.flags.is_black_turn();
         let opponent_bitboard = if black_turn {
@@ -31,36 +29,24 @@ impl BoardState {
             self.black_bitboard
         };
 
-        let mut friendly_piece_index_pairs: [(u8, u8); 32] = [(u8::MAX, u8::MAX); 32];
-        let mut friendly_piece_count = 0;
-        let mut opponent_piece_index_pairs: [(u8, u8); 32] = [(u8::MAX, u8::MAX); 32];
-        let mut opponent_piece_count = 0;
         let mut piece_index = 0;
         while piece_index < self.piece_count {
             let position_index =
                 get_position_index_from_piece_index(self.bitboard, 0, 0, piece_index);
             let piece = get_piece_code(&self.pieces, piece_index);
             if is_piece_black(piece) == black_turn {
-                friendly_piece_index_pairs[friendly_piece_count] = (position_index, piece);
-                friendly_piece_count += 1;
-            } else {
-                opponent_piece_index_pairs[opponent_piece_count] = (position_index, piece);
-                opponent_piece_count += 1;
+                let p_moves = generate_piece_moves(
+                    self.bitboard,
+                    black_turn,
+                    position_index,
+                    piece,
+                    opponent_bitboard,
+                    self.flags,
+                    self.ep_rank,
+                );
+                moves.extend(&p_moves);
             }
             piece_index += 1;
-        }
-
-        for pair in friendly_piece_index_pairs {
-            let p_moves = generate_piece_moves(
-                self.bitboard,
-                black_turn,
-                pair.0,
-                pair.1,
-                opponent_bitboard,
-                self.flags,
-                self.ep_rank,
-            );
-            moves.extend(&p_moves);
         }
 
         moves
@@ -68,15 +54,14 @@ impl BoardState {
 
     pub fn generate_legal_moves(
         &self,
-        psudolegal_moves: &Vec<u16>,
+        psudolegal_moves: &Vec<Move>,
         current_metrics: &BoardMetrics,
-    ) -> Vec<(u16, BoardState, BoardMetrics)> {
+    ) -> Vec<(Move, BoardState, BoardMetrics)> {
         let black_turn = self.flags.is_black_turn();
         let mut legal_moves_with_state_and_metrics = Vec::new();
         for &psudolegal_move in psudolegal_moves {
-            let move_flags = (psudolegal_move & 0b1111) as u8;
-            if is_castling(move_flags)
-                && !is_legal_castling(psudolegal_move, move_flags, black_turn, &current_metrics)
+            if psudolegal_move.is_castling()
+                && !is_legal_castling(psudolegal_move, black_turn, &current_metrics)
             {
                 continue;
             }
@@ -109,50 +94,50 @@ impl BoardState {
         let mut flags = 0;
 
         if self.bitboard.occupied(to_index) {
-            flags = CAPTURE_FLAG;
+            flags = CAPTURE;
         }
 
         let piece = get_piece_from_position_index(self.bitboard, self.pieces, from_index);
         match piece {
             PAWN_INDEX | BLACK_PAWN => {
                 if piece == PAWN_INDEX && from_file == 1 && to_file == 3 {
-                    flags = DOUBLE_PAWN_FLAG;
+                    flags = DOUBLE_PAWN_PUSH;
                 } else if piece == BLACK_PAWN && from_file == 6 && to_file == 4 {
-                    flags = DOUBLE_PAWN_FLAG;
+                    flags = DOUBLE_PAWN_PUSH;
                 } else if self.ep_rank == to_rank
                     && to_rank != from_rank
                     && ((piece == PAWN_INDEX && to_file == 5)
                         || (piece == BLACK_PAWN && to_file == 2))
                 {
-                    flags = EP_CAPTURE_FLAG;
+                    flags = EP_CAPTURE;
                 } else {
                     let promotion_char = move_string.chars().nth(4);
                     match promotion_char {
                         Some(p) => {
                             flags = match p {
                                 'n' => {
-                                    if flags != CAPTURE_FLAG {
+                                    if flags != CAPTURE {
                                         KNIGHT_PROMOTION
                                     } else {
                                         KNIGHT_CAPTURE_PROMOTION
                                     }
                                 }
                                 'b' => {
-                                    if flags != CAPTURE_FLAG {
+                                    if flags != CAPTURE {
                                         BISHOP_PROMOTION
                                     } else {
                                         BISHOP_CAPTURE_PROMOTION
                                     }
                                 }
                                 'r' => {
-                                    if flags != CAPTURE_FLAG {
+                                    if flags != CAPTURE {
                                         ROOK_PROMOTION
                                     } else {
                                         ROOK_CAPTURE_PROMOTION
                                     }
                                 }
                                 'q' => {
-                                    if flags != CAPTURE_FLAG {
+                                    if flags != CAPTURE {
                                         QUEEN_PROMOTION
                                     } else {
                                         QUEEN_CAPTURE_PROMOTION
@@ -168,22 +153,21 @@ impl BoardState {
             KING_INDEX | BLACK_KING => {
                 if from_rank == 4 {
                     if to_rank == 2 {
-                        flags = QUEEN_CASTLING_FLAG
+                        flags = QUEEN_CASTLING
                     } else if to_rank == 6 {
-                        flags = KING_CASTLING_FLAG
+                        flags = KING_CASTLING
                     }
                 }
             }
             _ => {}
         }
 
-        build_move(from_index, to_index, flags)
+        Move::new(from_index, to_index, flags)
     }
 }
 
 fn is_legal_castling(
     psudolegal_move: u16,
-    move_flags: u8,
     black_turn: bool,
     current_metrics: &BoardMetrics,
 ) -> bool {
@@ -198,7 +182,7 @@ fn is_legal_castling(
     } else {
         current_metrics.black_threat_board
     };
-    if is_king_castling(move_flags) {
+    if psudolegal_move.is_king_castling() {
         return !opponent_threat_board.occupied(from_index - 1)
             && !opponent_threat_board.occupied(from_index - 2);
     } else {
@@ -264,13 +248,13 @@ fn generate_pawn_moves(
                 ));
             } else {
                 // Move
-                results.push(build_move(position_index, position_index + 8, 0b0));
+                results.push(Move::new(position_index, position_index + 8, 0b0));
                 if file == 1 {
                     if !bitboard.occupied(position_index + 16) {
-                        results.push(build_move(
+                        results.push(Move::new(
                             position_index,
                             position_index + 16,
-                            DOUBLE_PAWN_FLAG,
+                            DOUBLE_PAWN_PUSH,
                         ));
                     }
                 }
@@ -289,7 +273,7 @@ fn generate_pawn_moves(
                     ));
                 } else {
                     // Double push
-                    results.push(build_move(position_index, position_index + 7, CAPTURE_FLAG));
+                    results.push(Move::new(position_index, position_index + 7, CAPTURE));
                 }
             }
         }
@@ -305,23 +289,23 @@ fn generate_pawn_moves(
                         true,
                     ));
                 } else {
-                    results.push(build_move(position_index, position_index + 9, CAPTURE_FLAG));
+                    results.push(Move::new(position_index, position_index + 9, CAPTURE));
                 }
             }
         }
 
         if is_ep && file == 4 {
             if rank != 0 && ep_rank == rank - 1 {
-                results.push(build_move(
+                results.push(Move::new(
                     position_index,
                     position_index + 9,
-                    EP_CAPTURE_FLAG,
+                    EP_CAPTURE,
                 ));
             } else if rank != 7 && ep_rank == rank + 1 {
-                results.push(build_move(
+                results.push(Move::new(
                     position_index,
                     position_index + 7,
-                    EP_CAPTURE_FLAG,
+                    EP_CAPTURE,
                 ));
             }
         }
@@ -336,15 +320,15 @@ fn generate_pawn_moves(
                 ));
             } else {
                 // Move
-                results.push(build_move(position_index, position_index - 8, 0b0));
+                results.push(Move::new(position_index, position_index - 8, 0b0));
 
                 // Double push
                 if file == 6 {
                     if !bitboard.occupied(position_index - 16) {
-                        results.push(build_move(
+                        results.push(Move::new(
                             position_index,
                             position_index - 16,
-                            DOUBLE_PAWN_FLAG,
+                            DOUBLE_PAWN_PUSH,
                         ));
                     }
                 }
@@ -362,7 +346,7 @@ fn generate_pawn_moves(
                         true,
                     ));
                 } else {
-                    results.push(build_move(position_index, position_index - 9, CAPTURE_FLAG));
+                    results.push(Move::new(position_index, position_index - 9, CAPTURE));
                 }
             }
         }
@@ -378,23 +362,23 @@ fn generate_pawn_moves(
                         true,
                     ));
                 } else {
-                    results.push(build_move(position_index, position_index - 7, CAPTURE_FLAG));
+                    results.push(Move::new(position_index, position_index - 7, CAPTURE));
                 }
             }
         }
 
         if is_ep && file == 3 {
             if rank != 0 && ep_rank == rank - 1 {
-                results.push(build_move(
+                results.push(Move::new(
                     position_index,
                     position_index - 7,
-                    EP_CAPTURE_FLAG,
+                    EP_CAPTURE,
                 ));
             } else if rank != 7 && ep_rank == rank + 1 {
-                results.push(build_move(
+                results.push(Move::new(
                     position_index,
                     position_index - 9,
-                    EP_CAPTURE_FLAG,
+                    EP_CAPTURE,
                 ));
             }
         }
@@ -404,7 +388,7 @@ fn generate_pawn_moves(
 
 fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16> {
     return vec![
-        build_move(
+        Move::new(
             from_index,
             to_index,
             if !capture {
@@ -413,7 +397,7 @@ fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16
                 KNIGHT_CAPTURE_PROMOTION
             },
         ), // Knight
-        build_move(
+        Move::new(
             from_index,
             to_index,
             if !capture {
@@ -422,7 +406,7 @@ fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16
                 BISHOP_CAPTURE_PROMOTION
             },
         ), // Bishop
-        build_move(
+        Move::new(
             from_index,
             to_index,
             if !capture {
@@ -431,7 +415,7 @@ fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16
                 ROOK_CAPTURE_PROMOTION
             },
         ), // Rook
-        build_move(
+        Move::new(
             from_index,
             to_index,
             if !capture {
@@ -450,72 +434,72 @@ fn generate_knight_moves(bitboard: u64, opponent_bitboard: u64, position_index: 
     if position_index <= 48 && rank != 7 {
         let tar = position_index + 15;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // U1R2 = +8-2 = 6
     if position_index <= 55 && rank < 6 {
         let tar = position_index + 6;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // D1R2 = -8-2 = -10
     if position_index >= 10 && rank < 6 {
         let tar = position_index - 10;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // D2R1 = -16-1 = -17
     if position_index >= 17 && rank != 7 {
         let tar = position_index - 17;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // D2L1 = -16+1 = -15
     if position_index >= 15 && rank != 0 {
         let tar = position_index - 15;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // D1L2 = -8+2 = -6
     if position_index >= 6 && rank > 1 {
         let tar = position_index - 6;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // U1L2 = 8+2 = 10
     if position_index <= 53 && rank > 1 {
         let tar = position_index + 10;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     // U2L1 = 16+1 = 17
     if position_index <= 46 && rank != 0 {
         let tar = position_index + 17;
         if opponent_bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, CAPTURE_FLAG));
+            results.push(Move::new(position_index, tar, CAPTURE));
         } else if !bitboard.occupied(tar) {
-            results.push(build_move(position_index, tar, 0b0));
+            results.push(Move::new(position_index, tar, 0b0));
         }
     }
     results
@@ -572,10 +556,10 @@ fn generate_king_moves(
     if (castling_flags & 0b01) > 0 {
         // King side castling
         if (!bitboard.occupied(position_index - 1) && !bitboard.occupied(position_index - 2)) {
-            moves.push(build_move(
+            moves.push(Move::new(
                 position_index,
                 position_index - 2,
-                KING_CASTLING_FLAG,
+                KING_CASTLING,
             ))
         }
     }
@@ -587,10 +571,10 @@ fn generate_king_moves(
             && !bitboard.occupied(position_index + 2)
             && !bitboard.occupied(position_index + 3)
         {
-            moves.push(build_move(
+            moves.push(Move::new(
                 position_index,
                 position_index + 2,
-                QUEEN_CASTLING_FLAG,
+                QUEEN_CASTLING,
             ))
         }
     }
@@ -615,11 +599,11 @@ fn sliding_move_generator(
         for i in 0..positions_d_l.len() {
             if (i == positions_d_l.len() - 1) && bitboard.occupied(positions_d_l[i]) {
                 if opponent_bitboard.occupied(positions_d_l[i]) {
-                    moves.push(build_move(pos, positions_d_l[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_d_l[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_d_l[i], 0b0));
+            moves.push(Move::new(pos, positions_d_l[i], 0b0));
         }
 
         let positions_u_l = get_available_slide_pos(bitboard, pos, 1, -1, depth);
@@ -627,22 +611,22 @@ fn sliding_move_generator(
         for i in 0..positions_u_l.len() {
             if (i == positions_u_l.len() - 1) && bitboard.occupied(positions_u_l[i]) {
                 if opponent_bitboard.occupied(positions_u_l[i]) {
-                    moves.push(build_move(pos, positions_u_l[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_u_l[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_u_l[i], 0b0));
+            moves.push(Move::new(pos, positions_u_l[i], 0b0));
         }
 
         let positions_u_r = get_available_slide_pos(bitboard, pos, 1, 1, depth);
         for i in 0..positions_u_r.len() {
             if (i == positions_u_r.len() - 1) && bitboard.occupied(positions_u_r[i]) {
                 if opponent_bitboard.occupied(positions_u_r[i]) {
-                    moves.push(build_move(pos, positions_u_r[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_u_r[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_u_r[i], 0b0));
+            moves.push(Move::new(pos, positions_u_r[i], 0b0));
         }
 
         let positions_d_r = get_available_slide_pos(bitboard, pos, -1, 1, depth);
@@ -650,11 +634,11 @@ fn sliding_move_generator(
         for i in 0..positions_d_r.len() {
             if (i == positions_d_r.len() - 1) && bitboard.occupied(positions_d_r[i]) {
                 if opponent_bitboard.occupied(positions_d_r[i]) {
-                    moves.push(build_move(pos, positions_d_r[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_d_r[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_d_r[i], 0b0));
+            moves.push(Move::new(pos, positions_d_r[i], 0b0));
         }
     }
 
@@ -664,11 +648,11 @@ fn sliding_move_generator(
         for i in 0..positions_r.len() {
             if (i == positions_r.len() - 1) && bitboard.occupied(positions_r[i]) {
                 if opponent_bitboard.occupied(positions_r[i]) {
-                    moves.push(build_move(pos, positions_r[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_r[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_r[i], 0b0));
+            moves.push(Move::new(pos, positions_r[i], 0b0));
         }
 
         let positions_l = get_available_slide_pos(bitboard, pos, 0, -1, depth);
@@ -676,11 +660,11 @@ fn sliding_move_generator(
         for i in 0..positions_l.len() {
             if (i == positions_l.len() - 1) && bitboard.occupied(positions_l[i]) {
                 if opponent_bitboard.occupied(positions_l[i]) {
-                    moves.push(build_move(pos, positions_l[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_l[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_l[i], 0b0));
+            moves.push(Move::new(pos, positions_l[i], 0b0));
         }
 
         let positions_u = get_available_slide_pos(bitboard, pos, 1, 0, depth);
@@ -688,11 +672,11 @@ fn sliding_move_generator(
         for i in 0..positions_u.len() {
             if (i == positions_u.len() - 1) && bitboard.occupied(positions_u[i]) {
                 if opponent_bitboard.occupied(positions_u[i]) {
-                    moves.push(build_move(pos, positions_u[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_u[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_u[i], 0b0));
+            moves.push(Move::new(pos, positions_u[i], 0b0));
         }
 
         let positions_d = get_available_slide_pos(bitboard, pos, -1, 0, depth);
@@ -700,11 +684,11 @@ fn sliding_move_generator(
         for i in 0..positions_d.len() {
             if (i == positions_d.len() - 1) && bitboard.occupied(positions_d[i]) {
                 if opponent_bitboard.occupied(positions_d[i]) {
-                    moves.push(build_move(pos, positions_d[i], CAPTURE_FLAG));
+                    moves.push(Move::new(pos, positions_d[i], CAPTURE));
                 }
                 break;
             }
-            moves.push(build_move(pos, positions_d[i], 0b0));
+            moves.push(Move::new(pos, positions_d[i], 0b0));
         }
     }
 
@@ -761,7 +745,7 @@ mod test {
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves.get(0).unwrap(),
-            &build_move(39, rank_and_file_to_index(1, 5), EP_CAPTURE_FLAG)
+            &Move::new(39, rank_and_file_to_index(1, 5), EP_CAPTURE)
         );
     }
 
@@ -782,11 +766,11 @@ mod test {
         assert_eq!(moves.len(), 2, "{moves:?}");
         assert_eq!(
             moves.get(0).unwrap(),
-            &build_move(pos, rank_and_file_to_index(4, 5), 0b0)
+            &Move::new(pos, rank_and_file_to_index(4, 5), 0b0)
         );
         assert_eq!(
             moves.get(1).unwrap(),
-            &build_move(pos, rank_and_file_to_index(3, 5), EP_CAPTURE_FLAG)
+            &Move::new(pos, rank_and_file_to_index(3, 5), EP_CAPTURE)
         );
     }
 
@@ -807,7 +791,7 @@ mod test {
         assert_eq!(moves.len(), 1, "{moves:?}");
         assert_eq!(
             moves.get(0).unwrap(),
-            &build_move(pos, rank_and_file_to_index(0, 5), EP_CAPTURE_FLAG)
+            &Move::new(pos, rank_and_file_to_index(0, 5), EP_CAPTURE)
         );
     }
 
@@ -846,10 +830,10 @@ mod test {
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves.get(0).unwrap(),
-            &build_move(
+            &Move::new(
                 rank_and_file_to_index(7, 3),
                 rank_and_file_to_index(6, 2),
-                EP_CAPTURE_FLAG
+                EP_CAPTURE
             )
         );
     }
@@ -873,7 +857,7 @@ mod test {
         assert_eq!(moves.len(), 2);
         assert_eq!(
             moves.get(0).unwrap(),
-            &build_move(
+            &Move::new(
                 rank_and_file_to_index(1, 6),
                 rank_and_file_to_index(1, 5),
                 0b0
@@ -881,7 +865,7 @@ mod test {
         );
         assert_eq!(
             moves.get(1).unwrap(),
-            &build_move(
+            &Move::new(
                 rank_and_file_to_index(1, 6),
                 rank_and_file_to_index(1, 4),
                 0b0

@@ -4,16 +4,15 @@ use chimp::{
     board::{
         board_metrics::BoardMetrics,
         board_utils::{board_to_string, rank_and_file_to_index},
-        move_utils::{get_move_uci},
-        piece_utils::{get_piece_code},
-        state::BoardState,
+        piece_utils::get_piece_code,
+        state::BoardState, r#move::MoveFunctions,
     },
     shared::bitboard_to_string,
 };
 use colored::Colorize;
 
 fn main() {
-    let quiet = true;
+    let quiet = false;
 
     misc_tests();
     from_fen_test_cases();
@@ -827,7 +826,7 @@ fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
         );
         let mut vec = Vec::new();
         for m in moves {
-            vec.push(get_move_uci(m.0));
+            vec.push(m.0.uci());
         }
         vec.sort();
         for m_s in vec {
@@ -944,7 +943,7 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
         for key in keys {
             println!(
                 "{}: {}",
-                get_move_uci(key),
+                key.uci(),
                 move_node_count.get(&key).unwrap()
             )
         }
@@ -1005,7 +1004,7 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
             for key in keys {
                 println!(
                     "{}: {}",
-                    get_move_uci(key),
+                    key.uci(),
                     move_node_count.get(&key).unwrap()
                 )
             }

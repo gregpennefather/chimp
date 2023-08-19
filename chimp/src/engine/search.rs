@@ -1,6 +1,6 @@
-use crate::board::state::BoardState;
+use crate::board::{state::BoardState, r#move::Move};
 
-pub fn search(board_state: BoardState) -> (u16, Vec<u16>) {
+pub fn search(board_state: BoardState) -> (Move, Vec<Move>) {
     let metrics = board_state.generate_metrics();
     let pl_moves = board_state.generate_psudolegals();
     let move_options = board_state.generate_legal_moves(&pl_moves, &metrics);
