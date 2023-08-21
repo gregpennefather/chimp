@@ -7,3 +7,5 @@ pub mod piece_utils;
 pub mod state;
 pub mod board_metrics;
 pub mod r#move;
+pub mod piece;
+pub mod piece_list;

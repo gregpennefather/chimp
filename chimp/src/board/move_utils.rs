@@ -1,10 +1,10 @@
 use super::{
-    bitboard::BitboardExtensions,
+    bitboard::{BitboardExtensions, Bitboard},
     board_utils::{get_file, get_rank, get_rank_i8, rank_and_file_to_index, rank_from_char},
 };
 
 pub fn get_available_slide_pos(
-    bitboard: u64,
+    bitboard: Bitboard,
     pos: u8,
     file_delta: i8,
     rank_delta: i8,
@@ -101,7 +101,7 @@ mod test {
     }
     #[test]
     pub fn get_available_slide_pos_e4_diag_down_right() {
-        let bitboard = 0b0u64;
+        let bitboard = Bitboard::default();
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(4, 3), -1, 1, 8);
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(0).unwrap(), &18);
@@ -111,7 +111,7 @@ mod test {
 
     #[test]
     pub fn get_available_slide_pos_c1_diag_up_left() {
-        let bitboard = 0b0u64;
+        let bitboard = Bitboard::default();
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(2, 0), 1, -1, 8);
         assert_eq!(result.len(), 2);
         assert_eq!(
@@ -128,7 +128,7 @@ mod test {
 
     #[test]
     pub fn get_available_slide_pos_a3_diag_up_right_blocked_at_d6() {
-        let bitboard = 0b0u64.flip(rank_and_file_to_index(3, 5));
+        let bitboard = Bitboard::default().flip(rank_and_file_to_index(3, 5));
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(0, 2), 1, 1, 8);
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(1, 3));
@@ -138,7 +138,7 @@ mod test {
 
     #[test]
     pub fn get_available_slide_pos_rook_d7_left_unblocked() {
-        let bitboard = 0b0u64;
+        let bitboard = Bitboard::default();
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(3, 6), 0, -1, 8);
         assert_eq!(result.len(), 3);
         assert_eq!(result.get(0).unwrap(), &rank_and_file_to_index(2, 6));
@@ -148,14 +148,14 @@ mod test {
 
     #[test]
     pub fn get_available_slide_pos_rook_b3_right_unblocked() {
-        let bitboard = 0b0u64;
+        let bitboard = Bitboard::default();
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(1, 2), 0, 1, 8);
         assert_eq!(result.len(), 6);
     }
 
     #[test]
     pub fn get_available_slide_pos_rook_h1_blocked_in() {
-        let bitboard = 0b1111111110u64;
+        let bitboard = Bitboard::new(0b1111111110u64);
         let result = get_available_slide_pos(bitboard, rank_and_file_to_index(7, 0), 1, 0, 8);
         assert_eq!(result.len(), 1); // blocked in at h2
     }

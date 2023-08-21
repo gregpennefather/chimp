@@ -46,14 +46,14 @@ impl ChimpEngine {
         }
 
         info!(target:"app:chimp", "Current moves: {:?}", self.move_history);
-        let mut moveIndex = 0;
+        let mut move_index = 0;
         while let Some(word) = split_string.next() {
-            if moveIndex >= self.move_history.len() {
+            if move_index >= self.move_history.len() {
                 self.add_move(word);
-            } else if !self.move_history[moveIndex].eq(word) {
+            } else if !self.move_history[move_index].eq(word) {
                 self.add_move(word);
             }
-            moveIndex += 1;
+            move_index += 1;
         }
 
         info!(target:"app:chimp", "position command resulted in fen: {}", self.board_state.to_fen());
@@ -84,18 +84,5 @@ impl ChimpEngine {
         let m = self.board_state.move_from_string(uci_move);
         self.board_state = self.board_state.apply_move(m);
         self.move_history.push(uci_move.to_string());
-    }
-
-    fn get_ordered_moves(&self) -> Vec<u16> {
-        let psudolegal_moves = self.board_state.generate_psudolegals();
-        let metrics = self.board_state.generate_metrics();
-        let legal_moves = self
-            .board_state
-            .generate_legal_moves(&psudolegal_moves, &metrics);
-        let mut result = Vec::new();
-        for m in legal_moves {
-            result.push(m.0);
-        }
-        result
     }
 }

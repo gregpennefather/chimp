@@ -1,6 +1,7 @@
 use crate::board::piece_utils::*;
-use crate::shared::binary_utils::BinaryUtils;
 use crate::shared::*;
+
+use super::{bitboard::{Bitboard, BitboardExtensions}, piece_list::PieceList};
 
 pub type BoardStateFlags = u8;
 
@@ -17,23 +18,23 @@ impl BoardStateFlagsTrait for BoardStateFlags {
 
     fn set_black_turn(&mut self, is_black_turn: bool) {
         if is_black_turn {
-            *self |=  0b1;
+            *self |= 0b1;
         } else {
             *self &= 0b0;
         }
     }
 
     fn alternate_turn(&mut self) {
-        *self ^=  0b1
+        *self ^= 0b1
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct BoardState {
-    pub bitboard: u64,
-    pub white_bitboard: u64,
-    pub black_bitboard: u64,
-    pub pieces: u128,
+    pub bitboard: Bitboard,
+    pub white_bitboard: Bitboard,
+    pub black_bitboard: Bitboard,
+    pub pieces: PieceList,
     pub flags: BoardStateFlags,
     pub ep_rank: u8,
     pub half_moves: u8,
@@ -50,12 +51,12 @@ pub struct BoardState {
 
 impl BoardState {
     pub fn from_fen(fen: &String) -> BoardState {
-        let mut bitboard: u64 = 0;
-        let mut white_bitboard: u64 = 0;
-        let mut black_bitboard: u64 = 0;
-        let mut pieces: u128 = 0;
+        let mut bitboard = Bitboard::default();
+        let mut white_bitboard = Bitboard::default();
+        let mut black_bitboard = Bitboard::default();
+        let mut pieces = PieceList::default();
         let mut flags: BoardStateFlags = BoardStateFlags::default();
-        let mut ep_rank: u8 = 0;
+        let mut ep_rank: u8 = u8::default();
         let mut white_king_index = 0;
         let mut black_king_index = 0;
 
@@ -88,7 +89,6 @@ impl BoardState {
             }
 
             let position_index = ((file * 8) + rank) as u8; // I dont like this - we should generate the indexes the same everywhere
-            let piece_position: u64 = 1 << ((file * 8) + rank); // This should probably be updated to use the position_index but thats breaking things for some reason
 
             let piece: u8 = match char {
                 'P' => PAWN_INDEX,
@@ -112,16 +112,16 @@ impl BoardState {
                 _ => 0,
             };
 
-            bitboard = bitboard + piece_position;
+            bitboard = bitboard.set(position_index);
             if piece & BLACK_MASK > 0 {
-                black_bitboard += piece_position;
+                black_bitboard = black_bitboard.set(position_index);
             } else {
-                white_bitboard += piece_position;
+                white_bitboard = white_bitboard.set(position_index);
             }
             rank = rank - 1;
 
             let piece_u128: u128 = piece as u128;
-            pieces = (pieces << 4) | piece_u128;
+            pieces = pieces.push(piece);
         }
 
         // Turn
@@ -176,7 +176,7 @@ impl BoardState {
         };
         let full_moves_str = &full_remaining_fen[0..next_space];
         let full_moves = full_moves_str.parse::<u32>().unwrap();
-        let piece_count = bitboard.count_ones() as u8;
+        let piece_count = bitboard.count_occupied();
 
         if piece_count > 32 {
             panic!("Fen code '{fen}' leading to >32 pieces");
@@ -200,11 +200,11 @@ impl BoardState {
     pub fn to_fen(&self) -> String {
         let mut file_index = 7;
         let mut fen: String = String::default();
-        let mut piece_index: i8 = (self.bitboard.count_ones() - 1).try_into().unwrap();
+        let mut piece_index: i8 = (self.bitboard.count_occupied() - 1).try_into().unwrap();
 
         // Pieces
         loop {
-            let file: u8 = self.bitboard.copy_b(file_index * 8, 8).try_into().unwrap();
+            let file: u8 = self.bitboard.get_file(file_index);
             let pieces_in_row: i8 = file.count_ones().try_into().unwrap();
             fen += &file_to_fen_string(file, &self.pieces, piece_index);
             piece_index -= pieces_in_row;
@@ -269,7 +269,7 @@ impl Default for BoardState {
     }
 }
 
-fn file_to_fen_string(file: u8, pieces: &u128, piece_index: i8) -> String {
+fn file_to_fen_string(file: u8, pieces: &PieceList, piece_index: i8) -> String {
     let mut i: i8 = 7;
     let mut pi = piece_index;
     let mut empty_count = 0;
@@ -281,8 +281,8 @@ fn file_to_fen_string(file: u8, pieces: &u128, piece_index: i8) -> String {
                 r += &empty_count.to_string();
                 empty_count = 0;
             }
-            let piece = get_piece_code(pieces, pi as u8);
-            r += &get_piece_char(piece).to_string();
+            let piece = pieces.get(pi as u8);
+            r += &piece.to_string();
             pi -= 1;
         } else {
             empty_count += 1;

@@ -17,25 +17,3 @@ pub const COLOURED_PIECE_MASK: u8 = 15;
 pub const PIECE_MASK: u8 = 7;
 
 pub static RANKS: &str = "abcdefgh";
-
-pub fn bitboard_to_string(bitboard: u64) -> String {
-    let mut r: String = "".to_string();
-
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 7)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 6)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 5)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 4)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 3)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 2)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 1)).as_str();
-    r += format!("{:#010b}\n", get_bitboard_file(bitboard, 0)).as_str();
-
-    r
-}
-
-
-
-fn get_bitboard_file(bitboard: u64, file: u8) -> u8 {
-    let r: u8 = (bitboard >> (file * 8) & 255) as u8;
-    r
-}

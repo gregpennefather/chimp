@@ -1,11 +1,9 @@
-use crate::shared::{BLACK_KING, KING_INDEX, PIECE_MASK, PAWN_INDEX, KNIGHT_INDEX, BISHOP_INDEX, ROOK_INDEX, QUEEN_INDEX};
-
+use crate::shared::*;
 use super::{
-    bitboard::{BitboardExtensions, Bitboard},
-    board_utils::{get_piece_from_position_index, get_position_index_from_piece_index, get_rank},
+    bitboard::{Bitboard, BitboardExtensions},
+    board_utils::get_rank,
     move_utils::get_available_slide_pos,
-    piece_utils::is_piece_black,
-    state::BoardState,
+    state::BoardState, piece::{PieceType, Piece},
 };
 
 #[derive(Clone)]
@@ -30,13 +28,12 @@ impl BoardState {
         let mut black_king_position = u8::MAX;
 
         for piece_index in 0..self.piece_count {
-            let position_index =
-                get_position_index_from_piece_index(self.bitboard, 0, 0, piece_index);
-            let piece = get_piece_from_position_index(self.bitboard, self.pieces, position_index);
-            let is_black = is_piece_black(piece);
+            let position_index = self.bitboard.get_nth_piece_position_index(piece_index);
+            let piece = self.pieces.get_by_position_index(self.bitboard, position_index);
+            let is_black = piece.is_black();
 
             if !is_black {
-                if piece == KING_INDEX {
+                if piece.is(PieceType::King) {
                     white_king_position = position_index;
                 }
                 white_threat_board = white_threat_board
@@ -44,7 +41,7 @@ impl BoardState {
                 white_mobility_board = white_mobility_board
                     | generate_mobility_board(self.bitboard, position_index, piece, is_black);
             } else {
-                if piece == BLACK_KING {
+                if piece.is(PieceType::King) {
                     black_king_position = position_index;
                 }
                 black_threat_board = black_threat_board
@@ -70,21 +67,29 @@ impl BoardState {
     }
 }
 
-fn generate_threat_board(bitboard: Bitboard, position_index: u8, piece: u8, is_black: bool) -> Bitboard {
-    let piece_code = piece & PIECE_MASK;
-    match piece_code {
-        PAWN_INDEX => generate_pawn_threat_board(is_black, position_index),
-        KNIGHT_INDEX => generate_knight_threat_board(position_index),
-        BISHOP_INDEX => generate_bishop_threat_board(bitboard, position_index),
-        ROOK_INDEX => generate_rook_threat_board(bitboard, position_index),
-        QUEEN_INDEX => generate_queen_threat_board(bitboard, position_index),
-        KING_INDEX => generate_king_threat_board(bitboard, position_index),
-        _ => 0,
+fn generate_threat_board(
+    bitboard: Bitboard,
+    position_index: u8,
+    piece: Piece,
+    is_black: bool,
+) -> Bitboard {
+    match piece.without_colour() {
+        PieceType::Pawn => generate_pawn_threat_board(is_black, position_index),
+        PieceType::Knight => generate_knight_threat_board(position_index),
+        PieceType::Bishop => generate_bishop_threat_board(bitboard, position_index),
+        PieceType::Rook => generate_rook_threat_board(bitboard, position_index),
+        PieceType::Queen => generate_queen_threat_board(bitboard, position_index),
+        PieceType::King => generate_king_threat_board(bitboard, position_index)
     }
 }
 
-fn generate_mobility_board(bitboard: Bitboard, position_index: u8, piece: u8, is_black: bool) -> Bitboard {
-    0
+fn generate_mobility_board(
+    bitboard: Bitboard,
+    position_index: u8,
+    piece: Piece,
+    is_black: bool,
+) -> Bitboard {
+    Bitboard::default()
 }
 
 fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> Bitboard {
@@ -92,67 +97,67 @@ fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> Bitboard {
     let rank = get_rank(position_index);
     if !is_black {
         if rank != 7 && position_index <= 56 {
-            threat_bitboard |= 1 << (position_index + 7);
+            threat_bitboard = threat_bitboard.set(position_index + 7);
         }
 
         if rank != 0 && position_index <= 54 {
-            threat_bitboard |= 1 << (position_index + 9);
+            threat_bitboard = threat_bitboard.set(position_index + 9);
         }
     } else {
         if rank != 7 && position_index >= 9 {
-            threat_bitboard |= 1 << (position_index - 9);
+            threat_bitboard = threat_bitboard.set(position_index - 9);
         }
 
         if rank != 0 && position_index >= 7 {
-            threat_bitboard |= 1 << (position_index - 7);
+            threat_bitboard = threat_bitboard.set(position_index - 7);
         }
     }
     threat_bitboard
 }
 
 fn generate_knight_threat_board(position_index: u8) -> Bitboard {
-    let mut threat_bitboard= Bitboard::default();
+    let mut threat_bitboard = Bitboard::default();
     let rank = get_rank(position_index);
 
     // U2R1 = +16-1 = 15
     if position_index <= 48 && rank != 7 {
         let tar = position_index + 15;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // U1R2 = +8-2 = 6
     if position_index <= 55 && rank < 6 {
         let tar = position_index + 6;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // D1R2 = -8-2 = -10
     if position_index >= 10 && rank < 6 {
         let tar = position_index - 10;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // D2R1 = -16-1 = -17
     if position_index >= 17 && rank != 7 {
         let tar = position_index - 17;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // D2L1 = -16+1 = -15
     if position_index >= 15 && rank != 0 {
         let tar = position_index - 15;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // D1L2 = -8+2 = -6
     if position_index >= 6 && rank > 1 {
         let tar = position_index - 6;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // U1L2 = 8+2 = 10
     if position_index <= 53 && rank > 1 {
         let tar = position_index + 10;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     // U2L1 = 16+1 = 17
     if position_index <= 46 && rank != 0 {
         let tar = position_index + 17;
-        threat_bitboard = threat_bitboard | (1 << tar);
+        threat_bitboard = threat_bitboard.set(tar);
     }
     threat_bitboard
 }
@@ -180,30 +185,30 @@ fn sliding_threat_generator(
     straight: bool,
     king: bool,
 ) -> Bitboard {
-    let mut threat_bitboard= Bitboard::default();
+    let mut threat_bitboard = Bitboard::default();
     let depth = if king { 1 } else { 8 };
     if diag {
         let positions_d_l = get_available_slide_pos(bitboard, position_index, -1, -1, depth);
 
         for i in 0..positions_d_l.len() {
-            threat_bitboard |= 1 << positions_d_l[i];
+            threat_bitboard = threat_bitboard.set(positions_d_l[i]);
         }
 
         let positions_u_l = get_available_slide_pos(bitboard, position_index, 1, -1, depth);
 
         for i in 0..positions_u_l.len() {
-            threat_bitboard |= 1 << positions_u_l[i];
+            threat_bitboard = threat_bitboard.set(positions_u_l[i]);
         }
 
         let positions_u_r = get_available_slide_pos(bitboard, position_index, 1, 1, depth);
         for i in 0..positions_u_r.len() {
-            threat_bitboard |= 1 << positions_u_r[i];
+            threat_bitboard = threat_bitboard.set(positions_u_r[i]);
         }
 
         let positions_d_r = get_available_slide_pos(bitboard, position_index, -1, 1, depth);
 
         for i in 0..positions_d_r.len() {
-            threat_bitboard |= 1 << positions_d_r[i];
+            threat_bitboard = threat_bitboard.set(positions_d_r[i]);
         }
     }
 
@@ -211,27 +216,48 @@ fn sliding_threat_generator(
         let positions_r = get_available_slide_pos(bitboard, position_index, 0, 1, depth);
 
         for i in 0..positions_r.len() {
-            threat_bitboard |= 1 << positions_r[i];
+            threat_bitboard = threat_bitboard.set(positions_r[i]);
         }
 
         let positions_l = get_available_slide_pos(bitboard, position_index, 0, -1, depth);
 
         for i in 0..positions_l.len() {
-            threat_bitboard |= 1 << positions_l[i];
+            threat_bitboard = threat_bitboard.set(positions_l[i]);
         }
 
         let positions_u = get_available_slide_pos(bitboard, position_index, 1, 0, depth);
 
         for i in 0..positions_u.len() {
-            threat_bitboard |= 1 << positions_u[i];
+            threat_bitboard = threat_bitboard.set(positions_u[i]);
         }
 
         let positions_d = get_available_slide_pos(bitboard, position_index, -1, 0, depth);
 
         for i in 0..positions_d.len() {
-            threat_bitboard |= 1 << positions_d[i];
+            threat_bitboard = threat_bitboard.set(positions_d[i]);
         }
     }
 
     threat_bitboard
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn white_threat_board_at_initial_position() {
+        let board = BoardState::default();
+        let metrics = board.generate_metrics();
+        let expected_threat_board = Bitboard::new(0b11111111_11111111_01111110);
+        assert_eq!(metrics.white_threat_board, expected_threat_board);
+    }
+
+    #[test]
+    fn black_threat_board_at_initial_position() {
+        let board = BoardState::default();
+        let metrics = board.generate_metrics();
+        let expected_threat_board = Bitboard::new(0b11111111_11111111_01111110u64.reverse_bits());
+        assert_eq!(metrics.black_threat_board, expected_threat_board);
+    }
 }

@@ -1,13 +1,11 @@
 use std::{cmp::Ordering, collections::HashMap, time::Instant};
 
-use chimp::{
-    board::{
-        board_metrics::BoardMetrics,
-        board_utils::{board_to_string, rank_and_file_to_index},
-        piece_utils::get_piece_code,
-        state::BoardState, r#move::MoveFunctions,
-    },
-    shared::bitboard_to_string,
+use chimp::board::{
+    bitboard::Bitboard,
+    board_metrics::BoardMetrics,
+    board_utils::{board_to_string, rank_and_file_to_index},
+    r#move::MoveFunctions,
+    state::BoardState, piece_list::PieceList,
 };
 use colored::Colorize;
 
@@ -105,14 +103,14 @@ fn from_fen_test_cases() {
     if test_fen_bitboard(
         &initial_board_fen,
         "Initial Board State bitboard".into(),
-        18446462598732906495,
+        Bitboard::new(18446462598732906495),
     ) {
         success_count += 1;
     }
     if test_fen_pieces(
         &initial_board_fen,
         "Initial Board State pieces".into(),
-        269490179295853796843097322727436280612,
+        PieceList::new(269490179295853796843097322727436280612),
     ) {
         success_count += 1;
     }
@@ -137,14 +135,14 @@ fn from_fen_test_cases() {
     if test_fen_bitboard(
         &dualing_kings_fen,
         "Dualing Kings opposite corners bitboard".into(),
-        72339069014671488,
+        Bitboard::new(72339069014671488),
     ) {
         success_count += 1;
     }
     if test_fen_pieces(
         &dualing_kings_fen,
         "Dualing Kings opposite corners pieces".into(),
-        0b1110100100010110,
+        PieceList::new(0b1110100100010110),
     ) {
         success_count += 1;
     }
@@ -162,14 +160,14 @@ fn from_fen_test_cases() {
     if test_fen_bitboard(
         &white_e_pawn_opening_fen,
         "White E pawn opening bitboard".into(),
-        18446462598867122175,
+        Bitboard::new(18446462598867122175),
     ) {
         success_count += 1;
     }
     if test_fen_pieces(
         &white_e_pawn_opening_fen,
         "White E pawn opening pieces".into(),
-        269490179295853796843097322727436280612,
+        PieceList::new(269490179295853796843097322727436280612),
     ) {
         success_count += 1;
     }
@@ -185,27 +183,24 @@ fn from_fen_test_cases() {
     print_test_group_result("from_fen_test_cases".into(), success_count, test_count);
 }
 
-fn test_fen_bitboard(fen: &String, desc: String, expected_bitboard: u64) -> bool {
+fn test_fen_bitboard(fen: &String, desc: String, expected_bitboard: Bitboard) -> bool {
     let board_state = BoardState::from_fen(fen);
     let r = board_state.bitboard == expected_bitboard;
     if !r {
         print_test_result(desc, "Bitboard does not match expected".into(), false);
-        let bb_r = format!("{:b}", board_state.bitboard);
-        let bb_e = format!("{:b}", expected_bitboard);
-        println!("{} vs {}", bb_r.red(), bb_e.yellow());
-        println!("{}", bitboard_to_string(board_state.bitboard).red());
-        println!("{}", bitboard_to_string(expected_bitboard).yellow());
+        println!("{}", board_state.bitboard.to_string().red());
+        println!("{}", expected_bitboard.to_string().yellow());
     }
     r
 }
 
-fn test_fen_pieces(fen: &String, desc: String, expected_pieces: u128) -> bool {
+fn test_fen_pieces(fen: &String, desc: String, expected_pieces: PieceList) -> bool {
     let board_state = BoardState::from_fen(fen);
     let r = board_state.pieces == expected_pieces;
     if !r {
         print_test_result(desc, "Pieceboard does not match expected".into(), false);
-        let p_r = format!("{:b}", board_state.pieces);
-        let p_e = format!("{:b}", expected_pieces);
+        let p_r = format!("{}", board_state.pieces);
+        let p_e = format!("{}", expected_pieces);
         println!("{} vs {}", p_r.red(), p_e.yellow());
         println!(
             "{}",
@@ -495,16 +490,23 @@ fn apply_move_deep_test_cases(quiet: bool) {
     );
 }
 
-fn move_chain_test_cases(quiet:bool) {
+fn move_chain_test_cases(quiet: bool) {
     let mut tests: Vec<(String, Vec<String>, String)> = Vec::new();
     let mut success_count = 0;
 
     tests.push((
         "White pawn capture from test game".into(),
-        vec!["e2e4".into(),"b7b5".into(),"g1f3".into(),"d7d6".into(),"b1c3".into(),"f7f5".into(),"e4f5".into()],
+        vec![
+            "e2e4".into(),
+            "b7b5".into(),
+            "g1f3".into(),
+            "d7d6".into(),
+            "b1c3".into(),
+            "f7f5".into(),
+            "e4f5".into(),
+        ],
         "rnbqkbnr/p1p1p1pp/3p4/1p3P2/8/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 0 4".into(),
     ));
-
 
     for test in &tests {
         let mut board = BoardState::default();
@@ -540,39 +542,32 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
 
     if a.bitboard != b.bitboard {
         println!("Bitboard do not match:");
-        println!("{}", bitboard_to_string(a.bitboard).red());
-        println!("{}", bitboard_to_string(b.bitboard).yellow());
+        println!("{}", a.bitboard.to_string().red());
+        println!("{}", b.bitboard.to_string().yellow());
         flag = false;
     }
 
     if a.pieces != b.pieces {
         println!("---Pieces do not match---");
-        for i in 0..32 {
-            let aw = get_piece_code(&a.pieces, i);
-            let bw = get_piece_code(&b.pieces, i);
-            if (aw != bw) {
-                println!(
-                    "{i}: {} vs {}",
-                    aw.to_string().red(),
-                    bw.to_string().yellow()
-                );
-            }
-        }
-        println!("--- End ---");
+        println!(
+            "{} vs {}",
+            a.pieces.to_string().red(),
+            b.pieces.to_string().yellow()
+        );
         flag = false;
     }
 
     if a.white_bitboard != b.white_bitboard {
         println!("white_bitboards do not match:");
-        println!("{}", bitboard_to_string(a.white_bitboard).red());
-        println!("{}", bitboard_to_string(b.white_bitboard).yellow());
+        println!("{}", a.white_bitboard.to_string().red());
+        println!("{}", b.white_bitboard.to_string().yellow());
         flag = false;
     }
 
     if a.black_bitboard != b.black_bitboard {
         println!("black_bitboards do not match:");
-        println!("{}", bitboard_to_string(a.black_bitboard).red());
-        println!("{}", bitboard_to_string(b.black_bitboard).yellow());
+        println!("{}", a.black_bitboard.to_string().red());
+        println!("{}", b.black_bitboard.to_string().yellow());
         flag = false;
     }
 
@@ -865,7 +860,7 @@ fn metric_generation_check_test_cases(quiet: bool) {
         "Bishop threatens Black King".into(),
         "rnbqkbnr/ppp1pppp/8/1B1p4/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 0 1".into(),
         false,
-        true
+        true,
     ));
 
     for test in &tests {
@@ -875,7 +870,13 @@ fn metric_generation_check_test_cases(quiet: bool) {
         if !r || !quiet {
             print_test_result(
                 format!("Metrics Check Tests {}", test.0),
-                format!("Expected: {},{}. Result: {},{}", test.2.to_string().yellow(), test.3.to_string().yellow(), metrics.white_in_check.to_string().red(), metrics.black_in_check.to_string().red()),
+                format!(
+                    "Expected: {},{}. Result: {},{}",
+                    test.2.to_string().yellow(),
+                    test.3.to_string().yellow(),
+                    metrics.white_in_check.to_string().red(),
+                    metrics.black_in_check.to_string().red()
+                ),
                 r,
             );
         }
@@ -915,7 +916,6 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     let mut node_count = 0;
     let mut move_node_count: HashMap<u16, usize> = HashMap::new();
 
-
     let initial_board_state = BoardState::from_fen(&fen);
     let mut paths: Vec<MovePath> = Vec::new();
     // Todo: refactor to all happen in the loop
@@ -941,11 +941,7 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
         }
         keys.sort_by(|a, b| sort_uci(*a, *b));
         for key in keys {
-            println!(
-                "{}: {}",
-                key.uci(),
-                move_node_count.get(&key).unwrap()
-            )
+            println!("{}: {}", key.uci(), move_node_count.get(&key).unwrap())
         }
         return;
     }
@@ -1002,11 +998,7 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
             }
             keys.sort_by(|a, b| sort_uci(*a, *b));
             for key in keys {
-                println!(
-                    "{}: {}",
-                    key.uci(),
-                    move_node_count.get(&key).unwrap()
-                )
+                println!("{}: {}", key.uci(), move_node_count.get(&key).unwrap())
             }
             return;
         }

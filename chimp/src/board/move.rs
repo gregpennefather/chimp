@@ -1,8 +1,6 @@
 use crate::{
     board::{
-        board_utils::{
-            char_from_rank, get_friendly_name_for_index, get_piece_from_position_index, get_rank,
-        },
+        board_utils::{char_from_rank, get_friendly_name_for_index, get_rank},
         piece_utils::get_piece_char,
     },
     shared::{BLACK_PAWN, PAWN_INDEX},
@@ -109,11 +107,12 @@ impl MoveFunctions for Move {
     }
 
     fn san(&self, board_state: BoardState, other_moves: Vec<Move>) -> String {
-        let piece =
-            get_piece_from_position_index(board_state.bitboard, board_state.pieces, self.from());
-        let piece_letter = get_piece_char(piece).to_ascii_uppercase();
+        let piece = board_state
+            .pieces
+            .get_by_position_index(board_state.bitboard, self.from());
+        let piece_letter = piece.to_string().to_ascii_uppercase();
 
-        let mut r = if piece_letter != 'P' {
+        let mut r = if piece_letter.eq("P") {
             format!("{}", piece_letter)
         } else {
             "".into()
@@ -131,10 +130,9 @@ impl MoveFunctions for Move {
         for c_m in other_moves {
             let cm_to = (c_m >> 4 & 0b111111) as u8;
             let cm_from = (c_m >> 10) as u8;
-            let cm_piece =
-                get_piece_from_position_index(board_state.bitboard, board_state.pieces, cm_from);
+            let cm_piece = board_state.pieces.get_by_position_index(board_state.bitboard, cm_from);
             if cm_to == self.to()
-                && (cm_piece == piece || piece == PAWN_INDEX || piece == BLACK_PAWN)
+                && (cm_piece == piece || piece.is(crate::board::piece::PieceType::Pawn))
             {
                 moves_targeting_square.push(c_m);
             }

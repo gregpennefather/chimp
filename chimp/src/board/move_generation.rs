@@ -1,21 +1,15 @@
-use crate::{
-    board::board_utils::get_piece_from_position_index,
-    shared::{
-        BISHOP_INDEX, BLACK_KING, BLACK_PAWN, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX, PIECE_MASK,
-        QUEEN_INDEX, ROOK_INDEX,
-    },
-};
-
 use super::{
-    bitboard::BitboardExtensions,
+    bitboard::{Bitboard, BitboardExtensions},
     board_metrics::BoardMetrics,
-    board_utils::{
-        get_file, get_position_index_from_piece_index, get_rank, rank_and_file_to_index,
-        rank_from_char,
-    },
+    board_utils::{get_file, get_rank, rank_and_file_to_index, rank_from_char},
     move_utils::get_available_slide_pos,
-    piece_utils::{get_piece_code, is_piece_black},
-    r#move::{Move, MoveFunctions, CAPTURE, DOUBLE_PAWN_PUSH, EP_CAPTURE, KNIGHT_PROMOTION, KNIGHT_CAPTURE_PROMOTION, BISHOP_PROMOTION, BISHOP_CAPTURE_PROMOTION, ROOK_PROMOTION, ROOK_CAPTURE_PROMOTION, QUEEN_PROMOTION, QUEEN_CAPTURE_PROMOTION, QUEEN_CASTLING, KING_CASTLING},
+    piece::{Piece, PieceType},
+    r#move::{
+        Move, MoveFunctions, BISHOP_CAPTURE_PROMOTION, BISHOP_PROMOTION, CAPTURE, DOUBLE_PAWN_PUSH,
+        EP_CAPTURE, KING_CASTLING, KNIGHT_CAPTURE_PROMOTION, KNIGHT_PROMOTION,
+        QUEEN_CAPTURE_PROMOTION, QUEEN_CASTLING, QUEEN_PROMOTION, ROOK_CAPTURE_PROMOTION,
+        ROOK_PROMOTION,
+    },
     state::{BoardState, BoardStateFlagsTrait},
 };
 
@@ -31,10 +25,9 @@ impl BoardState {
 
         let mut piece_index = 0;
         while piece_index < self.piece_count {
-            let position_index =
-                get_position_index_from_piece_index(self.bitboard, 0, 0, piece_index);
-            let piece = get_piece_code(&self.pieces, piece_index);
-            if is_piece_black(piece) == black_turn {
+            let position_index = self.bitboard.get_nth_piece_position_index(piece_index);
+            let piece = self.pieces.get(piece_index);
+            if piece.is_black() == black_turn {
                 let p_moves = generate_piece_moves(
                     self.bitboard,
                     black_turn,
@@ -97,17 +90,16 @@ impl BoardState {
             flags = CAPTURE;
         }
 
-        let piece = get_piece_from_position_index(self.bitboard, self.pieces, from_index);
-        match piece {
-            PAWN_INDEX | BLACK_PAWN => {
-                if piece == PAWN_INDEX && from_file == 1 && to_file == 3 {
+        let piece = self.pieces.get_by_position_index(self.bitboard, from_index);
+        match piece.without_colour() {
+            PieceType::Pawn => {
+                if piece.is_white() && from_file == 1 && to_file == 3 {
                     flags = DOUBLE_PAWN_PUSH;
-                } else if piece == BLACK_PAWN && from_file == 6 && to_file == 4 {
+                } else if piece.is_black() && from_file == 6 && to_file == 4 {
                     flags = DOUBLE_PAWN_PUSH;
                 } else if self.ep_rank == to_rank
                     && to_rank != from_rank
-                    && ((piece == PAWN_INDEX && to_file == 5)
-                        || (piece == BLACK_PAWN && to_file == 2))
+                    && ((piece.is_white() && to_file == 5) || (piece.is_black() && to_file == 2))
                 {
                     flags = EP_CAPTURE;
                 } else {
@@ -150,7 +142,7 @@ impl BoardState {
                     }
                 }
             }
-            KING_INDEX | BLACK_KING => {
+            PieceType::King => {
                 if from_rank == 4 {
                     if to_rank == 2 {
                         flags = QUEEN_CASTLING
@@ -192,43 +184,41 @@ fn is_legal_castling(
 }
 
 fn generate_piece_moves(
-    bitboard: u64,
+    bitboard: Bitboard,
     is_black: bool,
     position_index: u8,
-    piece: u8,
-    opponent_bitboard: u64,
+    piece: Piece,
+    opponent_bitboard: Bitboard,
     flags: u8,
     ep_rank: u8,
-) -> (Vec<u16>) {
-    let piece_code = piece & PIECE_MASK;
+) -> Vec<Move> {
     let castling_flags = if is_black {
         (flags >> 3) & 0b11
     } else {
         flags >> 1 & 0b11
     };
-    match piece_code {
-        PAWN_INDEX => generate_pawn_moves(
+    match piece.without_colour() {
+        PieceType::Pawn => generate_pawn_moves(
             bitboard,
             is_black,
             opponent_bitboard,
             position_index,
             ep_rank,
         ),
-        KNIGHT_INDEX => generate_knight_moves(bitboard, opponent_bitboard, position_index),
-        BISHOP_INDEX => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
-        ROOK_INDEX => generate_rook_moves(bitboard, opponent_bitboard, position_index),
-        QUEEN_INDEX => generate_queen_moves(bitboard, opponent_bitboard, position_index),
-        KING_INDEX => {
+        PieceType::Knight => generate_knight_moves(bitboard, opponent_bitboard, position_index),
+        PieceType::Bishop => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
+        PieceType::Rook => generate_rook_moves(bitboard, opponent_bitboard, position_index),
+        PieceType::Queen => generate_queen_moves(bitboard, opponent_bitboard, position_index),
+        PieceType::King => {
             generate_king_moves(bitboard, opponent_bitboard, position_index, castling_flags)
         }
-        _ => vec![],
     }
 }
 
 fn generate_pawn_moves(
-    bitboard: u64,
+    bitboard: Bitboard,
     is_black: bool,
-    opponent_bitboard: u64,
+    opponent_bitboard: Bitboard,
     position_index: u8,
     ep_rank: u8,
 ) -> Vec<u16> {
@@ -296,17 +286,9 @@ fn generate_pawn_moves(
 
         if is_ep && file == 4 {
             if rank != 0 && ep_rank == rank - 1 {
-                results.push(Move::new(
-                    position_index,
-                    position_index + 9,
-                    EP_CAPTURE,
-                ));
+                results.push(Move::new(position_index, position_index + 9, EP_CAPTURE));
             } else if rank != 7 && ep_rank == rank + 1 {
-                results.push(Move::new(
-                    position_index,
-                    position_index + 7,
-                    EP_CAPTURE,
-                ));
+                results.push(Move::new(position_index, position_index + 7, EP_CAPTURE));
             }
         }
     } else {
@@ -369,17 +351,9 @@ fn generate_pawn_moves(
 
         if is_ep && file == 3 {
             if rank != 0 && ep_rank == rank - 1 {
-                results.push(Move::new(
-                    position_index,
-                    position_index - 7,
-                    EP_CAPTURE,
-                ));
+                results.push(Move::new(position_index, position_index - 7, EP_CAPTURE));
             } else if rank != 7 && ep_rank == rank + 1 {
-                results.push(Move::new(
-                    position_index,
-                    position_index - 9,
-                    EP_CAPTURE,
-                ));
+                results.push(Move::new(position_index, position_index - 9, EP_CAPTURE));
             }
         }
     }
@@ -427,7 +401,11 @@ fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16
     ];
 }
 
-fn generate_knight_moves(bitboard: u64, opponent_bitboard: u64, position_index: u8) -> Vec<u16> {
+fn generate_knight_moves(
+    bitboard: Bitboard,
+    opponent_bitboard: Bitboard,
+    position_index: u8,
+) -> Vec<u16> {
     let mut results: Vec<_> = Vec::new();
     let rank = get_rank(position_index);
     // U2R1 = +16-1 = 15
@@ -505,7 +483,11 @@ fn generate_knight_moves(bitboard: u64, opponent_bitboard: u64, position_index: 
     results
 }
 
-fn generate_bishop_moves(bitboard: u64, opponent_bitboard: u64, position_index: u8) -> Vec<u16> {
+fn generate_bishop_moves(
+    bitboard: Bitboard,
+    opponent_bitboard: Bitboard,
+    position_index: u8,
+) -> Vec<u16> {
     sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -516,7 +498,11 @@ fn generate_bishop_moves(bitboard: u64, opponent_bitboard: u64, position_index: 
     )
 }
 
-fn generate_rook_moves(bitboard: u64, opponent_bitboard: u64, position_index: u8) -> Vec<u16> {
+fn generate_rook_moves(
+    bitboard: Bitboard,
+    opponent_bitboard: Bitboard,
+    position_index: u8,
+) -> Vec<u16> {
     sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -527,7 +513,11 @@ fn generate_rook_moves(bitboard: u64, opponent_bitboard: u64, position_index: u8
     )
 }
 
-fn generate_queen_moves(bitboard: u64, opponent_bitboard: u64, position_index: u8) -> Vec<u16> {
+fn generate_queen_moves(
+    bitboard: Bitboard,
+    opponent_bitboard: Bitboard,
+    position_index: u8,
+) -> Vec<u16> {
     sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -539,8 +529,8 @@ fn generate_queen_moves(bitboard: u64, opponent_bitboard: u64, position_index: u
 }
 
 fn generate_king_moves(
-    bitboard: u64,
-    opponent_bitboard: u64,
+    bitboard: Bitboard,
+    opponent_bitboard: Bitboard,
     position_index: u8,
     castling_flags: u8,
 ) -> Vec<u16> {
@@ -555,12 +545,8 @@ fn generate_king_moves(
 
     if (castling_flags & 0b01) > 0 {
         // King side castling
-        if (!bitboard.occupied(position_index - 1) && !bitboard.occupied(position_index - 2)) {
-            moves.push(Move::new(
-                position_index,
-                position_index - 2,
-                KING_CASTLING,
-            ))
+        if !bitboard.occupied(position_index - 1) && !bitboard.occupied(position_index - 2) {
+            moves.push(Move::new(position_index, position_index - 2, KING_CASTLING))
         }
     }
     if (castling_flags & 0b10) > 0 {
@@ -582,8 +568,8 @@ fn generate_king_moves(
 }
 
 fn sliding_move_generator(
-    bitboard: u64,
-    opponent_bitboard: u64,
+    bitboard: Bitboard,
+    opponent_bitboard: Bitboard,
     pos: u8,
     diag: bool,
     straight: bool,
@@ -697,6 +683,8 @@ fn sliding_move_generator(
 
 #[cfg(test)]
 mod test {
+    use std::default;
+
     use crate::board::board_utils::rank_and_file_to_index;
 
     use super::*;
@@ -706,7 +694,7 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
         );
-        let rook_moves = generate_rook_moves(board.bitboard, 0b0, 0);
+        let rook_moves = generate_rook_moves(board.bitboard, Bitboard::default(), 0);
 
         assert_eq!(rook_moves.len(), 1);
     }
@@ -716,7 +704,7 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/ppppppp1/7p/8/8/7P/PPPPPPP1/RNBQKBNR w KQkq - 0 2".into(),
         );
-        let rook_moves = generate_rook_moves(board.bitboard, 0b0, 7);
+        let rook_moves = generate_rook_moves(board.bitboard, Bitboard::default(), 7);
         assert_eq!(rook_moves.len(), 0);
     }
 
@@ -725,7 +713,7 @@ mod test {
         let board = BoardState::from_fen(
             &"r1bqkbnr/pppppppp/n7/8/1P6/8/P1PPPPPP/RNBQKBNR w KQkq - 0 1".into(),
         );
-        let moves = generate_bishop_moves(board.bitboard, 0b0, 5);
+        let moves = generate_bishop_moves(board.bitboard, Bitboard::default(), 5);
         assert_eq!(moves.len(), 2, "{moves:?}");
     }
 
@@ -736,7 +724,7 @@ mod test {
         );
         let moves = generate_pawn_moves(
             board.bitboard,
-            true,
+            false,
             board.black_bitboard,
             rank_and_file_to_index(0, 4),
             board.ep_rank,
@@ -757,7 +745,7 @@ mod test {
         let pos = rank_and_file_to_index(4, 4);
         let moves = generate_pawn_moves(
             board.bitboard,
-            true,
+            false,
             board.black_bitboard,
             pos,
             board.ep_rank,
@@ -782,7 +770,7 @@ mod test {
         let pos = rank_and_file_to_index(1, 4);
         let moves = generate_pawn_moves(
             board.bitboard,
-            true,
+            false,
             board.black_bitboard,
             pos,
             board.ep_rank,
@@ -804,7 +792,7 @@ mod test {
 
         let moves = generate_pawn_moves(
             board.bitboard,
-            true,
+            false,
             board.black_bitboard,
             pos,
             board.ep_rank,
@@ -821,7 +809,7 @@ mod test {
 
         let moves = generate_pawn_moves(
             board.bitboard,
-            false,
+            true,
             board.white_bitboard,
             rank_and_file_to_index(7, 3),
             board.ep_rank,
@@ -843,12 +831,9 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1".into(),
         );
-        let expected_bitboard = 0b0u64
-            .flip(rank_and_file_to_index(0, 5))
-            .flip(rank_and_file_to_index(2, 5));
         let moves = generate_pawn_moves(
             board.bitboard,
-            false,
+            true,
             board.white_bitboard,
             rank_and_file_to_index(1, 6),
             board.ep_rank,
@@ -868,7 +853,7 @@ mod test {
             &Move::new(
                 rank_and_file_to_index(1, 6),
                 rank_and_file_to_index(1, 4),
-                0b0
+                DOUBLE_PAWN_PUSH
             )
         );
     }

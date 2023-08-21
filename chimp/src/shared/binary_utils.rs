@@ -50,7 +50,6 @@ impl BinaryUtils for u128 {
     }
 
     fn remove_b(&self, start: usize, len: usize) -> u128 {
-        let t = self.clone();
         let a = if start > 0 { self.copy_b(0, start) } else { 0 };
 
         let b = if start + len == 128 {
