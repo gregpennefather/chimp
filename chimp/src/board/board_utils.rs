@@ -3,15 +3,15 @@ use super::{
     piece_list::PieceList,
 };
 
-pub fn rank_and_file_to_index(rank: u8, file: u8) -> u8 {
-    ((file) * 8) + (7 - rank)
+pub fn file_and_rank_to_index(file: u8, rank: u8) -> u8 {
+    ((rank) * 8) + (7 - file)
 }
 
-pub fn rank_and_file_to_index_i8(rank: i8, file: i8) -> u8 {
-    (((file) * 8) + (7 - rank)) as u8
+pub fn file_and_rank_to_index_i8(file: i8, rank: i8) -> u8 {
+    (((rank) * 8) + (7 - file)) as u8
 }
 
-pub fn rank_from_char(char: char) -> u8 {
+pub fn file_from_char(char: char) -> u8 {
     match char {
         'a' => 0,
         'b' => 1,
@@ -25,8 +25,8 @@ pub fn rank_from_char(char: char) -> u8 {
     }
 }
 
-pub fn char_from_rank(rank: u8) -> char {
-    match rank {
+pub fn char_from_file(file: u8) -> char {
+    match file {
         0 => 'a',
         1 => 'b',
         2 => 'c',
@@ -39,21 +39,21 @@ pub fn char_from_rank(rank: u8) -> char {
     }
 }
 
-pub fn get_file(index: u8) -> u8 {
+pub fn get_rank(index: u8) -> u8 {
     index / 0b1000u8
 }
 
-pub fn get_rank(index: u8) -> u8 {
+pub fn get_file(index: u8) -> u8 {
     7 - (index % 8)
 }
-pub fn get_rank_i8(index: i8) -> u8 {
+pub fn get_file_i8(index: i8) -> u8 {
     7 - (index % 8) as u8
 }
 
 pub fn get_friendly_name_for_index(index: u8) -> String {
-    let file = get_file(index) + 1;
-    let rank = get_rank(index);
-    format!("{}{file}", char_from_rank(rank))
+    let rank = get_rank(index) + 1;
+    let file = get_file(index);
+    format!("{}{rank}", char_from_file(file))
 }
 
 pub fn board_to_string(bitboard: Bitboard, pieces: PieceList) -> String {

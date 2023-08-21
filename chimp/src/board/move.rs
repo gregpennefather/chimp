@@ -1,6 +1,6 @@
 use crate::{
     board::{
-        board_utils::{char_from_rank, get_friendly_name_for_index, get_rank},
+        board_utils::{char_from_file, get_friendly_name_for_index, get_file},
         piece_utils::get_piece_char,
     },
     shared::{BLACK_PAWN, PAWN_INDEX},
@@ -139,8 +139,8 @@ impl MoveFunctions for Move {
         }
 
         if moves_targeting_square.len() >= 1 {
-            let from_rank = char_from_rank(get_rank(self.from()));
-            r = format!("{r}{from_rank}");
+            let from_file = char_from_file(get_file(self.from()));
+            r = format!("{r}{from_file}");
         }
 
         if self.is_capture() {

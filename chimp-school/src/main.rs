@@ -3,7 +3,7 @@ use std::{cmp::Ordering, collections::HashMap, time::Instant};
 use chimp::board::{
     bitboard::Bitboard,
     board_metrics::BoardMetrics,
-    board_utils::{board_to_string, rank_and_file_to_index},
+    board_utils::{board_to_string, file_and_rank_to_index},
     r#move::MoveFunctions,
     state::BoardState, piece_list::PieceList,
 };
@@ -125,8 +125,8 @@ fn from_fen_test_cases() {
     if test_fen_king_positions(
         &initial_board_fen,
         "Initial Board State flags".into(),
-        rank_and_file_to_index(4, 0),
-        rank_and_file_to_index(4, 7),
+        file_and_rank_to_index(4, 0),
+        file_and_rank_to_index(4, 7),
     ) {
         success_count += 1;
     }
@@ -219,9 +219,9 @@ fn test_fen_flags(fen: &String, desc: String, expected_flags: u8, expected_ep: u
         println!("{} vs {}", p_r.red(), p_e.yellow());
         return false;
     };
-    if board_state.ep_rank != expected_ep {
+    if board_state.ep_file != expected_ep {
         print_test_result(desc, "EP does not match expected".into(), false);
-        let p_r = format!("{:b}", board_state.ep_rank);
+        let p_r = format!("{:b}", board_state.ep_file);
         let p_e = format!("{:b}", expected_ep);
         println!("{} vs {}", p_r.red(), p_e.yellow());
         return false;
@@ -368,7 +368,7 @@ fn apply_move_deep_test_cases(quiet: bool) {
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1".into(),
         "b4a3".into(),
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/4P3/p1N2Q1p/1PPBBPPP/R3K2R w KQkq - 0 2".into(),
-        "Black pawn EP capture into A rank".into(),
+        "Black pawn EP capture into A file".into(),
     ));
 
     tests.push((
@@ -446,7 +446,7 @@ fn apply_move_deep_test_cases(quiet: bool) {
         "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into(),
         "e7e5".into(),
         "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2".into(),
-        "Black double pawn push in same file as white".into(),
+        "Black double pawn push in same rank as white".into(),
     ));
 
     tests.push((
@@ -600,11 +600,11 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
         flag = false;
     }
 
-    if a.ep_rank != b.ep_rank {
+    if a.ep_file != b.ep_file {
         println!(
-            "ep_rank do not match {} vs {}",
-            a.ep_rank.to_string().red(),
-            b.ep_rank.to_string().yellow()
+            "ep_file do not match {} vs {}",
+            a.ep_file.to_string().red(),
+            b.ep_file.to_string().yellow()
         );
         flag = false;
     }

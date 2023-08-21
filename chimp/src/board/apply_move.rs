@@ -1,6 +1,6 @@
 use super::{
     bitboard::BitboardExtensions,
-    board_utils::{get_file, get_rank, rank_and_file_to_index},
+    board_utils::{get_rank, get_file, file_and_rank_to_index},
     piece::{Piece, PieceType},
     r#move::{Move, MoveFunctions},
     state::{BoardState, BoardStateFlags, BoardStateFlagsTrait},
@@ -15,7 +15,7 @@ impl BoardState {
         let mut bitboard = self.bitboard;
         let mut pieces = self.pieces;
         let mut flags: BoardStateFlags = self.flags;
-        let mut ep_rank: u8 = u8::MAX;
+        let mut ep_file: u8 = u8::MAX;
         let mut half_moves: u8 = self.half_moves;
         let mut white_king_index: u8 = self.white_king_index;
         let mut black_king_index: u8 = self.black_king_index;
@@ -102,7 +102,7 @@ impl BoardState {
             friendly_bitboard = friendly_bitboard.flip(from_index);
 
             if m.is_ep_capture() {
-                let ep_capture_index = rank_and_file_to_index(self.ep_rank, get_file(from_index));
+                let ep_capture_index = file_and_rank_to_index(self.ep_file, get_rank(from_index));
                 new_pieces = new_pieces.remove(bitboard, ep_capture_index);
                 bitboard = bitboard.flip(ep_capture_index);
                 opponent_bitboard = opponent_bitboard.flip(ep_capture_index);
@@ -118,7 +118,7 @@ impl BoardState {
 
             // Double Pawn Push
             if m.is_double_pawn_push() {
-                ep_rank = get_rank(from_index);
+                ep_file = get_file(from_index);
             }
 
             // Half moves
@@ -205,7 +205,7 @@ impl BoardState {
             black_bitboard,
             pieces,
             flags,
-            ep_rank,
+            ep_file,
             half_moves,
             full_moves,
             piece_count,

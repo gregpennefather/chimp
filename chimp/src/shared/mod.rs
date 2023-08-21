@@ -16,4 +16,4 @@ pub const BLACK_KING: u8 = 0b1110;
 pub const COLOURED_PIECE_MASK: u8 = 15;
 pub const PIECE_MASK: u8 = 7;
 
-pub static RANKS: &str = "abcdefgh";
+pub static fileS: &str = "abcdefgh";

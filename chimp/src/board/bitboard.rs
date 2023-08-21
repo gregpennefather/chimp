@@ -13,7 +13,7 @@ pub trait BitboardExtensions {
     fn set(&self, index: u8) -> Bitboard;
     fn position_to_piece_index(&self, position_index: u8) -> usize;
     fn count_occupied(&self) -> u8;
-    fn get_file(&self, file: u8) -> u8;
+    fn get_rank(&self, rank: u8) -> u8;
     fn get_nth_piece_position_index(&self, n: u8) -> u8;
 }
 
@@ -43,8 +43,8 @@ impl BitboardExtensions for Bitboard {
         self.0.count_ones() as u8
     }
 
-    fn get_file(&self, file: u8) -> u8 {
-        (self.0 >> (file * 8) & 255) as u8
+    fn get_rank(&self, rank: u8) -> u8 {
+        (self.0 >> (rank * 8) & 255) as u8
     }
 
     fn get_nth_piece_position_index(&self, n: u8) -> u8 {
@@ -91,14 +91,14 @@ impl Display for Bitboard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut r: String = "".to_string();
 
-        r += format!("{:#010b}\n", self.get_file(7)).as_str();
-        r += format!("{:#010b}\n", self.get_file(6)).as_str();
-        r += format!("{:#010b}\n", self.get_file(5)).as_str();
-        r += format!("{:#010b}\n", self.get_file(4)).as_str();
-        r += format!("{:#010b}\n", self.get_file(3)).as_str();
-        r += format!("{:#010b}\n", self.get_file(2)).as_str();
-        r += format!("{:#010b}\n", self.get_file(1)).as_str();
-        r += format!("{:#010b}\n", self.get_file(0)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(7)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(6)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(5)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(4)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(3)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(2)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(1)).as_str();
+        r += format!("{:#010b}\n", self.get_rank(0)).as_str();
 
         write!(f, "{r}")
     }

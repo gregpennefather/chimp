@@ -1,7 +1,7 @@
 use super::{
     bitboard::{Bitboard, BitboardExtensions},
     board_metrics::BoardMetrics,
-    board_utils::{get_file, get_rank, rank_and_file_to_index, rank_from_char},
+    board_utils::{get_rank, get_file, file_and_rank_to_index, file_from_char},
     move_utils::get_available_slide_pos,
     piece::{Piece, PieceType},
     r#move::{
@@ -35,7 +35,7 @@ impl BoardState {
                     piece,
                     opponent_bitboard,
                     self.flags,
-                    self.ep_rank,
+                    self.ep_file,
                 );
                 moves.extend(&p_moves);
             }
@@ -72,17 +72,17 @@ impl BoardState {
     }
 
     pub fn move_from_string(&self, move_string: &str) -> u16 {
-        let from_rank_char = move_string.chars().nth(0).unwrap();
-        let from_rank = rank_from_char(from_rank_char);
-        let from_file: u8 = (move_string.chars().nth(1).unwrap().to_digit(16).unwrap() - 1) as u8;
+        let from_file_char = move_string.chars().nth(0).unwrap();
+        let from_file = file_from_char(from_file_char);
+        let from_rank: u8 = (move_string.chars().nth(1).unwrap().to_digit(16).unwrap() - 1) as u8;
 
-        let from_index = rank_and_file_to_index(from_rank, from_file);
+        let from_index = file_and_rank_to_index(from_file, from_rank);
 
-        let to_rank_char = move_string.chars().nth(2).unwrap();
-        let to_rank = rank_from_char(to_rank_char);
-        let to_file: u8 = (move_string.chars().nth(3).unwrap().to_digit(16).unwrap() - 1) as u8;
+        let to_file_char = move_string.chars().nth(2).unwrap();
+        let to_file = file_from_char(to_file_char);
+        let to_rank: u8 = (move_string.chars().nth(3).unwrap().to_digit(16).unwrap() - 1) as u8;
 
-        let to_index = rank_and_file_to_index(to_rank, to_file);
+        let to_index = file_and_rank_to_index(to_file, to_rank);
 
         let mut flags = 0;
 
@@ -93,13 +93,13 @@ impl BoardState {
         let piece = self.pieces.get_by_position_index(self.bitboard, from_index);
         match piece.without_colour() {
             PieceType::Pawn => {
-                if piece.is_white() && from_file == 1 && to_file == 3 {
+                if piece.is_white() && from_rank == 1 && to_rank == 3 {
                     flags = DOUBLE_PAWN_PUSH;
-                } else if piece.is_black() && from_file == 6 && to_file == 4 {
+                } else if piece.is_black() && from_rank == 6 && to_rank == 4 {
                     flags = DOUBLE_PAWN_PUSH;
-                } else if self.ep_rank == to_rank
-                    && to_rank != from_rank
-                    && ((piece.is_white() && to_file == 5) || (piece.is_black() && to_file == 2))
+                } else if self.ep_file == to_file
+                    && to_file != from_file
+                    && ((piece.is_white() && to_rank == 5) || (piece.is_black() && to_rank == 2))
                 {
                     flags = EP_CAPTURE;
                 } else {
@@ -143,10 +143,10 @@ impl BoardState {
                 }
             }
             PieceType::King => {
-                if from_rank == 4 {
-                    if to_rank == 2 {
+                if from_file == 4 {
+                    if to_file == 2 {
                         flags = QUEEN_CASTLING
-                    } else if to_rank == 6 {
+                    } else if to_file == 6 {
                         flags = KING_CASTLING
                     }
                 }
@@ -190,7 +190,7 @@ fn generate_piece_moves(
     piece: Piece,
     opponent_bitboard: Bitboard,
     flags: u8,
-    ep_rank: u8,
+    ep_file: u8,
 ) -> Vec<Move> {
     let castling_flags = if is_black {
         (flags >> 3) & 0b11
@@ -203,7 +203,7 @@ fn generate_piece_moves(
             is_black,
             opponent_bitboard,
             position_index,
-            ep_rank,
+            ep_file,
         ),
         PieceType::Knight => generate_knight_moves(bitboard, opponent_bitboard, position_index),
         PieceType::Bishop => generate_bishop_moves(bitboard, opponent_bitboard, position_index),
@@ -220,17 +220,17 @@ fn generate_pawn_moves(
     is_black: bool,
     opponent_bitboard: Bitboard,
     position_index: u8,
-    ep_rank: u8,
+    ep_file: u8,
 ) -> Vec<u16> {
     let mut results: Vec<_> = Vec::new();
-    let file = get_file(position_index);
     let rank = get_rank(position_index);
-    let is_ep = ep_rank != u8::MAX;
+    let file = get_file(position_index);
+    let is_ep = ep_file != u8::MAX;
 
     if !is_black {
         if !bitboard.occupied(position_index + 8) {
             // Promotion
-            if file == 6 {
+            if rank == 6 {
                 results.extend(build_promotion_moves(
                     position_index,
                     position_index + 8,
@@ -239,7 +239,7 @@ fn generate_pawn_moves(
             } else {
                 // Move
                 results.push(Move::new(position_index, position_index + 8, 0b0));
-                if file == 1 {
+                if rank == 1 {
                     if !bitboard.occupied(position_index + 16) {
                         results.push(Move::new(
                             position_index,
@@ -252,10 +252,10 @@ fn generate_pawn_moves(
         }
 
         // Capture Right
-        if rank != 7 {
+        if file != 7 {
             if opponent_bitboard.occupied(position_index + 7) {
                 // Promotion
-                if file == 6 {
+                if rank == 6 {
                     results.extend(build_promotion_moves(
                         position_index,
                         position_index + 7,
@@ -269,10 +269,10 @@ fn generate_pawn_moves(
         }
 
         // Capture left
-        if rank != 0 {
+        if file != 0 {
             if opponent_bitboard.occupied(position_index + 9) {
                 // Promotion
-                if file == 6 {
+                if rank == 6 {
                     results.extend(build_promotion_moves(
                         position_index,
                         position_index + 9,
@@ -284,17 +284,17 @@ fn generate_pawn_moves(
             }
         }
 
-        if is_ep && file == 4 {
-            if rank != 0 && ep_rank == rank - 1 {
+        if is_ep && rank == 4 {
+            if file != 0 && ep_file == file - 1 {
                 results.push(Move::new(position_index, position_index + 9, EP_CAPTURE));
-            } else if rank != 7 && ep_rank == rank + 1 {
+            } else if file != 7 && ep_file == file + 1 {
                 results.push(Move::new(position_index, position_index + 7, EP_CAPTURE));
             }
         }
     } else {
         if !bitboard.occupied(position_index - 8) {
             // Promotion
-            if file == 1 {
+            if rank == 1 {
                 results.extend(build_promotion_moves(
                     position_index,
                     position_index - 8,
@@ -305,7 +305,7 @@ fn generate_pawn_moves(
                 results.push(Move::new(position_index, position_index - 8, 0b0));
 
                 // Double push
-                if file == 6 {
+                if rank == 6 {
                     if !bitboard.occupied(position_index - 16) {
                         results.push(Move::new(
                             position_index,
@@ -318,10 +318,10 @@ fn generate_pawn_moves(
         }
 
         // Capture right
-        if rank != 7 {
+        if file != 7 {
             if opponent_bitboard.occupied(position_index - 9) {
                 // Promotion
-                if file == 1 {
+                if rank == 1 {
                     results.extend(build_promotion_moves(
                         position_index,
                         position_index - 9,
@@ -334,10 +334,10 @@ fn generate_pawn_moves(
         }
 
         // Capture left
-        if rank != 0 {
+        if file != 0 {
             if opponent_bitboard.occupied(position_index - 7) {
                 // Promotion
-                if file == 1 {
+                if rank == 1 {
                     results.extend(build_promotion_moves(
                         position_index,
                         position_index - 7,
@@ -349,10 +349,10 @@ fn generate_pawn_moves(
             }
         }
 
-        if is_ep && file == 3 {
-            if rank != 0 && ep_rank == rank - 1 {
+        if is_ep && rank == 3 {
+            if file != 0 && ep_file == file - 1 {
                 results.push(Move::new(position_index, position_index - 7, EP_CAPTURE));
-            } else if rank != 7 && ep_rank == rank + 1 {
+            } else if file != 7 && ep_file == file + 1 {
                 results.push(Move::new(position_index, position_index - 9, EP_CAPTURE));
             }
         }
@@ -407,9 +407,9 @@ fn generate_knight_moves(
     position_index: u8,
 ) -> Vec<u16> {
     let mut results: Vec<_> = Vec::new();
-    let rank = get_rank(position_index);
+    let file = get_file(position_index);
     // U2R1 = +16-1 = 15
-    if position_index <= 48 && rank != 7 {
+    if position_index <= 48 && file != 7 {
         let tar = position_index + 15;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -418,7 +418,7 @@ fn generate_knight_moves(
         }
     }
     // U1R2 = +8-2 = 6
-    if position_index <= 55 && rank < 6 {
+    if position_index <= 55 && file < 6 {
         let tar = position_index + 6;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -427,7 +427,7 @@ fn generate_knight_moves(
         }
     }
     // D1R2 = -8-2 = -10
-    if position_index >= 10 && rank < 6 {
+    if position_index >= 10 && file < 6 {
         let tar = position_index - 10;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -436,7 +436,7 @@ fn generate_knight_moves(
         }
     }
     // D2R1 = -16-1 = -17
-    if position_index >= 17 && rank != 7 {
+    if position_index >= 17 && file != 7 {
         let tar = position_index - 17;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -445,7 +445,7 @@ fn generate_knight_moves(
         }
     }
     // D2L1 = -16+1 = -15
-    if position_index >= 15 && rank != 0 {
+    if position_index >= 15 && file != 0 {
         let tar = position_index - 15;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -454,7 +454,7 @@ fn generate_knight_moves(
         }
     }
     // D1L2 = -8+2 = -6
-    if position_index >= 6 && rank > 1 {
+    if position_index >= 6 && file > 1 {
         let tar = position_index - 6;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -463,7 +463,7 @@ fn generate_knight_moves(
         }
     }
     // U1L2 = 8+2 = 10
-    if position_index <= 53 && rank > 1 {
+    if position_index <= 53 && file > 1 {
         let tar = position_index + 10;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -472,7 +472,7 @@ fn generate_knight_moves(
         }
     }
     // U2L1 = 16+1 = 17
-    if position_index <= 46 && rank != 0 {
+    if position_index <= 46 && file != 0 {
         let tar = position_index + 17;
         if opponent_bitboard.occupied(tar) {
             results.push(Move::new(position_index, tar, CAPTURE));
@@ -685,7 +685,7 @@ fn sliding_move_generator(
 mod test {
     use std::default;
 
-    use crate::board::board_utils::rank_and_file_to_index;
+    use crate::board::board_utils::file_and_rank_to_index;
 
     use super::*;
 
@@ -726,14 +726,14 @@ mod test {
             board.bitboard,
             false,
             board.black_bitboard,
-            rank_and_file_to_index(0, 4),
-            board.ep_rank,
+            file_and_rank_to_index(0, 4),
+            board.ep_file,
         );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves.get(0).unwrap(),
-            &Move::new(39, rank_and_file_to_index(1, 5), EP_CAPTURE)
+            &Move::new(39, file_and_rank_to_index(1, 5), EP_CAPTURE)
         );
     }
 
@@ -742,60 +742,60 @@ mod test {
         let board = BoardState::from_fen(
             &"rnbqkbnr/pp2pppp/2p5/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1".into(),
         );
-        let pos = rank_and_file_to_index(4, 4);
+        let pos = file_and_rank_to_index(4, 4);
         let moves = generate_pawn_moves(
             board.bitboard,
             false,
             board.black_bitboard,
             pos,
-            board.ep_rank,
+            board.ep_file,
         );
 
         assert_eq!(moves.len(), 2, "{moves:?}");
         assert_eq!(
             moves.get(0).unwrap(),
-            &Move::new(pos, rank_and_file_to_index(4, 5), 0b0)
+            &Move::new(pos, file_and_rank_to_index(4, 5), 0b0)
         );
         assert_eq!(
             moves.get(1).unwrap(),
-            &Move::new(pos, rank_and_file_to_index(3, 5), EP_CAPTURE)
+            &Move::new(pos, file_and_rank_to_index(3, 5), EP_CAPTURE)
         );
     }
 
     #[test]
-    pub fn generate_pawn_moves_en_passant_b5_white_taking_left_to_a_rank() {
+    pub fn generate_pawn_moves_en_passant_b5_white_taking_left_to_a_file() {
         let board = BoardState::from_fen(
             &"rnbqkbnr/2pppppp/1p6/pP6/8/8/P1PPPPPP/RNBQKBNR w KQkq a6 0 1".into(),
         );
-        let pos = rank_and_file_to_index(1, 4);
+        let pos = file_and_rank_to_index(1, 4);
         let moves = generate_pawn_moves(
             board.bitboard,
             false,
             board.black_bitboard,
             pos,
-            board.ep_rank,
+            board.ep_file,
         );
 
         assert_eq!(moves.len(), 1, "{moves:?}");
         assert_eq!(
             moves.get(0).unwrap(),
-            &Move::new(pos, rank_and_file_to_index(0, 5), EP_CAPTURE)
+            &Move::new(pos, file_and_rank_to_index(0, 5), EP_CAPTURE)
         );
     }
 
     #[test]
-    pub fn generate_pawn_moves_b5_white_taking_non_en_passant_in_a_rank() {
+    pub fn generate_pawn_moves_b5_white_taking_non_en_passant_in_a_file() {
         let board = BoardState::from_fen(
             &"rnbqkbnr/2pppppp/1p6/pP6/8/6P1/P1PPPP1P/RNBQKBNR w KQkq - 0 1".into(),
         );
-        let pos = rank_and_file_to_index(1, 4);
+        let pos = file_and_rank_to_index(1, 4);
 
         let moves = generate_pawn_moves(
             board.bitboard,
             false,
             board.black_bitboard,
             pos,
-            board.ep_rank,
+            board.ep_file,
         );
 
         assert_eq!(moves.len(), 0, "{moves:?}");
@@ -811,16 +811,16 @@ mod test {
             board.bitboard,
             true,
             board.white_bitboard,
-            rank_and_file_to_index(7, 3),
-            board.ep_rank,
+            file_and_rank_to_index(7, 3),
+            board.ep_file,
         );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(
             moves.get(0).unwrap(),
             &Move::new(
-                rank_and_file_to_index(7, 3),
-                rank_and_file_to_index(6, 2),
+                file_and_rank_to_index(7, 3),
+                file_and_rank_to_index(6, 2),
                 EP_CAPTURE
             )
         );
@@ -835,24 +835,24 @@ mod test {
             board.bitboard,
             true,
             board.white_bitboard,
-            rank_and_file_to_index(1, 6),
-            board.ep_rank,
+            file_and_rank_to_index(1, 6),
+            board.ep_file,
         );
 
         assert_eq!(moves.len(), 2);
         assert_eq!(
             moves.get(0).unwrap(),
             &Move::new(
-                rank_and_file_to_index(1, 6),
-                rank_and_file_to_index(1, 5),
+                file_and_rank_to_index(1, 6),
+                file_and_rank_to_index(1, 5),
                 0b0
             )
         );
         assert_eq!(
             moves.get(1).unwrap(),
             &Move::new(
-                rank_and_file_to_index(1, 6),
-                rank_and_file_to_index(1, 4),
+                file_and_rank_to_index(1, 6),
+                file_and_rank_to_index(1, 4),
                 DOUBLE_PAWN_PUSH
             )
         );
@@ -865,7 +865,7 @@ mod test {
         let moves = generate_knight_moves(
             board.bitboard,
             board.black_bitboard,
-            rank_and_file_to_index(3, 3),
+            file_and_rank_to_index(3, 3),
         );
 
         assert_eq!(moves.len(), 8);

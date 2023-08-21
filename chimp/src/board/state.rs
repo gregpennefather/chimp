@@ -36,7 +36,7 @@ pub struct BoardState {
     pub black_bitboard: Bitboard,
     pub pieces: PieceList,
     pub flags: BoardStateFlags,
-    pub ep_rank: u8,
+    pub ep_file: u8,
     pub half_moves: u8,
     pub full_moves: u32,
     pub piece_count: u8,
@@ -56,13 +56,13 @@ impl BoardState {
         let mut black_bitboard = Bitboard::default();
         let mut pieces = PieceList::default();
         let mut flags: BoardStateFlags = BoardStateFlags::default();
-        let mut ep_rank: u8 = u8::default();
+        let mut ep_file: u8 = u8::default();
         let mut white_king_index = 0;
         let mut black_king_index = 0;
 
         let mut i: usize = 0;
-        let mut file: i8 = 7;
         let mut rank: i8 = 7;
+        let mut file: i8 = 7;
         // Pieces
         while i < fen.len() {
             let char: char = fen.chars().nth(i).unwrap();
@@ -70,13 +70,13 @@ impl BoardState {
 
             if char.is_ascii_digit() {
                 let digit = (char as i16 - 0x30) as i8;
-                rank -= digit;
+                file -= digit;
                 continue;
             }
 
             if char == '/' {
-                rank = 7;
-                file -= 1;
+                file = 7;
+                rank -= 1;
                 continue;
             }
 
@@ -84,11 +84,11 @@ impl BoardState {
                 break;
             }
 
-            if rank < 0 {
-                panic!("Rank shouldn't be < 0 at {}", &fen[..i]);
+            if file < 0 {
+                panic!("file shouldn't be < 0 at {}", &fen[..i]);
             }
 
-            let position_index = ((file * 8) + rank) as u8; // I dont like this - we should generate the indexes the same everywhere
+            let position_index = ((rank * 8) + file) as u8; // I dont like this - we should generate the indexes the same everywhere
 
             let piece: u8 = match char {
                 'P' => PAWN_INDEX,
@@ -118,7 +118,7 @@ impl BoardState {
             } else {
                 white_bitboard = white_bitboard.set(position_index);
             }
-            rank = rank - 1;
+            file = file - 1;
 
             let piece_u128: u128 = piece as u128;
             pieces = pieces.push(piece);
@@ -155,10 +155,10 @@ impl BoardState {
         // En Passant
         let ep_char = fen.chars().nth(i).unwrap().to_ascii_lowercase();
         if ep_char != '-' {
-            ep_rank = RANKS.find(ep_char).unwrap() as u8;
+            ep_file = fileS.find(ep_char).unwrap() as u8;
             i += 1;
         } else {
-            ep_rank = u8::MAX
+            ep_file = u8::MAX
         }
         i += 2;
 
@@ -188,7 +188,7 @@ impl BoardState {
             black_bitboard,
             pieces,
             flags,
-            ep_rank,
+            ep_file,
             half_moves,
             full_moves,
             piece_count,
@@ -198,23 +198,23 @@ impl BoardState {
     }
 
     pub fn to_fen(&self) -> String {
-        let mut file_index = 7;
+        let mut rank_index = 7;
         let mut fen: String = String::default();
         let mut piece_index: i8 = (self.bitboard.count_occupied() - 1).try_into().unwrap();
 
         // Pieces
         loop {
-            let file: u8 = self.bitboard.get_file(file_index);
-            let pieces_in_row: i8 = file.count_ones().try_into().unwrap();
-            fen += &file_to_fen_string(file, &self.pieces, piece_index);
+            let rank: u8 = self.bitboard.get_rank(rank_index);
+            let pieces_in_row: i8 = rank.count_ones().try_into().unwrap();
+            fen += &rank_to_fen_string(rank, &self.pieces, piece_index);
             piece_index -= pieces_in_row;
-            if file_index > 0 {
-                file_index -= 1;
+            if rank_index > 0 {
+                rank_index -= 1;
                 fen += &"/".to_string();
             } else {
                 break;
             }
-            // if file_index < 8 {
+            // if rank_index < 8 {
             //     fen += &"/".to_string();
             // }
         }
@@ -246,8 +246,8 @@ impl BoardState {
         // En Passant
         fen += " ";
         if self.flags & 0b100000 > 0 {
-            let rank_char = RANKS.chars().nth(self.ep_rank as usize).unwrap();
-            fen += &rank_char.to_string();
+            let file_char = fileS.chars().nth(self.ep_file as usize).unwrap();
+            fen += &file_char.to_string();
             // if it's whites move next then this move was by black
             fen += if black_turn { "3".into() } else { "6".into() };
         } else {
@@ -269,13 +269,13 @@ impl Default for BoardState {
     }
 }
 
-fn file_to_fen_string(file: u8, pieces: &PieceList, piece_index: i8) -> String {
+fn rank_to_fen_string(rank: u8, pieces: &PieceList, piece_index: i8) -> String {
     let mut i: i8 = 7;
     let mut pi = piece_index;
     let mut empty_count = 0;
     let mut r = String::default();
     while i >= 0 && pi < 32 {
-        let occ = ((file >> i) & 1) > 0;
+        let occ = ((rank >> i) & 1) > 0;
         if occ {
             if empty_count > 0 {
                 r += &empty_count.to_string();

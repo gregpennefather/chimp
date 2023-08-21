@@ -1,7 +1,7 @@
 use crate::shared::*;
 use super::{
     bitboard::{Bitboard, BitboardExtensions},
-    board_utils::get_rank,
+    board_utils::get_file,
     move_utils::get_available_slide_pos,
     state::BoardState, piece::{PieceType, Piece},
 };
@@ -94,21 +94,21 @@ fn generate_mobility_board(
 
 fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> Bitboard {
     let mut threat_bitboard = Bitboard::default();
-    let rank = get_rank(position_index);
+    let file = get_file(position_index);
     if !is_black {
-        if rank != 7 && position_index <= 56 {
+        if file != 7 && position_index <= 56 {
             threat_bitboard = threat_bitboard.set(position_index + 7);
         }
 
-        if rank != 0 && position_index <= 54 {
+        if file != 0 && position_index <= 54 {
             threat_bitboard = threat_bitboard.set(position_index + 9);
         }
     } else {
-        if rank != 7 && position_index >= 9 {
+        if file != 7 && position_index >= 9 {
             threat_bitboard = threat_bitboard.set(position_index - 9);
         }
 
-        if rank != 0 && position_index >= 7 {
+        if file != 0 && position_index >= 7 {
             threat_bitboard = threat_bitboard.set(position_index - 7);
         }
     }
@@ -117,45 +117,45 @@ fn generate_pawn_threat_board(is_black: bool, position_index: u8) -> Bitboard {
 
 fn generate_knight_threat_board(position_index: u8) -> Bitboard {
     let mut threat_bitboard = Bitboard::default();
-    let rank = get_rank(position_index);
+    let file = get_file(position_index);
 
     // U2R1 = +16-1 = 15
-    if position_index <= 48 && rank != 7 {
+    if position_index <= 48 && file != 7 {
         let tar = position_index + 15;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // U1R2 = +8-2 = 6
-    if position_index <= 55 && rank < 6 {
+    if position_index <= 55 && file < 6 {
         let tar = position_index + 6;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // D1R2 = -8-2 = -10
-    if position_index >= 10 && rank < 6 {
+    if position_index >= 10 && file < 6 {
         let tar = position_index - 10;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // D2R1 = -16-1 = -17
-    if position_index >= 17 && rank != 7 {
+    if position_index >= 17 && file != 7 {
         let tar = position_index - 17;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // D2L1 = -16+1 = -15
-    if position_index >= 15 && rank != 0 {
+    if position_index >= 15 && file != 0 {
         let tar = position_index - 15;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // D1L2 = -8+2 = -6
-    if position_index >= 6 && rank > 1 {
+    if position_index >= 6 && file > 1 {
         let tar = position_index - 6;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // U1L2 = 8+2 = 10
-    if position_index <= 53 && rank > 1 {
+    if position_index <= 53 && file > 1 {
         let tar = position_index + 10;
         threat_bitboard = threat_bitboard.set(tar);
     }
     // U2L1 = 16+1 = 17
-    if position_index <= 46 && rank != 0 {
+    if position_index <= 46 && file != 0 {
         let tar = position_index + 17;
         threat_bitboard = threat_bitboard.set(tar);
     }
