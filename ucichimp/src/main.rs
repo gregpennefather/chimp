@@ -2,12 +2,12 @@ use std::panic;
 
 use chimp::engine::ChimpEngine;
 use log::{debug, LevelFilter, info};
-use log4rs::append::rank::rankAppender;
+use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
 fn main() {
-    let chimp_logs = rankAppender::builder()
+    let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
         .build("log/chimp.log")
         .unwrap();

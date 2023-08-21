@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 chimp = {path = "../chimp"}
+log = "0.4.20"
+log4rs = "1.2.0"

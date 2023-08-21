@@ -112,13 +112,13 @@ impl MoveFunctions for Move {
             .get_by_position_index(board_state.bitboard, self.from());
         let piece_letter = piece.to_string().to_ascii_uppercase();
 
-        let mut r = if piece_letter.eq("P") {
+        let mut r = if !piece_letter.eq("P") {
             format!("{}", piece_letter)
         } else {
             "".into()
         };
 
-        if self.is_capture() {
+        if self.is_castling() {
             if self.is_king_castling() {
                 return "O-O".into();
             } else {
@@ -138,7 +138,7 @@ impl MoveFunctions for Move {
             }
         }
 
-        if moves_targeting_square.len() >= 1 {
+        if moves_targeting_square.len() >= 0 {
             let from_file = char_from_file(get_file(self.from()));
             r = format!("{r}{from_file}");
         }

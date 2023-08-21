@@ -1,7 +1,5 @@
 use crate::shared::*;
 
-use super::piece::Piece;
-
 pub fn get_piece_char(piece: u8) -> char {
     match piece {
         PAWN_INDEX => 'P',
@@ -19,5 +17,3 @@ pub fn get_piece_char(piece: u8) -> char {
         _ => 'X',
     }
 }
-
-// Todo - maybe refactor this out

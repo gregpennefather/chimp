@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::board::piece_utils::*;
 use crate::shared::*;
 
@@ -266,6 +268,12 @@ impl BoardState {
 impl Default for BoardState {
     fn default() -> Self {
         BoardState::from_fen(&"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into())
+    }
+}
+
+impl Display for BoardState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.to_fen())
     }
 }
 

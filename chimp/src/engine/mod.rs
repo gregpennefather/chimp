@@ -45,7 +45,6 @@ impl ChimpEngine {
             }
         }
 
-        info!(target:"app:chimp", "Current moves: {:?}", self.move_history);
         let mut move_index = 0;
         while let Some(word) = split_string.next() {
             if move_index >= self.move_history.len() {
@@ -55,8 +54,6 @@ impl ChimpEngine {
             }
             move_index += 1;
         }
-
-        info!(target:"app:chimp", "position command resulted in fen: {}", self.board_state.to_fen());
     }
 
     pub fn go(&mut self, mut split_string: SplitAsciiWhitespace<'_>) -> String {
@@ -66,11 +63,19 @@ impl ChimpEngine {
     }
 
     pub fn go_uci_and_san(&mut self) -> (String, String) {
+        let current_eval = self
+            .board_state
+            .evaluate(&self.board_state.generate_metrics());
         let best_move = search(self.board_state);
-        info!(target:"app:chimp", "bestmove {}", best_move.0.uci());
+        let new_eval = best_move.1;
+        info!(target:"app:chimp", "{} bestmove {} : cur eval {current_eval} new eval {new_eval} dif {}", self.board_state.to_string(),  best_move.0.uci(), new_eval-current_eval);
+        let new_position = self.board_state.apply_move(best_move.0);
+        let new_metrics = new_position.generate_metrics();
+        let new_eval = new_position.evaluate(&new_metrics);
+        println!("test new eval: {} = {}",new_position.to_fen(),  new_eval);
         (
             best_move.0.uci(),
-            best_move.0.san(self.board_state, best_move.1)
+            best_move.0.san(self.board_state, best_move.2),
         )
     }
 

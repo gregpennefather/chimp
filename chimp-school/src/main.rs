@@ -463,6 +463,16 @@ fn apply_move_deep_test_cases(quiet: bool) {
         "Black pawn push from test game".into(),
     ));
 
+    tests.push((
+        "rnb1kb1r/pp2pppp/2p2n2/2qpQ3/8/2NBP3/PPPP1PPP/R1B1K1NR w KQkq - 3 6".into(),
+        "e5c7".into(),
+        "rnb1kb1r/ppQ1pppp/2p2n2/2qp4/8/2NBP3/PPPP1PPP/R1B1K1NR b KQkq - 4 6".into(),
+        "Aggressive white queen".into(),
+    ));
+
+
+
+
     for test in &tests {
         let board = BoardState::from_fen(&test.0);
         let move_code = board.move_from_string(&test.1);
@@ -631,7 +641,7 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
 }
 
 fn move_generation_test_cases() {
-    let test_count = 21;
+    let test_count = 22;
     let mut success_count = 0;
 
     // 1
@@ -792,6 +802,14 @@ fn move_generation_test_cases() {
     if test_move_generation_count(
         "r2q1rk1/pP1p2pp/Q4n2/bb2p3/Npp5/1B3NBn/pPPP1PPP/R3K2R w KQ - 0 2".into(),
         43,
+    ) {
+        success_count += 1;
+    };
+
+    // 22
+    if test_move_generation_count(
+        "rnb1kb1r/ppQ1pppp/2p5/2qp4/6n1/2NBP3/PPPP1PPP/R1B1K1NR b KQkq - 0 1".into(),
+        35,
     ) {
         success_count += 1;
     };
