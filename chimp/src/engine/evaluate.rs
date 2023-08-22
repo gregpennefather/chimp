@@ -16,8 +16,6 @@ use crate::{
 impl BoardState {
     pub fn evaluate(&self, metrics: &BoardMetrics) -> f32 {
         let mut score: f32 = 0.0;
-        let fen = self.to_string();
-        let black_turn = self.flags.is_black_turn();
         for piece_index in 0..self.piece_count {
             let piece = self.pieces.get(piece_index);
             score += eval_piece(piece);
@@ -28,12 +26,7 @@ impl BoardState {
         score += metrics.white_mobility_board.count_occupied() as f32 * 0.01;
         score -= metrics.black_mobility_board.count_occupied() as f32 * 0.01;
 
-        let sign = if black_turn {
-            -1.0
-        } else {
-            1.0
-        };
-        sign*score
+        score
     }
 }
 
@@ -53,7 +46,7 @@ fn eval_piece(piece: Piece) -> f32 {
 
 #[cfg(test)]
 mod test {
-    use crate::{board::state::BoardState};
+    use crate::board::state::BoardState;
 
     #[test]
     fn eval_starting_position_white() {
@@ -68,7 +61,7 @@ mod test {
         let board_state = BoardState::from_fen(&"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
         let metrics = board_state.generate_metrics();
         let r = board_state.evaluate(&metrics);
-        assert!(r<0.0, "Moving a pawn forward should increase whites position")
+        assert!(r>0.0, "Moving a pawn forward should increase whites position (>0)")
     }
 
     #[test]
@@ -81,7 +74,7 @@ mod test {
         let m2 = b2.generate_metrics();
         let r2 = b2.evaluate(&m2);
 
-        assert!(r2*-1.0 > r1);
+        assert!(r2> r1);
     }
 
     #[test]
@@ -94,16 +87,16 @@ mod test {
         let m2 = b2.generate_metrics();
         let r2 = b2.evaluate(&m2);
 
-        assert!(r2*-1.0 > r1, "{} <= {r1} but it should be greater", r2*-1.0);
+        assert!(r2 < r1, "{r2} >= {r1} but it should be less as black improves by lowering the value");
     }
 
     #[test]
-    fn eval_opening_e_pawn_better_than_b_pawn() {
+    fn eval_opening_white_e_pawn_better_than_black_b_pawn() {
          let b1 = BoardState::from_fen(&"rnbqkbnr/p1pppppp/1p6/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2".into());
         let m1 = b1.generate_metrics();
         let r1 = b1.evaluate(&m1);
 
-        assert!(r1>0.0, "{r1} should be > 0");
+        assert!(r1>0.0, "{r1} should be better for white (>0)");
     }
 
     #[test]
@@ -112,7 +105,7 @@ mod test {
         let m1 = b1.generate_metrics();
         let r1 = b1.evaluate(&m1);
 
-        assert!(r1<0.0, "{r1} should be < 0");
+        assert!(r1>0.0, "{r1} should be > 0 (black position better when <0");
     }
 
 }
