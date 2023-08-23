@@ -1,24 +1,34 @@
 use std::{cmp::Ordering, collections::HashMap, time::Instant};
 
-use chimp::board::{
-    bitboard::Bitboard,
-    board_metrics::BoardMetrics,
-    board_utils::{board_to_string, file_and_rank_to_index},
-    r#move::MoveFunctions,
-    state::BoardState, piece_list::PieceList,
+use chimp::{
+    board::{
+        bitboard::Bitboard,
+        board_metrics::BoardMetrics,
+        board_utils::{board_to_string, file_and_rank_to_index},
+        piece_list::PieceList,
+        position_node::PositionNode,
+        r#move::Move,
+        state::{BoardState, BoardStateFlagsTrait},
+    },
+    engine::move_table::{apply_or_get_move, generate_legal_moves},
+    util::{
+        t_table::{DummyLookupTable, MoveTableLookup, PositionTranspositionTable},
+        zorb_hash::ZorbSet,
+    },
 };
 use colored::Colorize;
 
 fn main() {
-    let quiet = true;
+    let quiet = false;
 
-    misc_tests();
-    from_fen_test_cases();
-    apply_move_test_cases();
-    apply_move_deep_test_cases(quiet);
-    metric_generation_check_test_cases(quiet);
-    move_generation_test_cases();
-    move_chain_test_cases(quiet);
+    //misc_tests();
+    //from_fen_test_cases();
+    //apply_move_test_cases();
+    //apply_move_deep_test_cases(quiet);
+    //metric_generation_check_test_cases(quiet);
+    //move_generation_test_cases();
+    //move_chain_test_cases(quiet);
+    zorb_test_cases(quiet);
     perft(quiet);
     kiwipete_perft(quiet);
     perft_position_3(quiet);
@@ -236,8 +246,9 @@ fn test_fen_king_positions(
     expected_black_king_position_index: u8,
 ) -> bool {
     let board_state = BoardState::from_fen(fen);
+    let board_metrics = board_state.generate_metrics();
     let mut flag = true;
-    if board_state.white_king_index != expected_white_king_position_index {
+    if board_metrics.white_king_position != expected_white_king_position_index {
         print_test_result(
             desc.clone(),
             "White King positions do not match expected".into(),
@@ -245,12 +256,12 @@ fn test_fen_king_positions(
         );
         println!(
             "white: {} vs {}",
-            board_state.white_king_index.to_string().red(),
+            board_metrics.white_king_position.to_string().red(),
             expected_white_king_position_index.to_string().yellow()
         );
         flag = false;
     };
-    if board_state.black_king_index != expected_black_king_position_index {
+    if board_metrics.black_king_position != expected_black_king_position_index {
         print_test_result(
             desc,
             "Black King positions do not match expected".into(),
@@ -258,7 +269,7 @@ fn test_fen_king_positions(
         );
         println!(
             "black: {} vs {}",
-            board_state.black_king_index.to_string().red(),
+            board_metrics.black_king_position.to_string().red(),
             expected_black_king_position_index.to_string().yellow()
         );
         flag = false;
@@ -470,18 +481,26 @@ fn apply_move_deep_test_cases(quiet: bool) {
         "Aggressive white queen".into(),
     ));
 
-
-
-
     for test in &tests {
         let board = BoardState::from_fen(&test.0);
-        let move_code = board.move_from_string(&test.1);
-        let after_move_board_state = board.apply_move(move_code);
+        let metrics = board.generate_metrics();
+        let m = board.move_from_string(&test.1);
+        let node = PositionNode {
+            position: board,
+            position_zorb: 0,
+            metrics: metrics,
+            evaluation: 0.0,
+        };
+        let mut lookup_table = DummyLookupTable();
+        let after_move_board_state = apply_or_get_move(&node, m, &mut lookup_table);
         let expected_board_state = BoardState::from_fen(&test.2);
         if !quiet {
             println!("Begin {}", test.3.yellow());
         }
-        let r = board_deep_equal(after_move_board_state, expected_board_state);
+        let r = board_deep_equal(
+            after_move_board_state.unwrap().position,
+            expected_board_state,
+        );
         if !r || !quiet {
             print_test_result(
                 format!("Apply Move {}", test.3),
@@ -547,6 +566,60 @@ fn move_chain_test_cases(quiet: bool) {
     );
 }
 
+fn zorb_test_cases(quiet: bool) {
+    let zorb_set = ZorbSet::new();
+
+    let position = BoardState::default();
+    let mut position_hash = zorb_set.hash(position);
+
+    let mut history = vec![position_hash];
+    let shifts = vec![
+        (
+            (12, 0), // Pd4 up
+            (28, 0), // Pd4 down
+        ),
+        (
+            (52, 6), // pd5 up
+            (36, 6), // pd5 down
+        ),
+        (
+            (4, 4),  // Qd3 up
+            (20, 4), // Qd3 down
+        ),
+        (
+            (60, 10), // qd6 up
+            (44, 10), // qd6 up
+        ),
+        (
+            (20, 4), // Qd2 up
+            (12, 4), // Qd2 down
+        ),
+        (
+            (44, 10), // qd8 up
+            (60, 10), // qd6 down
+        ),
+        (
+            (12, 4), // Qd1 up
+            (4, 4),  // Qd1 down
+        ),
+    ];
+
+    for shift in shifts {
+        position_hash = zorb_set.shift(position_hash, shift.0);
+        position_hash = zorb_set.shift(position_hash, shift.1);
+        position_hash = zorb_set.colour_shift(position_hash);
+        if history.contains(&position_hash) {
+            println!("new key {position_hash}: {history:?}");
+            print_test_result("Zorb test".into(), format!("Issue at {shift:?}"), false);
+            return;
+        }
+        history.push(position_hash);
+    }
+
+    print_test_result("Zorb test".into(), "Success!".into(), true);
+    println!("{history:?}");
+}
+
 fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
     let mut flag = true;
 
@@ -578,24 +651,6 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
         println!("black_bitboards do not match:");
         println!("{}", a.black_bitboard.to_string().red());
         println!("{}", b.black_bitboard.to_string().yellow());
-        flag = false;
-    }
-
-    if a.white_king_index != b.white_king_index {
-        println!(
-            "white_king_index do not match {} vs {}",
-            a.white_king_index.to_string().red(),
-            b.white_king_index.to_string().yellow()
-        );
-        flag = false;
-    }
-
-    if a.black_king_index != b.black_king_index {
-        println!(
-            "black_king_index do not match {} vs {}",
-            a.black_king_index.to_string().red(),
-            b.black_king_index.to_string().yellow()
-        );
         flag = false;
     }
 
@@ -641,7 +696,7 @@ fn board_deep_equal(a: BoardState, b: BoardState) -> bool {
 }
 
 fn move_generation_test_cases() {
-    let test_count = 22;
+    let test_count = 24;
     let mut success_count = 0;
 
     // 1
@@ -814,6 +869,22 @@ fn move_generation_test_cases() {
         success_count += 1;
     };
 
+    // 23
+    if test_move_generation_count(
+        "rnbqk1nr/pppp1ppp/4p3/8/1b6/P2P3N/1PP1PPPP/RNBQKB1R w KQkq - 0 4".into(),
+        6,
+    ) {
+        success_count += 1;
+    };
+
+    // 24
+    if test_move_generation_count(
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+        20,
+    ) {
+        success_count += 1;
+    }
+
     print_test_group_result(
         "move_generation_test_cases".into(),
         success_count,
@@ -825,7 +896,19 @@ fn test_move_generation_count(fen: String, expected_count: usize) -> bool {
     let board = BoardState::from_fen(&fen);
     let metrics = board.generate_metrics();
     let pl_moves = board.generate_psudolegals();
-    let moves = board.generate_legal_moves(&pl_moves, &metrics);
+    let mut dummy_lookup_table = DummyLookupTable();
+    let node = PositionNode {
+        position_zorb: 0,
+        position: board,
+        metrics: metrics,
+        evaluation: 0.0,
+    };
+    let moves = generate_legal_moves(
+        &node,
+        pl_moves,
+        &mut dummy_lookup_table,
+        board.flags.is_black_turn(),
+    );
     let r = moves.len() == expected_count;
     if !r {
         print_test_result(
@@ -926,25 +1009,39 @@ fn print_test_group_result(name: String, success_count: i32, test_count: i32) {
 }
 
 #[derive(Default, Clone)]
-struct MovePath(u16, Vec<(BoardState, BoardMetrics)>);
+struct MovePath(Move, Vec<PositionNode>);
 
 fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     let mut depth = 0;
     let desired_depth = counts.len();
     let mut node_count = 0;
-    let mut move_node_count: HashMap<u16, usize> = HashMap::new();
+    let mut move_node_count: HashMap<Move, usize> = HashMap::new();
 
     let initial_board_state = BoardState::from_fen(&fen);
     let mut paths: Vec<MovePath> = Vec::new();
     // Todo: refactor to all happen in the loop
     let metrics = initial_board_state.generate_metrics();
     let pl_moves = initial_board_state.generate_psudolegals();
-    let legal_moves = initial_board_state.generate_legal_moves(&pl_moves, &metrics);
-    for m in legal_moves {
+
+    let zorb = ZorbSet::new();
+    let mut lookup_table = PositionTranspositionTable::new(zorb);
+    let node = PositionNode {
+        position_zorb: 0,
+        position: initial_board_state,
+        metrics: metrics,
+        evaluation: 0.0,
+    };
+    let legal_moves = generate_legal_moves(
+        &node,
+        pl_moves,
+        &mut lookup_table,
+        initial_board_state.flags.is_black_turn(),
+    );
+    for new_node in legal_moves {
         node_count += 1;
-        move_node_count.entry(m.0).or_insert(1);
-        let new_board_states = vec![(m.1, m.2)];
-        paths.push(MovePath(m.0, new_board_states))
+        move_node_count.entry(new_node.0).or_insert(1);
+        let new_board_states = vec![new_node.1];
+        paths.push(MovePath(new_node.0, new_board_states))
     }
 
     print_test_result(
@@ -966,23 +1063,22 @@ fn node_debug_test(fen: String, counts: Vec<usize>, quiet: bool) {
     depth += 1;
 
     while depth < desired_depth {
-        let start = Instant::now();
+        let start: Instant = Instant::now();
         node_count = 0;
         move_node_count = HashMap::new();
         let mut new_path_entries = Vec::new();
         for path in paths {
             let mut new_board_states = Vec::new();
-            for board_state_with_metrics in path.1.iter() {
-                // if depth == 3 {
-                //     println!("path: {}, board: {}, bitboard {}", get_move_uci(path.0), board_state.to_fen(), board_state.bitboard);
-                // }
-                let board_state = board_state_with_metrics.0;
-                let metrics = board_state_with_metrics.1.clone();
-                let pl_moves = board_state.generate_psudolegals();
-
-                let legal_moves = board_state.generate_legal_moves(&pl_moves, &metrics);
-                for m in legal_moves {
-                    new_board_states.push((m.1, m.2));
+            for cur_node in path.1.iter() {
+                let pl_moves = cur_node.position.generate_psudolegals();
+                let legal_moves = generate_legal_moves(
+                    &cur_node,
+                    pl_moves,
+                    &mut lookup_table,
+                    cur_node.position.flags.is_black_turn(),
+                );
+                for new_node in legal_moves {
+                    new_board_states.push(new_node.1);
                     move_node_count
                         .entry(path.0)
                         .and_modify(|v| *v += 1)
@@ -1078,22 +1174,10 @@ fn perft_position_6(quiet: bool) {
     );
 }
 
-fn sort_uci(a: u16, b: u16) -> Ordering {
-    let a_from_index: u8 = (a >> 10).try_into().unwrap();
-    let b_from_index: u8 = (b >> 10).try_into().unwrap();
-
-    if a_from_index > b_from_index {
-        return Ordering::Less;
-    } else if a_from_index < b_from_index {
-        return Ordering::Greater;
+fn sort_uci(a: Move, b: Move) -> Ordering {
+    if a.uci() > b.uci() {
+        Ordering::Greater
+    } else {
+        Ordering::Less
     }
-
-    let a_to_index: u8 = (a >> 4 & 0b111111).try_into().unwrap();
-    let b_to_index: u8 = (b >> 4 & 0b111111).try_into().unwrap();
-    if a_to_index > b_to_index {
-        return Ordering::Greater;
-    } else if a_to_index < b_to_index {
-        return Ordering::Less;
-    }
-    return Ordering::Equal;
 }

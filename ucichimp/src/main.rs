@@ -1,4 +1,5 @@
 use std::panic;
+use std::time::Instant;
 
 use chimp::engine::ChimpEngine;
 use log::{debug, LevelFilter, info};
@@ -18,9 +19,12 @@ fn main() {
         .unwrap();
 
     let handle = log4rs::init_config(config).unwrap();
+    let start = Instant::now();
 
     let result = panic::catch_unwind(|| run());
-    if (result.is_err()) {
+    let duration = start.elapsed();
+    info!("Runtime: {:?}", duration);
+    if result.is_err() {
         let err = result.unwrap_err();
         let err_text = format!("{:#?}", err.downcast_ref::<panic::PanicInfo>());
         log::error!(target:"app:chimp", "chimp encountered an error {}", err_text);

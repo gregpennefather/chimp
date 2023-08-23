@@ -9,3 +9,4 @@ pub mod board_metrics;
 pub mod r#move;
 pub mod piece;
 pub mod piece_list;
+pub mod position_node;

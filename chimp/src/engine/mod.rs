@@ -1,26 +1,35 @@
-use crate::board::r#move::MoveFunctions;
-use crate::board::state::BoardState;
+use crate::board::position_node::PositionNode;
+use crate::board::state::{BoardState, BoardStateFlagsTrait};
+use crate::engine::move_table::*;
 use crate::engine::search::search;
+use crate::util::t_table::PositionTranspositionTable;
+use crate::util::zorb_hash::ZorbSet;
 use log::info;
+use std::collections::HashMap;
 use std::str::SplitAsciiWhitespace;
 mod evaluate;
+pub mod move_table;
 mod search;
 
 pub struct ChimpEngine {
-    board_state: BoardState,
+    current_node: PositionNode,
     move_history: Vec<String>,
+    lookup_table: PositionTranspositionTable,
+    zorb_set: ZorbSet,
 }
 
 impl ChimpEngine {
     pub fn new() -> Self {
+        let zorb_set = ZorbSet::new();
         Self {
-            board_state: BoardState::default(),
+            current_node: PositionNode::default(),
             move_history: Vec::new(),
+            lookup_table: PositionTranspositionTable::new(zorb_set),
+            zorb_set,
         }
     }
 
     pub fn position(&mut self, mut split_string: SplitAsciiWhitespace<'_>) {
-        info!(target:"app:chimp", "Start position command");
         let first_word = split_string.next();
         match first_word {
             Some(word) => {
@@ -54,40 +63,89 @@ impl ChimpEngine {
             }
             move_index += 1;
         }
+        if (self.current_node.metrics.black_in_check || self.current_node.metrics.white_in_check) {
+            let psudolegal_moves = self.current_node.position.generate_psudolegals();
+            let legal_moves = generate_legal_moves(
+                &self.current_node,
+                psudolegal_moves,
+                &mut self.lookup_table,
+                self.current_node.position.flags.is_black_turn(),
+            );
+            if (legal_moves.len() == 0) {
+                println!("Checkmate!");
+            }
+        }
     }
 
     pub fn go(&mut self, mut split_string: SplitAsciiWhitespace<'_>) -> String {
-        let best_move = search(self.board_state);
-        info!(target:"app:chimp", "bestmove {}", best_move.0.uci());
-        best_move.0.uci()
+        match (search(self.current_node, &mut self.lookup_table)) {
+            Ok(best_move) => {
+                info!(target:"app:chimp", "bestmove {}", best_move.0.uci());
+                best_move.0.uci()
+            }
+            Err(e) => {
+                if e {
+                    "Black Wins!".into()
+                } else {
+                    "White Wins! ".into()
+                }
+            }
+        }
     }
 
     pub fn go_uci_and_san(&mut self) -> (String, String) {
-        let current_eval = self
-            .board_state
-            .evaluate(&self.board_state.generate_metrics());
-        let best_move = search(self.board_state);
-        let new_eval = best_move.1;
-        info!(target:"app:chimp", "{} bestmove {} : cur eval {current_eval} new eval {new_eval} dif {}", self.board_state.to_string(),  best_move.0.uci(), new_eval-current_eval);
-        let new_position = self.board_state.apply_move(best_move.0);
-        let new_metrics = new_position.generate_metrics();
-        let new_eval = new_position.evaluate(&new_metrics);
-        println!("test new eval: {} = {}",new_position.to_fen(),  new_eval);
-        (
-            best_move.0.uci(),
-            best_move.0.san(self.board_state, best_move.2),
-        )
+        let result = search(self.current_node, &mut self.lookup_table);
+        let legal_nodes = generate_nodes(&self.current_node, &mut self.lookup_table);
+        let mut legal_moves = Vec::new();
+        for node in legal_nodes {
+            legal_moves.push(node.0);
+        }
+        match (result) {
+            Ok(best_move) => {
+                info!(
+                    "{}. {} + {} -> {} : {}",
+                    self.move_history.len() + 1,
+                    self.current_node.position.to_fen(),
+                    best_move.0.uci(),
+                    best_move.1.position.to_fen(),
+                    best_move.1.evaluation
+                );
+                (
+                    best_move.0.uci(),
+                    best_move.0.san(self.current_node.position, legal_moves),
+                )
+            }
+            Err(e) => {
+                if e {
+                    ("Black Wins!".into(), "".into())
+                } else {
+                    ("White Wins!".into(), "".into())
+                }
+            }
+        }
     }
 
     fn load_initial_board_state(&mut self) {
-        self.board_state = BoardState::default();
+        let position = BoardState::from_fen(&"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
+        let position_zorb = self.zorb_set.hash(position);
+        let metrics = position.generate_metrics();
+        self.current_node = PositionNode {
+            position,
+            position_zorb,
+            metrics,
+            evaluation: 0.0,
+        };
         self.move_history = Vec::new();
     }
 
     fn add_move(&mut self, uci_move: &str) {
-        info!(target:"app:chimp", "add_word {uci_move}");
-        let m = self.board_state.move_from_string(uci_move);
-        self.board_state = self.board_state.apply_move(m);
+        let m = self.current_node.position.move_from_string(uci_move);
+
+        self.current_node = match apply_or_get_move(&self.current_node, m, &mut self.lookup_table) {
+            Ok(n) => n,
+            Err(e) => panic!("{}", e),
+        };
+
         self.move_history.push(uci_move.to_string());
     }
 }

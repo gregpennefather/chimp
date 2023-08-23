@@ -16,6 +16,9 @@ impl PieceList {
     }
 
     pub fn get(&self, piece_index: u8) -> Piece {
+        if piece_index > 31 {
+            return Piece::default();
+        }
         let piece: u8 = (self.0 >> (piece_index * 4) & 0b1111).try_into().unwrap();
         Piece::new(piece)
     }

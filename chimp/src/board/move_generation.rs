@@ -1,14 +1,15 @@
+use crate::util::t_table::MoveTableLookup;
+
 use super::{
     bitboard::{Bitboard, BitboardExtensions},
     board_metrics::BoardMetrics,
-    board_utils::{get_rank, get_file, file_and_rank_to_index, file_from_char},
+    board_utils::{file_and_rank_to_index, file_from_char, get_file, get_rank},
     move_utils::get_available_slide_pos,
     piece::{Piece, PieceType},
     r#move::{
-        Move, MoveFunctions, BISHOP_CAPTURE_PROMOTION, BISHOP_PROMOTION, CAPTURE, DOUBLE_PAWN_PUSH,
-        EP_CAPTURE, KING_CASTLING, KNIGHT_CAPTURE_PROMOTION, KNIGHT_PROMOTION,
-        QUEEN_CAPTURE_PROMOTION, QUEEN_CASTLING, QUEEN_PROMOTION, ROOK_CAPTURE_PROMOTION,
-        ROOK_PROMOTION,
+        Move, BISHOP_CAPTURE_PROMOTION, BISHOP_PROMOTION, CAPTURE, DOUBLE_PAWN_PUSH, EP_CAPTURE,
+        KING_CASTLING, KNIGHT_CAPTURE_PROMOTION, KNIGHT_PROMOTION, QUEEN_CAPTURE_PROMOTION,
+        QUEEN_CASTLING, QUEEN_PROMOTION, ROOK_CAPTURE_PROMOTION, ROOK_PROMOTION,
     },
     state::{BoardState, BoardStateFlagsTrait},
 };
@@ -37,7 +38,7 @@ impl BoardState {
                     self.flags,
                     self.ep_file,
                 );
-                moves.extend(&p_moves);
+                moves.extend(p_moves);
             }
             piece_index += 1;
         }
@@ -45,33 +46,7 @@ impl BoardState {
         moves
     }
 
-    pub fn generate_legal_moves(
-        &self,
-        psudolegal_moves: &Vec<Move>,
-        current_metrics: &BoardMetrics,
-    ) -> Vec<(Move, BoardState, BoardMetrics)> {
-        let black_turn = self.flags.is_black_turn();
-        let mut legal_moves_with_state_and_metrics = Vec::new();
-        for &psudolegal_move in psudolegal_moves {
-            if psudolegal_move.is_castling()
-                && !is_legal_castling(psudolegal_move, black_turn, &current_metrics)
-            {
-                continue;
-            }
-
-            let new_state = self.apply_move(psudolegal_move);
-            let new_metrics = new_state.generate_metrics();
-
-            if (!black_turn && !new_metrics.white_in_check)
-                || (black_turn && !new_metrics.black_in_check)
-            {
-                legal_moves_with_state_and_metrics.push((psudolegal_move, new_state, new_metrics));
-            }
-        }
-        legal_moves_with_state_and_metrics
-    }
-
-    pub fn move_from_string(&self, move_string: &str) -> u16 {
+    pub fn move_from_string(&self, move_string: &str) -> Move {
         let from_file_char = move_string.chars().nth(0).unwrap();
         let from_file = file_from_char(from_file_char);
         let from_rank: u8 = (move_string.chars().nth(1).unwrap().to_digit(16).unwrap() - 1) as u8;
@@ -158,12 +133,12 @@ impl BoardState {
     }
 }
 
-fn is_legal_castling(
-    psudolegal_move: u16,
+pub fn is_legal_castling(
+    psudolegal_move: Move,
     black_turn: bool,
     current_metrics: &BoardMetrics,
 ) -> bool {
-    let from_index: u8 = (psudolegal_move >> 10).try_into().unwrap();
+    let from_index = psudolegal_move.from();
     if (!black_turn && current_metrics.white_in_check)
         || (black_turn && current_metrics.black_in_check)
     {
@@ -221,8 +196,8 @@ fn generate_pawn_moves(
     opponent_bitboard: Bitboard,
     position_index: u8,
     ep_file: u8,
-) -> Vec<u16> {
-    let mut results: Vec<_> = Vec::new();
+) -> Vec<Move> {
+    let mut results = Vec::new();
     let rank = get_rank(position_index);
     let file = get_file(position_index);
     let is_ep = ep_file != u8::MAX;
@@ -360,7 +335,7 @@ fn generate_pawn_moves(
     results
 }
 
-fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<u16> {
+fn build_promotion_moves(from_index: u8, to_index: u8, capture: bool) -> Vec<Move> {
     return vec![
         Move::new(
             from_index,
@@ -405,7 +380,7 @@ fn generate_knight_moves(
     bitboard: Bitboard,
     opponent_bitboard: Bitboard,
     position_index: u8,
-) -> Vec<u16> {
+) -> Vec<Move> {
     let mut results: Vec<_> = Vec::new();
     let file = get_file(position_index);
     // U2R1 = +16-1 = 15
@@ -487,7 +462,7 @@ fn generate_bishop_moves(
     bitboard: Bitboard,
     opponent_bitboard: Bitboard,
     position_index: u8,
-) -> Vec<u16> {
+) -> Vec<Move> {
     sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -502,7 +477,7 @@ fn generate_rook_moves(
     bitboard: Bitboard,
     opponent_bitboard: Bitboard,
     position_index: u8,
-) -> Vec<u16> {
+) -> Vec<Move> {
     sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -517,7 +492,7 @@ fn generate_queen_moves(
     bitboard: Bitboard,
     opponent_bitboard: Bitboard,
     position_index: u8,
-) -> Vec<u16> {
+) -> Vec<Move> {
     sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -533,7 +508,7 @@ fn generate_king_moves(
     opponent_bitboard: Bitboard,
     position_index: u8,
     castling_flags: u8,
-) -> Vec<u16> {
+) -> Vec<Move> {
     let mut moves = sliding_move_generator(
         bitboard,
         opponent_bitboard,
@@ -574,8 +549,8 @@ fn sliding_move_generator(
     diag: bool,
     straight: bool,
     king: bool,
-) -> Vec<u16> {
-    let mut moves: Vec<u16> = Vec::new();
+) -> Vec<Move> {
+    let mut moves = Vec::new();
 
     let depth = if king { 1 } else { 8 };
 

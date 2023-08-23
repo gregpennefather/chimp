@@ -3,7 +3,10 @@ use std::fmt::Display;
 use crate::board::piece_utils::*;
 use crate::shared::*;
 
-use super::{bitboard::{Bitboard, BitboardExtensions}, piece_list::PieceList};
+use super::{
+    bitboard::{Bitboard, BitboardExtensions},
+    piece_list::PieceList,
+};
 
 pub type BoardStateFlags = u8;
 
@@ -41,9 +44,7 @@ pub struct BoardState {
     pub ep_file: u8,
     pub half_moves: u8,
     pub full_moves: u32,
-    pub piece_count: u8,
-    pub white_king_index: u8,
-    pub black_king_index: u8,
+    pub piece_count: u8
 }
 
 // Concepts:
@@ -59,8 +60,6 @@ impl BoardState {
         let mut pieces = PieceList::default();
         let mut flags: BoardStateFlags = BoardStateFlags::default();
         let mut ep_file: u8 = u8::default();
-        let mut white_king_index = 0;
-        let mut black_king_index = 0;
 
         let mut i: usize = 0;
         let mut rank: i8 = 7;
@@ -94,23 +93,18 @@ impl BoardState {
 
             let piece: u8 = match char {
                 'P' => PAWN_INDEX,
-                'p' => PAWN_INDEX | BLACK_MASK,
+                'p' => BLACK_PAWN,
                 'B' => BISHOP_INDEX,
-                'b' => BISHOP_INDEX | BLACK_MASK,
+                'b' => BLACK_BISHOP,
                 'N' => KNIGHT_INDEX,
-                'n' => KNIGHT_INDEX | BLACK_MASK,
+                'n' => BLACK_KNIGHT,
                 'R' => ROOK_INDEX,
-                'r' => ROOK_INDEX | BLACK_MASK,
+                'r' => BLACK_ROOK,
                 'Q' => QUEEN_INDEX,
-                'q' => QUEEN_INDEX | BLACK_MASK,
-                'K' => {
-                    white_king_index = position_index;
-                    KING_INDEX
-                }
-                'k' => {
-                    black_king_index = position_index;
-                    KING_INDEX | BLACK_MASK
-                }
+                'q' => BLACK_QUEEN,
+                'K' => KING_INDEX,
+                'k' => BLACK_KING,
+
                 _ => 0,
             };
 
@@ -193,9 +187,7 @@ impl BoardState {
             ep_file,
             half_moves,
             full_moves,
-            piece_count,
-            white_king_index,
-            black_king_index,
+            piece_count
         }
     }
 

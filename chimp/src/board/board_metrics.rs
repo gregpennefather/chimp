@@ -6,7 +6,7 @@ use super::{
     state::BoardState, piece::{PieceType, Piece},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct BoardMetrics {
     pub white_threat_board: Bitboard,
     pub black_threat_board: Bitboard,
@@ -64,6 +64,13 @@ impl BoardState {
             white_in_check,
             black_in_check,
         }
+    }
+}
+
+
+impl Default for BoardMetrics {
+    fn default() -> Self {
+        Self { white_threat_board: Default::default(), black_threat_board: Default::default(), white_mobility_board: Default::default(), black_mobility_board: Default::default(), white_king_position: Default::default(), black_king_position: Default::default(), white_in_check: Default::default(), black_in_check: Default::default() }
     }
 }
 

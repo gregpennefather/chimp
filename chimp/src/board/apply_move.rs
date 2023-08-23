@@ -1,14 +1,13 @@
+use log::{error, debug};
+
 use super::{
     bitboard::BitboardExtensions,
-    board_utils::{get_rank, get_file, file_and_rank_to_index},
+    board_utils::{file_and_rank_to_index, get_file, get_rank},
     piece::{Piece, PieceType},
-    r#move::{Move, MoveFunctions},
+    r#move::Move,
     state::{BoardState, BoardStateFlags, BoardStateFlagsTrait},
 };
-use crate::shared::{
-    BISHOP_INDEX, BLACK_MASK, KING_INDEX, KNIGHT_INDEX, PAWN_INDEX,
-    PIECE_MASK, QUEEN_INDEX, ROOK_INDEX,
-};
+use crate::{shared::{BISHOP_INDEX, KNIGHT_INDEX, QUEEN_INDEX, ROOK_INDEX}, board::board_utils::board_to_string};
 
 impl BoardState {
     pub fn apply_move(&self, m: Move) -> BoardState {
@@ -17,8 +16,6 @@ impl BoardState {
         let mut flags: BoardStateFlags = self.flags;
         let mut ep_file: u8 = u8::MAX;
         let mut half_moves: u8 = self.half_moves;
-        let mut white_king_index: u8 = self.white_king_index;
-        let mut black_king_index: u8 = self.black_king_index;
 
         let black_move: bool = self.flags.is_black_turn();
 
@@ -75,13 +72,16 @@ impl BoardState {
             bitboard = bitboard.flip(from_index);
             friendly_bitboard = friendly_bitboard.flip(from_index);
 
-            primary_piece = Piece::new_coloured(match m.flags() {
-                8 | 12 => KNIGHT_INDEX.into(),
-                9 | 13 => BISHOP_INDEX.into(),
-                10 | 14 => ROOK_INDEX.into(),
-                11 | 15 => QUEEN_INDEX.into(),
-                _ => panic!("Unknown promotion"),
-            }, black_move);
+            primary_piece = Piece::new_coloured(
+                match m.flags() {
+                    8 | 12 => KNIGHT_INDEX.into(),
+                    9 | 13 => BISHOP_INDEX.into(),
+                    10 | 14 => ROOK_INDEX.into(),
+                    11 | 15 => QUEEN_INDEX.into(),
+                    _ => panic!("Unknown promotion"),
+                },
+                black_move,
+            );
 
             if capture {
                 new_pieces = new_pieces.remove(bitboard, to_index);
@@ -176,21 +176,14 @@ impl BoardState {
         let piece_count = bitboard.count_occupied();
 
         if piece_count > 32 {
+            println!("{}", bitboard.to_string());
+            println!("{}", board_to_string(bitboard, pieces));
             panic!(
                 "Move {} leading to >32 pieces ({piece_count}) (isCastling:{}) fen: {}",
                 m.uci(),
                 m.is_castling(),
-                &self.to_fen()
+                &self.to_fen(),
             );
-        }
-
-        // King Position
-        if primary_piece.is(PieceType::King) {
-            if black_move {
-                black_king_index = to_index;
-            } else {
-                white_king_index = to_index;
-            }
         }
 
         let (white_bitboard, black_bitboard) = if black_move {
@@ -208,9 +201,7 @@ impl BoardState {
             ep_file,
             half_moves,
             full_moves,
-            piece_count,
-            white_king_index,
-            black_king_index,
+            piece_count
         }
     }
 }

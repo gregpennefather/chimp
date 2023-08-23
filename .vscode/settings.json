@@ -15,8 +15,10 @@
         "perft",
         "Pieceboard",
         "psudolegal",
+        "psudolegals",
         "rnbqkb",
         "RNBQKB",
-        "rnbqkbnr"
+        "rnbqkbnr",
+        "Zorb"
     ]
 }
