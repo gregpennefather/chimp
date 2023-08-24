@@ -13,10 +13,10 @@ pub enum MoveSegmentType {
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct MoveSegment {
-    segment_type: MoveSegmentType,
-    index: u8,
-    piece_type: PieceType,
-    black_piece: bool,
+    pub segment_type: MoveSegmentType,
+    pub index: u8,
+    pub piece_type: PieceType,
+    pub black_piece: bool,
 }
 
 impl Debug for MoveSegment {
@@ -28,6 +28,10 @@ impl Debug for MoveSegment {
 impl MoveSegment {
     pub fn new(segment_type: MoveSegmentType, index: u8, piece_type: PieceType, black_piece: bool) -> MoveSegment {
         Self {segment_type, index, piece_type, black_piece}
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.segment_type == MoveSegmentType::None
     }
 }
 
