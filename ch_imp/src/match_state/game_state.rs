@@ -128,7 +128,7 @@ impl GameState {
         result
     }
 
-    fn generate_move_segments(&self, m: &Move) -> [MoveSegment; 5] {
+    pub fn generate_move_segments(&self, m: &Move) -> [MoveSegment; 5] {
         let mut segments = [MoveSegment::default(); 5];
 
         let from_index = m.from();
