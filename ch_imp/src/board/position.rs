@@ -1,4 +1,6 @@
-use super::{bitboard::Bitboard, piece::PieceType};
+use crate::shared::piece_type::PieceType;
+
+use super::bitboard::Bitboard;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Position {
@@ -113,6 +115,7 @@ impl Position {
                         bitboard,
                     )
                 }
+                _ => panic!("Unknown piece type {:?}", piece_type),
             }
 
             if piece_is_black {
@@ -137,6 +140,28 @@ impl Position {
             king_bitboard,
             check,
         }
+    }
+
+    pub fn get_piece_type_at_index(&self, index: u8) -> PieceType {
+        if self.pawn_bitboard.occupied(index) {
+            return PieceType::Pawn;
+        }
+        if self.bishop_bitboard.occupied(index) {
+            return PieceType::Bishop;
+        }
+        if self.knight_bitboard.occupied(index) {
+            return PieceType::Knight;
+        }
+        if self.rook_bitboard.occupied(index) {
+            return PieceType::Rook;
+        }
+        if self.queen_bitboard.occupied(index) {
+            return PieceType::Queen;
+        }
+        if self.king_bitboard.occupied(index) {
+            return PieceType::King;
+        }
+        return PieceType::None;
     }
 }
 
