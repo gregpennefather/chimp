@@ -1,0 +1,1 @@
+pub static file_names: &str = "abcdefgh";

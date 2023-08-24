@@ -3,12 +3,12 @@ use std::fmt::Display;
 use crate::shared::*;
 
 pub enum PieceType {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
+    Pawn = 1,
+    Knight = 2,
+    Bishop = 3,
+    Rook = 4,
+    Queen = 5,
+    King = 6,
 }
 
 #[derive(Default, PartialEq, Debug, Clone, Copy)]

@@ -3,7 +3,8 @@
         ".\\chimp\\Cargo.toml",
         ".\\chimp-school\\Cargo.toml",
         ".\\ucichimp\\Cargo.toml",
-        ".\\park-table\\Cargo.toml"
+        ".\\park-table\\Cargo.toml",
+        ".\\ch_imp\\Cargo.toml"
     ],
     "cSpell.words": [
         "bitboard",
@@ -19,6 +20,7 @@
         "rnbqkb",
         "RNBQKB",
         "rnbqkbnr",
+        "threatboard",
         "Zorb"
     ]
 }
