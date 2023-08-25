@@ -1,9 +1,9 @@
 use crate::{
-    board::position::Position,
+    board::{position::Position, bitboard::Bitboard},
     shared::{board_utils::get_file, piece_type, constants::MF_CAPTURE},
 };
 
-use super::{Move, move_dict::get_move_bitboard};
+use super::Move;
 
 pub fn generate_moves(
     position: Position,
@@ -160,6 +160,12 @@ fn generate_knight_moves(position: Position, index: u8, is_black: bool) -> Vec<M
 
 fn generate_pawn_moves(position: Position, index: u8, is_black: bool, ep_index: u8) -> Vec<Move> {
     todo!()
+}
+
+fn bitboard_to_moves(bitboard: Bitboard, opponent_occupancy: Bitboard) -> Vec<Move>{
+    let moves = Vec::new();
+
+    moves
 }
 
 #[cfg(test)]
