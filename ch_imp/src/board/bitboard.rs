@@ -94,6 +94,13 @@ impl Display for Bitboard {
     }
 }
 
+impl Into<u64> for Bitboard {
+    fn into(self) -> u64 {
+        self.0
+    }
+}
+
+
 #[cfg(test)]
 mod test {
     use super::*;

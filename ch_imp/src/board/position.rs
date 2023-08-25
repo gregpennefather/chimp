@@ -1,7 +1,7 @@
 use crate::{
     r#move::move_segment::{MoveSegment, MoveSegmentType},
     shared::{
-        board_utils::get_position_from_coords,
+        board_utils::get_index_from_file_and_rank,
         piece_type::{get_piece_char, PieceType},
     },
 };
@@ -10,7 +10,7 @@ use super::bitboard::Bitboard;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Position {
-    pub bitboard: Bitboard,
+    pub occupancy: Bitboard,
     pub white_bitboard: Bitboard,
     pub black_bitboard: Bitboard,
     pub pawn_bitboard: Bitboard,
@@ -135,7 +135,7 @@ impl Position {
         }
 
         Self {
-            bitboard,
+            occupancy: bitboard,
             white_bitboard,
             black_bitboard,
             pawn_bitboard,
@@ -210,7 +210,7 @@ impl Position {
     }
 
     pub(crate) fn apply_segments(&self, segments: [MoveSegment; 5]) -> Position {
-        let mut bitboard = self.bitboard;
+        let mut bitboard = self.occupancy;
         let mut white_bitboard = self.white_bitboard;
         let mut black_bitboard = self.black_bitboard;
         let mut pawn_bitboard = self.pawn_bitboard;
@@ -286,7 +286,7 @@ impl Position {
         }
 
         Self {
-            bitboard,
+            occupancy: bitboard,
             white_bitboard,
             black_bitboard,
             pawn_bitboard,
@@ -303,7 +303,7 @@ impl Position {
 impl Default for Position {
     fn default() -> Self {
         Self {
-            bitboard: Bitboard::new(18446462598732906495),
+            occupancy: Bitboard::new(18446462598732906495),
             white_bitboard: Bitboard::new(65535),
             black_bitboard: Bitboard::new(18446462598732840960),
             pawn_bitboard: Bitboard::new(71776119061282560),
@@ -346,7 +346,7 @@ mod test {
     #[test]
     pub fn new_start_pos() {
         let result = Position::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into());
-        assert_eq!(result.bitboard, Bitboard::new(18446462598732906495));
+        assert_eq!(result.occupancy, Bitboard::new(18446462598732906495));
         assert_eq!(result.black_bitboard, Bitboard::new(18446462598732840960));
         assert_eq!(result.white_bitboard, Bitboard::new(65535));
         assert_eq!(result.pawn_bitboard, Bitboard::new(71776119061282560));

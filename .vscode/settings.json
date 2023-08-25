@@ -4,7 +4,8 @@
         ".\\chimp-school\\Cargo.toml",
         ".\\ucichimp\\Cargo.toml",
         ".\\park-table\\Cargo.toml",
-        ".\\ch_imp\\Cargo.toml"
+        ".\\ch_imp\\Cargo.toml",
+        ".\\chimp_university\\Cargo.toml"
     ],
     "cSpell.words": [
         "bitboard",
@@ -12,6 +13,7 @@
         "BQKBNR",
         "dualing",
         "flexi",
+        "MOVEBOARDS",
         "NBQKBNR",
         "perft",
         "Pieceboard",

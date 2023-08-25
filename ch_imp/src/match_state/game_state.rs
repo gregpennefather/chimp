@@ -5,7 +5,7 @@ use crate::{
         Move,
     },
     shared::{
-        board_utils::{get_coords_from_index, position_from_coords},
+        board_utils::{get_coords_from_index, index_from_coords},
         piece_type::PieceType,
     },
 };
@@ -56,7 +56,7 @@ impl GameState {
         let ep_position = if ep_string.eq("-") {
             u8::MAX
         } else {
-            position_from_coords(ep_string)
+            index_from_coords(ep_string)
         };
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();

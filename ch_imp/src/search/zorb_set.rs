@@ -49,7 +49,7 @@ impl ZorbSet {
             r ^= self.black_turn;
         }
         for position_index in 0..64 {
-            if !position.bitboard.occupied(position_index as u8) {
+            if !position.occupancy.occupied(position_index as u8) {
                 continue;
             }
             let piece_type = position.get_piece_type_at_index(position_index as u8);

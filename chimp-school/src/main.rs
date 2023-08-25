@@ -4,7 +4,7 @@ use chimp::{
     board::{
         bitboard::Bitboard,
         board_metrics::BoardMetrics,
-        board_utils::{board_to_string, file_and_rank_to_index},
+        board_utils::{board_to_string, file_and_rank_to_index, get_file, get_rank},
         piece_list::PieceList,
         position_node::PositionNode,
         r#move::Move,
@@ -17,6 +17,11 @@ use chimp::{
     },
 };
 use colored::Colorize;
+use find_magic::{find_main, rook_mask_generation};
+
+use crate::find_magic::bishop_mask_generation;
+
+mod find_magic;
 
 fn main() {
     let quiet = false;
@@ -28,13 +33,13 @@ fn main() {
     //metric_generation_check_test_cases(quiet);
     //move_generation_test_cases();
     //move_chain_test_cases(quiet);
-    zorb_test_cases(quiet);
-    perft(quiet);
-    kiwipete_perft(quiet);
-    perft_position_3(quiet);
-    perft_position_4(quiet);
-    perft_position_5(quiet);
-    perft_position_6(quiet);
+    //zorb_test_cases(quiet);
+    //perft(quiet);
+    //kiwipete_perft(quiet);
+    //perft_position_3(quiet);
+    //perft_position_4(quiet);
+    //perft_position_5(quiet);
+    //perft_position_6(quiet);
 
     // Clearly we have a apply_move issue that we need to start testing for
     //test_move_generation_count("r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(), 44);
@@ -43,6 +48,27 @@ fn main() {
         vec![44],
         false,
     )*/
+
+    find_main();
+
+
+    // let bb = Bitboard::new(bishop_mask_generation(0));
+    // println!("{}", bb.to_string());
+}
+
+fn build_rook_moveboard() -> [u64; 64] {
+    let mut r = [0u64; 64];
+    let rank_mask = 0b11111111u64;
+    let file_mask = 0b100000001000000010000000100000001000000010000000100000001u64;
+    for index in 0..64 {
+        let rank = index / 8;
+        let file = index % 8;
+        let bitboard = ((rank_mask << rank*8) | (file_mask << file)) ^ (1u64 << index);
+        println!("{file};{rank} = {index}");
+        println!("{}", Bitboard::new(bitboard).to_string());
+        r[index as usize] = bitboard;
+    }
+    r
 }
 
 fn misc_tests() {

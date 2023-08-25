@@ -1,12 +1,12 @@
-pub fn get_position_from_coords(file: u8, rank: u8) -> u8 {
+pub fn get_index_from_file_and_rank(file: u8, rank: u8) -> u8 {
     ((rank) * 8) + (7 - file)
 }
 
-pub fn position_from_coords(coords: &str) -> u8 {
+pub fn index_from_coords(coords: &str) -> u8 {
     let file_char = coords.chars().nth(0).unwrap();
     let file = file_from_char(file_char);
-    let rank = coords.chars().nth(1).unwrap().to_digit(8).unwrap() - 1;
-    get_position_from_coords(file as u8, rank as u8)
+    let rank = coords.chars().nth(1).unwrap().to_digit(16).unwrap() - 1;
+    get_index_from_file_and_rank(file as u8, rank as u8)
 }
 
 pub fn get_rank(index: u8) -> u8 {

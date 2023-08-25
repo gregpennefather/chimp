@@ -10,7 +10,11 @@ use crate::shared::{
 };
 
 pub mod move_segment;
+pub mod move_generation;
+pub mod move_dict;
+pub mod move_magic_bitboards;
 
+#[derive(Clone, Copy, PartialEq)]
 pub struct Move(u16, PieceType);
 
 impl Move {
