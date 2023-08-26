@@ -111,7 +111,6 @@ mod test {
                 black_piece: true,
             },
         );
-        println!("1:{result_hash}");
         // Place
         result_hash = zorb_set.shift(
             result_hash,
@@ -122,10 +121,8 @@ mod test {
                 black_piece: true,
             },
         );
-        println!("2:{result_hash}");
         // Switch active player
         result_hash = zorb_set.colour_shift(result_hash);
-        println!("3:{result_hash}");
 
         let expected_position =
             Position::new("rnbq1rk1/ppp2pb1/3p1npp/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1".into());

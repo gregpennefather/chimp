@@ -1,6 +1,7 @@
 use crate::board::bitboard::Bitboard;
+use rand::Rng;
 
-fn rook_mask_generation(square: i64) -> u64 {
+pub fn rook_mask_generation(square: i64) -> u64 {
     let mut result = 0u64;
     let rank = square / 8;
     let file = square % 8;
@@ -38,7 +39,7 @@ pub fn bishop_mask_generation(square: i64) -> u64 {
     let mut r = rank + 1;
     let mut f = file + 1;
     while r <= 6 && f <= 6 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r += 1;
         f += 1;
     }
@@ -46,41 +47,45 @@ pub fn bishop_mask_generation(square: i64) -> u64 {
     r = rank + 1;
     f = file - 1;
     while r <= 6 && f >= 1 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r += 1;
         f -= 1;
     }
     r = rank - 1;
     f = file + 1;
     while r >= 1 && f <= 6 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r -= 1;
         f += 1;
     }
     r = rank - 1;
     f = file - 1;
     while r >= 1 && f >= 1 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r -= 1;
         f -= 1;
     }
     result
 }
 
-const ROOK_MAGIC: [u64; 64] = [1189513251583494144, 35186553394450, 2594530790793084928, 9799832823518007392, 2341876205352927232, 1155173304831582224, 146367537647997960, 73183504750346272, 2377910019967992064, 1297184027526561792, 1495370762813441, 9149362945917568, 1189514351090925569, 72339069098856656, 1172066649912639488, 4612005153824841728, 8075660018877767840, 9230804739485335584, 2305878262333833248, 72110473675292672, 1748557982670585920, 1008947603779682432, 10376295809242628768, 288305417853992963, 74555688759918848, 1152949550743298560, 11962893252748773380, 2344123614642045312, 148095422320085504, 180708038855426113, 4761167923331366948, 2888003630416806464, 70405394006016, 68757225984, 9305562730591715368, 435160460040388608, 11529215046106742784, 4535619813416, 828662560177129478, 9295431864342806528, 10385372277960409088, 9011597368365066, 2307250452963655685, 1125899906845260, 175922968002576, 4510265433399296, 4612390292134494304, 67840004874305555, 9223380841538035778, 2317383494000450064, 10415139298008367232, 4303880577, 396319515991875618, 4756373095367901376, 2199027593216, 9223378161750769664, 297519600307552272, 45600633210930568, 4611686847356110984, 140741787601441, 145311456997606400, 4665729265529577472, 9223934987881939077, 9223864732421783556];
+const ROOK_MAGIC: [u64; 64] = [648536213958983684, 9313444305622294532, 4647724161832062980, 936754220186468384, 144150441200976904, 396338757466333696, 36029346808332544, 2449958336880251396, 5770376609021952, 1152991873887916036, 703756188516480, 9518639322052567296, 108649478583751168, 3940719601516548, 3171097399027565056, 9147938630534400, 6932970644717569, 306254121047441536, 2918404027328762117, 9369748920617467938, 11541601048851384320, 37718196702151296, 18168330274275856, 14987981758917542164, 1225050571197677568, 144150377816674304, 729591936804982784, 4688827758529283080, 2251838469440768, 16286142704381984772, 612498431319085105, 72198471114309888, 36028934629883968, 4756153187684061192, 369312763786305540, 3170674943885051904, 2251836329296897, 9223935124314521616, 613333993596649984,
+13925200967436861700, 9224568359195541504, 141012383498274, 1157442696957165696, 4543250782289928, 585473449250586640, 306246973751591040, 5332279559717126145, 1191202805818458113, 2350949376379072640, 1153062516975206528, 288247973169627520, 10175348019712, 576469550544191616, 306246975832195200, 7036883007963392, 108122142503141888, 4648595253821210625, 145410983203074, 18298356514162705, 8933615865857, 844493685784653, 155655696782983217, 18760695154708, 74319031842144290];
 
-const ROOK_LEFT_SHIFT_BITS: [usize; 64] = [52, 53, 53, 53, 53, 53, 53, 52, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54,
-53, 53, 54, 54, 54, 54, 54, 54, 53, 52, 53, 53, 53, 53, 53, 53, 52];
+pub const ROOK_LEFT_SHIFT_BITS: [usize; 64] = [
+    52, 53, 53, 53, 53, 53, 53, 52, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53,
+    53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53, 53, 54, 54, 54, 54, 54, 54, 53,
+    53, 54, 54, 54, 54, 54, 54, 53, 52, 53, 53, 53, 53, 53, 53, 52,
+];
 
-const BISHOP_MAGIC: [u64; 64] = [651050470220160, 2315413777178183816, 73201245384492064, 14150873666413477920, 9511602761033056320, 1452490044803710984, 5764608693414135817, 18718360831344832, 6917546682105348098, 140943663648402, 17749088157697, 5764618519361094720, 358162104384, 4508014887764004, 2305878468667114016, 864694770631442438, 288371114177332304, 9313479351246819888, 883269097608118400, 576461456694846464, 13916404324356851337, 4947819712512, 2549037943276736640, 9511992328500547618, 2317265973037776896, 9011599616540722, 5075347873726592, 38847953422798464, 2449958197369241600, 4683745847995797250, 13871654206743513856, 9439546124644941984, 18015875995013128, 1152991899657967616, 5476942306948957200, 2305844108729534512, 655273750094303234, 4612319345717020672, 4917930875767497000, 2595060952999133194,
-154034740663368, 2343595840668565520, 2377900603260016656, 5189343039937577024, 3146496, 648519452364636228, 283716949639192, 4828212912005326602, 5764680099395928208, 175922665947136, 147498389666357266, 1229485240965268737, 4612249519479095368, 36028831659999266, 18015533459858752, 869480738548877312, 18036947658216448, 4574071519182852, 649107718933615136, 576481780475887808, 576465150358421632,
-721703318294364180, 13835076747334320160, 9232451838238883858];
+const BISHOP_MAGIC: [u64; 64] = [580628315668993, 144687213916585986, 1130315808636936, 649715723639227904, 576760094411326468, 2386644091582021636, 16141754500303044736, 637748017246209, 74326995039159424, 3100184094183538820, 2332873437447464064, 16158919878442221824, 22610512269279234, 288235392746930176, 4755801765124801568, 9225753587781536000, 1162773713042606088, 9268412439832101424, 9948452833158365248, 1127137947951361, 2306406388673556490, 142146372108803, 307097996892840961, 38319088338736256, 9016081515677728, 878492748700188952, 582092455222977539, 9293072282419328, 1801721394728288258, 142936528404992, 600126674948109320, 12385998799962928, 9225872360657133572, 2308660104042385412, 19210873319064577, 5764642741767702544, 144397779745243650, 9015999776981132, 282591672476680, 72631599237189696, 218433395267490180, 867508086372303458, 45054758973624320, 10448492011903256834, 567419168883712, 18094115300312192, 6764230975986768, 10134009912754240, 4620772674646312065, 4613093702616039554, 4647715099460501568, 2214854656, 306279993946734592, 7512074564512915528, 5917765111926259712, 1768102675582296066, 293931378310906944, 4503745791296576, 9295712209744503808, 1152923291317568002, 144116498309454336, 2305844521582264898, 24844601014092304, 54045411798712336];
 
-const BISHOP_LEFT_SHIFT_BITS: [usize; 64] = [58, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 57, 57, 57, 57, 59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 57, 57, 57, 59,
-59, 59, 59, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 58];
+pub const BISHOP_LEFT_SHIFT_BITS: [usize; 64] = [
+    58, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 57, 57, 57, 57, 59, 59,
+    59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 55, 55, 57, 59, 59, 59, 59, 57, 57, 57, 57, 59, 59,
+    59, 59, 59, 59, 59, 59, 59, 59, 58, 59, 59, 59, 59, 59, 59, 58,
+];
 
-fn build_rook_attack_table(square: i64, left_shift: usize, mask: u64, magic: u64) -> Vec<Bitboard> {
-
+fn build_rook_attack_table(square: i64, left_shift: usize, mask: u64, magic: u64) -> Vec<u64> {
     let num_bits = 64 - left_shift;
     let table_lookup_size = 1 << num_bits;
 
@@ -92,14 +97,17 @@ fn build_rook_attack_table(square: i64, left_shift: usize, mask: u64, magic: u64
     let blocker_patterns: Vec<u64> = generate_blocker_patterns(mask);
     for pattern in blocker_patterns {
         let index = (pattern.overflowing_mul(magic).0 >> left_shift) as usize;
-        let moves = generate_legal_rook_moves(square, Bitboard::new(pattern));
+        let moves = generate_legal_rook_moves(square, pattern);
+        // if table[index] != 0 && table[index] != moves {
+        //     println!("dup: {index}:{pattern}");
+        // }
         table[index] = moves;
     }
 
     table
 }
 
-fn build_bishop_attack_table(square: i64, left_shift: usize, mask: u64, magic: u64) -> Vec<Bitboard> {
+fn build_bishop_attack_table(square: i64, left_shift: usize, mask: u64, magic: u64) -> Vec<u64> {
     let num_bits = 64 - left_shift;
     let table_lookup_size = 1 << num_bits;
 
@@ -111,15 +119,34 @@ fn build_bishop_attack_table(square: i64, left_shift: usize, mask: u64, magic: u
     let blocker_patterns: Vec<u64> = generate_blocker_patterns(mask);
     for pattern in blocker_patterns {
         let index = (pattern.overflowing_mul(magic).0 >> left_shift) as usize;
-        let moves = generate_legal_bishop_moves(square, Bitboard::new(pattern));
+        let moves = generate_legal_bishop_moves(square, pattern);
+        // if index == 33 && square == 26 {
+        //     // This proves we're generating crap magics
+        //     println!("mask:\n{}", Bitboard::new(mask));
+        //     println!("pattern:\n{}", Bitboard::new(pattern));
+        //     println!("moves:\n{}", Bitboard::new(moves));
+        // }
+
+        // if table[index] != 0 && table[index] != moves {
+        // println!("duplicate: {index}:{pattern}");
+        // }
+
         table[index] = moves;
     }
 
     table
 }
 
-fn generate_legal_rook_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboard {
-    let mut legal_moves = Bitboard::new(0);
+fn occupied(bb: u64, pos: i64) -> bool {
+    bb >> pos & 0b1 > 0
+}
+
+fn set(bb: u64, pos: i64) -> u64 {
+    bb | (1 << pos)
+}
+
+fn generate_legal_rook_moves(square: i64, blocker_bitboard: u64) -> u64 {
+    let mut legal_moves = 0;
 
     // Left
     let rank = square / 8;
@@ -128,8 +155,8 @@ fn generate_legal_rook_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboar
         if (pos / 8) != rank || pos > 63 {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -140,8 +167,8 @@ fn generate_legal_rook_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboar
         if (pos / 8) != rank || pos < 0 {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -153,8 +180,8 @@ fn generate_legal_rook_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboar
         if (pos % 8) != file || pos > 63 {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -166,8 +193,8 @@ fn generate_legal_rook_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboar
         if (pos % 8) != file || pos < 0 {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -175,8 +202,8 @@ fn generate_legal_rook_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboar
     legal_moves
 }
 
-pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: Bitboard) -> Bitboard {
-    let mut legal_moves = Bitboard::new(0);
+pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: u64) -> u64 {
+    let mut legal_moves = 0;
 
     let origin_file = square % 8;
 
@@ -188,8 +215,8 @@ pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: Bitboard) -> B
         if (pos < 0) || (pos_file <= origin_file) {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -202,8 +229,8 @@ pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: Bitboard) -> B
         if (pos > 63) || pos_file <= origin_file {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -216,8 +243,8 @@ pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: Bitboard) -> B
         if (pos > 63) || pos_file >= origin_file {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -230,8 +257,8 @@ pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: Bitboard) -> B
         if (pos < 0) || pos_file >= origin_file {
             break;
         }
-        legal_moves = legal_moves.set(pos as u8);
-        if blocker_bitboard.occupied(pos as u8) {
+        legal_moves = set(legal_moves, pos);
+        if occupied(blocker_bitboard, pos) {
             break;
         }
     }
@@ -239,32 +266,30 @@ pub fn generate_legal_bishop_moves(square: i64, blocker_bitboard: Bitboard) -> B
     legal_moves
 }
 
-fn generate_blocker_patterns(mask: u64) -> Vec<u64> {
+pub fn generate_blocker_patterns(mask: u64) -> Vec<u64> {
     let mut move_indicies = Vec::new();
     for i in 0..64 {
-        if (mask >> i) & 1 == 1 {
+        if ((mask >> i) & 1) == 1 {
             move_indicies.push(i);
         }
     }
 
     let num_patterns = 1 << move_indicies.len();
     let mut blocker_bitboards = Vec::with_capacity(num_patterns);
-    unsafe {
-        blocker_bitboards.set_len(num_patterns);
 
-        for pattern_index in 0..num_patterns {
-            for bit_index in 0..move_indicies.len() {
-                let bit = ((pattern_index >> bit_index) & 1) as u64;
-                let r = bit << move_indicies[bit_index];
-                blocker_bitboards[pattern_index] |= r;
-            }
+    for pattern_index in 0..num_patterns {
+        blocker_bitboards.push(0);
+        for bit_index in 0..move_indicies.len() {
+            let bit = ((pattern_index >> bit_index) & 1) as u64;
+            let r = bit << move_indicies[bit_index];
+            blocker_bitboards[pattern_index] |= r;
         }
     }
 
     blocker_bitboards
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 struct TableEntry {
     mask: u64,
     magic: u64,
@@ -281,9 +306,9 @@ impl Default for TableEntry {
 
 pub struct MagicTable {
     rook_table: [TableEntry; 64],
-    rook_attack_table: Vec<Vec<Bitboard>>,
+    rook_attack_table: Vec<Vec<u64>>,
     bishop_table: [TableEntry; 64],
-    bishop_attack_table:  Vec<Vec<Bitboard>>,
+    bishop_attack_table: Vec<Vec<u64>>,
 }
 
 impl MagicTable {
@@ -313,14 +338,29 @@ impl MagicTable {
             bishop_attack_table.push(Vec::new());
         }
         for i in 0..64usize {
-            rook_attack_table[i] = build_rook_attack_table(i as i64, ROOK_LEFT_SHIFT_BITS[i], rook_table[i].mask, rook_table[i].magic);
-            bishop_attack_table[i] = build_bishop_attack_table(i as i64, BISHOP_LEFT_SHIFT_BITS[i], bishop_table[i].mask, bishop_table[i].magic);
+            rook_attack_table[i] = build_rook_attack_table(
+                i as i64,
+                ROOK_LEFT_SHIFT_BITS[i],
+                rook_table[i].mask,
+                rook_table[i].magic,
+            );
+            bishop_attack_table[i] = build_bishop_attack_table(
+                i as i64,
+                BISHOP_LEFT_SHIFT_BITS[i],
+                bishop_table[i].mask,
+                bishop_table[i].magic,
+            );
         }
 
-        MagicTable { rook_table, rook_attack_table, bishop_table, bishop_attack_table }
+        MagicTable {
+            rook_table,
+            rook_attack_table,
+            bishop_table,
+            bishop_attack_table,
+        }
     }
 
-    pub fn get_rook_attacks(&self, index: usize, occupancy: u64) -> Bitboard {
+    pub fn get_rook_attacks(&self, index: usize, occupancy: u64) -> u64 {
         let mut occ = occupancy & self.rook_table[index].mask;
         occ = occ.overflowing_mul(self.rook_table[index].magic).0;
         occ = occ >> ROOK_LEFT_SHIFT_BITS[index];
@@ -328,12 +368,136 @@ impl MagicTable {
         self.rook_attack_table[index][occ as usize]
     }
 
-
-    pub fn get_bishop_attacks(&self, index: usize, occupancy: u64) -> Bitboard {
+    pub fn get_bishop_attacks(&self, index: usize, occupancy: u64) -> u64 {
         let mut occ = occupancy & self.bishop_table[index].mask;
         occ = occ.overflowing_mul(self.bishop_table[index].magic).0;
         occ = occ >> BISHOP_LEFT_SHIFT_BITS[index];
 
         self.bishop_attack_table[index][occ as usize]
     }
+}
+
+//https://stackoverflow.com/questions/24798499/chess-bitscanning
+const DEBRUIJN: u64 = 0x03f79d71b4cb0a89u64;
+
+fn bit_scan_forward(bitboard: u64) -> u64 {
+    assert!(bitboard != 0);
+    bitboard
+        .overflowing_mul(bitboard - 1)
+        .0
+        .overflowing_mul(DEBRUIJN)
+        .0
+        >> 58
+}
+
+fn transform(b: u64, magic: u64, bits: usize) -> usize {
+    return ((b.overflowing_mul(magic)).0 >> bits) as usize;
+}
+
+pub fn find_rook_magics(square: i64, bits: usize) -> u64 {
+    let mut rng = rand::thread_rng();
+    let mask = rook_mask_generation(square);
+    let n = mask.count_ones() as usize;
+
+    let mut move_indicies = Vec::new();
+    for i in 0..64 {
+        if ((mask >> i) & 1) == 1 {
+            move_indicies.push(i);
+        }
+    }
+
+    let mut a = [0; 4096];
+    let mut b = [0; 4096];
+    let count = 1 << n;
+    // for i in 0..count {
+    //     for bit_index in 0..move_indicies.len() {
+    //         let bit = ((i >> bit_index) & 1) as u64;
+    //         let r = bit << move_indicies[bit_index];
+    //         b[i] |= r;
+    //     }
+    //     a[i] = generate_legal_rook_moves(square, b[i]);
+    // }
+
+    let patterns = generate_blocker_patterns(mask);
+    for i in 0..patterns.len() {
+        b[i] = patterns[i];
+        a[i] = generate_legal_rook_moves(square, b[i]);
+    }
+
+    for k in 0..100000000 {
+        let magic = rng.gen::<u64>() & rng.gen::<u64>() & rng.gen::<u64>();
+        if (mask.overflowing_mul(magic).0 & 0xFF00000000000000).count_ones() < 6 {
+            continue;
+        }
+        let mut fail = false;
+        let mut used = [0; 4096];
+        for i in 0..count {
+            let j = transform(b[i], magic, bits);
+            if used[j] == 0 {
+                used[j] = a[i];
+            } else if used[j] != a[i] {
+                fail = true;
+                break;
+            }
+        }
+        if !fail {
+            return magic;
+        }
+    }
+    println!("FAILED!");
+    0
+}
+
+pub fn find_bishop_magics(square: i64, bits: usize) -> u64 {
+    let mut rng = rand::thread_rng();
+    let mask = bishop_mask_generation(square);
+    let n = mask.count_ones() as usize;
+
+    let mut move_indicies = Vec::new();
+    for i in 0..64 {
+        if ((mask >> i) & 1) == 1 {
+            move_indicies.push(i);
+        }
+    }
+
+    let mut a = [0; 4096];
+    let mut b = [0; 4096];
+    let count = 1 << n;
+    // for i in 0..count {
+    //     for bit_index in 0..move_indicies.len() {
+    //         let bit = ((i >> bit_index) & 1) as u64;
+    //         let r = bit << move_indicies[bit_index];
+    //         b[i] |= r;
+    //     }
+    //     a[i] = generate_legal_rook_moves(square, b[i]);
+    // }
+
+    let patterns = generate_blocker_patterns(mask);
+    for i in 0..patterns.len() {
+        b[i] = patterns[i];
+        a[i] = generate_legal_bishop_moves(square, b[i]);
+    }
+
+    for k in 0..100000000 {
+        let magic = rng.gen::<u64>() & rng.gen::<u64>() & rng.gen::<u64>();
+        if (mask.overflowing_mul(magic).0 & 0xFF00000000000000).count_ones() < 6 {
+            continue;
+        }
+        let mut fail = false;
+        let mut used = [0; 4096];
+        for i in 0..count {
+            let j = transform(b[i], magic, bits);
+            if used[j] == 0 {
+                used[j] = a[i];
+            } else if used[j] != a[i] {
+                fail = true;
+                break;
+            }
+        }
+        if !fail {
+            return magic;
+        }
+    }
+    println!("FAILED!");
+    0
 }

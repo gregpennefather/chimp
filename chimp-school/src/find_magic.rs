@@ -25,8 +25,13 @@ fn count_1s(b: u64) -> usize {
 const DEBRUIJN: u64 = 0x03f79d71b4cb0a89u64;
 
 fn bit_scan_forward(bitboard: u64) -> u64 {
-    assert!(bitboard!=0);
-    bitboard.overflowing_mul(bitboard - 1).0.overflowing_mul(DEBRUIJN).0 >> 58
+    assert!(bitboard != 0);
+    bitboard
+        .overflowing_mul(bitboard - 1)
+        .0
+        .overflowing_mul(DEBRUIJN)
+        .0
+        >> 58
 }
 
 pub fn rook_mask_generation(square: i64) -> u64 {
@@ -67,7 +72,7 @@ pub fn bishop_mask_generation(square: i64) -> u64 {
     let mut r = rank + 1;
     let mut f = file + 1;
     while r <= 6 && f <= 6 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r += 1;
         f += 1;
     }
@@ -75,21 +80,21 @@ pub fn bishop_mask_generation(square: i64) -> u64 {
     r = rank + 1;
     f = file - 1;
     while r <= 6 && f >= 1 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r += 1;
         f -= 1;
     }
     r = rank - 1;
     f = file + 1;
     while r >= 1 && f <= 6 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r -= 1;
         f += 1;
     }
     r = rank - 1;
     f = file - 1;
     while r >= 1 && f >= 1 {
-        result |= 1 << (f + r * 8);
+        result |= 1 << (f + (r * 8));
         r -= 1;
         f -= 1;
     }
@@ -158,7 +163,7 @@ fn batt(square: i64, block: u64) -> u64 {
 
     r = rank + 1;
     f = file - 1;
-    while r <= 7 && f >= 1 {
+    while r <= 7 && f >= 0 {
         result |= 1 << (f + r * 8);
         if (block & (1u64 << (f + r * 8))) > 0 {
             break;
@@ -169,7 +174,7 @@ fn batt(square: i64, block: u64) -> u64 {
 
     r = rank - 1;
     f = file + 1;
-    while r >= 1 && f <= 7 {
+    while r >= 0 && f <= 7 {
         result |= 1 << (f + r * 8);
         if (block & (1u64 << (f + r * 8))) > 0 {
             break;
@@ -180,7 +185,7 @@ fn batt(square: i64, block: u64) -> u64 {
 
     r = rank - 1;
     f = file - 1;
-    while r >= 1 && f >= 1 {
+    while r >= 0 && f >= 0 {
         result |= 1 << (f + r * 8);
         if (block & (1u64 << (f + r * 8))) > 0 {
             break;
@@ -193,7 +198,7 @@ fn batt(square: i64, block: u64) -> u64 {
 }
 
 fn transform(b: u64, magic: u64, bits: usize) -> usize {
-    return ((b * magic) >> (64 - bits)) as usize;
+    return (b.overflowing_mul(magic).0 >> (64 - bits)) as usize;
 }
 
 fn find_magic(square: i64, m: usize, bishop: bool) -> u64 {
@@ -234,7 +239,7 @@ fn find_magic(square: i64, m: usize, bishop: bool) -> u64 {
         used = [0; 4096];
         let mut i = 0;
         let mut fail = false;
-        while !fail && i < (i << n) {
+        while !fail && i < (1 << n) {
             let j = transform(b[i], magic, m);
             if used[j] == 0 {
                 used[j] = a[i];
@@ -254,21 +259,20 @@ fn find_magic(square: i64, m: usize, bishop: bool) -> u64 {
 pub fn find_main() {
     println!("finding rook magic number");
     let mut rook_magic = [0u64; 64];
-    let mut rook_shift = [0;64];
+    let mut rook_shift = [0; 64];
     for square in 0..64usize {
         rook_magic[square] = find_magic(square as i64, ROOK_BITS[square], false);
-        rook_shift[square] = 64-ROOK_BITS[square];
+        rook_shift[square] = 64 - ROOK_BITS[square];
     }
     println!("Magics: {:?}", rook_magic);
     println!("Bit-shifts: {:?}", rook_shift);
 
-
     println!("finding bishop magic number");
     let mut bishop_magic = [0u64; 64];
-    let mut bishop_shift = [0;64];
+    let mut bishop_shift = [0; 64];
     for square in 0..64usize {
         bishop_magic[square] = find_magic(square as i64, BISHOP_BITS[square], true);
-        bishop_shift[square] = 64-BISHOP_BITS[square];
+        bishop_shift[square] = 64 - BISHOP_BITS[square];
     }
     println!("Magics: {:?}", bishop_magic);
     println!("Bit-shifts: {:?}", bishop_shift);

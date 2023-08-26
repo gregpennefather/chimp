@@ -8,21 +8,22 @@ use crate::shared::{
     },
     piece_type::PieceType,
 };
+use core::fmt::Debug;
 
-pub mod move_segment;
-pub mod move_generation;
 pub mod move_data;
+pub mod move_generation;
 pub mod move_magic_bitboards;
+pub mod move_segment;
 
 #[derive(Clone, Copy, PartialEq)]
-pub struct Move(u16, PieceType);
+pub struct Move(u16, PieceType, bool);
 
 impl Move {
-    pub fn new(from_index: u8, to_index: u8, flags: u16, piece_type: PieceType) -> Move {
+    pub fn new(from_index: u8, to_index: u8, flags: u16, piece_type: PieceType, is_black: bool) -> Move {
         let f: u16 = from_index.into();
         let t: u16 = to_index.into();
         let m: u16 = f << 10 | t << 4 | flags;
-        Move(m, piece_type)
+        Move(m, piece_type, is_black)
     }
 
     pub fn from(&self) -> u8 {
@@ -39,6 +40,10 @@ impl Move {
 
     pub fn piece_type(&self) -> PieceType {
         self.1
+    }
+
+    pub fn is_black(&self) -> bool {
+        self.2
     }
 
     pub fn is_castling(&self) -> bool {
@@ -84,5 +89,14 @@ impl Move {
             get_coords_from_index(self.to()),
             promotion
         )
+    }
+}
+
+impl Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Move")
+            .field(&self.uci())
+            .field(&self.piece_type())
+            .finish()
     }
 }

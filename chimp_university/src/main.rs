@@ -2,24 +2,53 @@ use std::mem;
 
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
-    r#move::{move_magic_bitboards::{generate_legal_bishop_moves, MagicTable, bishop_mask_generation}, move_data::MoveData},
+    engine::perft::perft,
+    match_state::game_state::{self, GameState},
+    r#move::{
+        move_data::MoveData,
+        move_magic_bitboards::{
+            find_bishop_magics, find_rook_magics, generate_blocker_patterns, rook_mask_generation,
+            MagicTable, BISHOP_LEFT_SHIFT_BITS, ROOK_LEFT_SHIFT_BITS,
+        },
+    },
     shared::board_utils::index_from_coords,
 };
 
 fn main() {
+    // let magic_table = MagicTable::new();
+    // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
+    // //generate_blocker_patterns(rook_mask_generation(0));
 
-    //let r = generate_legal_bishop_moves(index_from_coords("e4") as //i64, Bitboard::default());
-    //println!("legal_moves: {r}");
+    // let move_data = MoveData::new();
+    // let game_state = GameState::new("rnbqkbnr/ppp1pppp/8/3p4/8/P7/1PPPPPPP/RNBQKBNR w KQkq - 0 2".into// ());
+    // let moves = game_state.generate_moves(&move_data);
+    // println!("{moves:?}");
+    // for m in &moves {
+    //     println!("{}: 1",m.uci())
+    // }
+    // println!("{}", moves.len());
+    // println!("{}", Bitboard::new(magic_table.get_bishop_attacks(index_from_coords("f4") as usize, game_state.position.occupancy.into())));
+    // println!("{}",index_from_coords("f4"));
 
-    // println!("mask:\n{}", Bitboard::new(bishop_mask_generation(index_from_coords("f3") as i64)));
+    perft(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+      vec![20, 400, 8902, 197281],
+    )
 
-    // let mt = MagicTable::new();
-    // let position = Position::new("8/1k4b1/8/8/8/5B2/4K3/8".into());
-    // //let r = mt.get_bishop_attacks(index_from_coords("g7") as usize, //position.occupancy.into());
-    // //println!("result {}:\n{}", index_from_coords("g7"), r.to_string());
-    // let r2 = mt.get_bishop_attacks(index_from_coords("f3") as usize, position.occupancy.into());
-    // println!("result {}:\n{}", index_from_coords("f3"), r2.to_string());
+    //perft(
+    //    "rnbqkbnr/pppppppp/8/8/8/P7/1PPPPPPP/RNBQKBNR b KQkq - 0 1".into(),
+    //    vec![20, 380, 8457],
+    //  )
 
-    let move_data = MoveData::new();
-    println!("{}", Bitboard::new(move_data.king_moves[index_from_coords("a8") as usize]))
+    // let mut magics = [0; 64];
+    // for i in 0..64usize {
+    //     magics[i] = find_rook_magics(i as i64, ROOK_LEFT_SHIFT_BITS[i]);
+    // }
+    // println!("{magics:?}");
+
+    // let mut magics = [0; 64];
+    // for i in 0..64usize {
+    //     magics[i] = find_bishop_magics(i as i64, BISHOP_LEFT_SHIFT_BITS[i]);
+    // }
+    // println!("{magics:?}");
 }

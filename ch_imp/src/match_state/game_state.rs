@@ -1,11 +1,13 @@
 use crate::{
     board::position::Position,
     r#move::{
+        move_data::MoveData,
         move_segment::{MoveSegment, MoveSegmentType},
         Move,
     },
     shared::{
         board_utils::{get_coords_from_index, index_from_coords},
+        constants::MF_EP_CAPTURE,
         piece_type::PieceType,
     },
 };
@@ -20,7 +22,7 @@ pub struct GameState {
     pub black_king_side_castling: bool,
     pub half_moves: u8,
     pub full_moves: u32,
-    pub ep_position: u8,
+    pub ep_index: u8,
 }
 
 impl GameState {
@@ -71,8 +73,26 @@ impl GameState {
             black_king_side_castling,
             half_moves,
             full_moves,
-            ep_position,
+            ep_index: ep_position,
         }
+    }
+
+    pub fn generate_moves(&self, move_data: &MoveData) -> Vec<Move> {
+        let mut moves = Vec::new();
+        for generated_move in move_data.generate_moves(
+            self.position,
+            self.ep_index,
+            self.white_king_side_castling,
+            self.white_queen_side_castling,
+            self.black_king_side_castling,
+            self.black_queen_side_castling,
+        ) {
+            if generated_move.is_black() == self.black_turn {
+                moves.push(generated_move);
+            }
+        }
+
+        moves
     }
 
     pub fn make(&self, m: Move) -> Self {
@@ -116,8 +136,8 @@ impl GameState {
         };
 
         result += " ";
-        if self.ep_position != u8::MAX {
-            result = format!("{result}{}", get_coords_from_index(self.ep_position));
+        if self.ep_index != u8::MAX {
+            result = format!("{result}{}", get_coords_from_index(self.ep_index));
         } else {
             result += "-";
         }
@@ -221,8 +241,11 @@ impl GameState {
             segment_index += 1;
 
             if m.is_capture() {
-                let captured_piece_type = self.position.get_piece_type_at_index(to_index);
-
+                let captured_piece_type = if m.flags() == MF_EP_CAPTURE {
+                    PieceType::Pawn
+                } else {
+                    self.position.get_piece_type_at_index(to_index)
+                };
                 segments[segment_index] = MoveSegment::new(
                     MoveSegmentType::Pickup,
                     to_index,
@@ -283,10 +306,9 @@ impl GameState {
         let mut bkc = self.black_king_side_castling;
         let mut half_moves = self.half_moves;
         let mut full_moves = self.full_moves;
-        let mut ep_position = self.ep_position;
+        let mut ep_position = self.ep_index;
 
         let position = self.position.apply_segments(move_segments);
-        println!("{}", position.to_fen());
 
         for i in 0..5 {
             let segment = move_segments[i];
@@ -321,7 +343,7 @@ impl GameState {
             black_king_side_castling: bkc,
             half_moves,
             full_moves,
-            ep_position,
+            ep_index: ep_position,
         }
     }
 }
@@ -367,7 +389,7 @@ mod test {
         assert_eq!(result.black_king_side_castling, true);
         assert_eq!(result.half_moves, 0);
         assert_eq!(result.full_moves, 1);
-        assert_eq!(result.ep_position, u8::MAX);
+        assert_eq!(result.ep_index, u8::MAX);
     }
 
     #[test]
@@ -381,7 +403,7 @@ mod test {
         assert_eq!(result.black_king_side_castling, false);
         assert_eq!(result.half_moves, 5);
         assert_eq!(result.full_moves, 25);
-        assert_eq!(result.ep_position, u8::MAX);
+        assert_eq!(result.ep_index, u8::MAX);
     }
 
     #[test]
@@ -396,16 +418,15 @@ mod test {
         assert_eq!(result.black_king_side_castling, true);
         assert_eq!(result.half_moves, 0);
         assert_eq!(result.full_moves, 4);
-        assert_eq!(result.ep_position, 42);
+        assert_eq!(result.ep_index, 42);
     }
 
     #[test]
     pub fn generate_move_segments_start_pos_e4() {
         let game_state = GameState::default();
-        let m = Move::new(11, 27, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn);
+        let m = Move::new(11, 27, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false);
 
         let segments = game_state.generate_move_segments(&m);
-        println!("{:?}", segments);
 
         assert_eq!(
             segments[0],
@@ -430,10 +451,9 @@ mod test {
         let game_state = GameState::new(
             "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR b KQkq - 0 1".to_string(),
         );
-        let m = Move::new(59, 57, MF_KING_CASTLING, PieceType::King);
+        let m = Move::new(59, 57, MF_KING_CASTLING, PieceType::King, true);
 
         let segments = game_state.generate_move_segments(&m);
-        println!("{:?}", segments);
 
         assert_eq!(
             segments[0],
@@ -464,10 +484,9 @@ mod test {
         let game_state = GameState::new(
             "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR w KQkq - 0 1".to_string(),
         );
-        let m = Move::new(7, 6, 0b0, PieceType::Rook);
+        let m = Move::new(7, 6, 0b0, PieceType::Rook, true);
 
         let segments = game_state.generate_move_segments(&m);
-        println!("{:?}", segments);
 
         assert_eq!(
             segments[0],
@@ -490,10 +509,9 @@ mod test {
     #[test]
     pub fn generate_move_segments_white_captures_black_rook_clearing_kingside_castling() {
         let game_state = GameState::new("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1".to_string());
-        let m = Move::new(63, 7, MF_CAPTURE, PieceType::Rook);
+        let m = Move::new(63, 7, MF_CAPTURE, PieceType::Rook, true);
 
         let segments = game_state.generate_move_segments(&m);
-        println!("{:?}", segments);
 
         assert_eq!(
             segments[0],
@@ -525,10 +543,9 @@ mod test {
         let game_state = GameState::new(
             "rnbqkbnr/pppp1ppp/4p3/8/2B5/4P3/PPPP1PPP/RNBQK1NR b KQkq - 0 1".to_string(),
         );
-        let m = Move::new(56, 48, 0b0, PieceType::King);
+        let m = Move::new(56, 48, 0b0, PieceType::King, true);
 
         let segments = game_state.generate_move_segments(&m);
-        println!("{:?}", segments);
 
         assert_eq!(
             segments[0],
@@ -572,7 +589,13 @@ mod test {
     #[test]
     pub fn make_pawn_e4_opening() {
         let mut game_state = GameState::default();
-        game_state = game_state.make(Move::new(11, 27, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn));
+        game_state = game_state.make(Move::new(
+            11,
+            27,
+            MF_DOUBLE_PAWN_PUSH,
+            PieceType::Pawn,
+            true,
+        ));
         assert_eq!(
             game_state.to_fen(),
             "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
@@ -584,7 +607,7 @@ mod test {
         let mut game_state = GameState::new(
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 2".into(),
         );
-        game_state = game_state.make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King));
+        game_state = game_state.make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true));
         assert_eq!(
             game_state.to_fen(),
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b - - 1 2"
