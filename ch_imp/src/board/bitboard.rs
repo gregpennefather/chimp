@@ -1,10 +1,10 @@
 use std::{
     fmt::Display,
-    ops::{BitOr, BitOrAssign},
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign},
 };
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct Bitboard(u64);
+pub struct Bitboard(pub u64);
 
 impl Bitboard {
     pub fn new(val: u64) -> Bitboard {
@@ -29,7 +29,6 @@ impl Bitboard {
     pub fn set(&self, index: u8) -> Bitboard {
         Bitboard(self.0 | (1 << index))
     }
-
 
     fn position_to_piece_index(&self, position_index: u8) -> usize {
         let bitboard_relevant = self.0 & (u64::pow(2, position_index.into()) - 1);
@@ -72,6 +71,19 @@ impl BitOrAssign for Bitboard {
     }
 }
 
+impl BitAnd for Bitboard {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl BitAndAssign for Bitboard {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.0 &= rhs.0
+    }
+}
+
 impl PartialEq for Bitboard {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
@@ -99,7 +111,6 @@ impl Into<u64> for Bitboard {
         self.0
     }
 }
-
 
 #[cfg(test)]
 mod test {

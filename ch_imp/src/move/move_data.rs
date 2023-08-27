@@ -1,5 +1,3 @@
-use crate::shared::board_utils::get_file;
-
 use super::move_magic_bitboards::MagicTable;
 
 pub struct MoveData {
@@ -10,7 +8,12 @@ pub struct MoveData {
     pub black_pawn_captures: [u64; 64],
     pub knight_moves: [u64; 64],
     pub king_moves: [u64; 64],
+    pub white_king_castling: u64,
+    pub white_queen_castling: u64,
+    pub black_king_castling: u64,
+    pub black_queen_castling: u64,
 }
+
 
 impl MoveData {
     pub fn new() -> Self {
@@ -20,6 +23,11 @@ impl MoveData {
         let knight_moves = generate_knight_moves();
         let king_moves = generate_king_moves();
 
+        let white_king_castling = 0b110;
+        let white_queen_castling= 0b111 << 4;
+        let black_king_castling = 0b11 << 57;
+        let black_queen_castling= 0b111 << 60;
+
         Self {
             magic_bitboard_table,
             white_pawn_moves,
@@ -28,6 +36,10 @@ impl MoveData {
             black_pawn_captures,
             knight_moves,
             king_moves,
+            white_king_castling,
+            white_queen_castling,
+            black_king_castling,
+            black_queen_castling
         }
     }
 }

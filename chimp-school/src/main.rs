@@ -35,11 +35,11 @@ fn main() {
     //move_chain_test_cases(quiet);
     //zorb_test_cases(quiet);
     //perft(quiet);
-    //kiwipete_perft(quiet);
-    //perft_position_3(quiet);
-    //perft_position_4(quiet);
-    //perft_position_5(quiet);
-    //perft_position_6(quiet);
+    kiwipete_perft(quiet);
+    perft_position_3(quiet);
+    perft_position_4(quiet);
+    perft_position_5(quiet);
+    perft_position_6(quiet);
 
     // Clearly we have a apply_move issue that we need to start testing for
     //test_move_generation_count("r3k2N/p1ppq3/bn2pnpb/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQq - 0 2".into(), 44);

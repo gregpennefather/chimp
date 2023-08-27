@@ -10,6 +10,12 @@ pub enum PieceType {
     King = 6,
 }
 
+impl Default for PieceType {
+    fn default() -> Self {
+        PieceType::None
+    }
+}
+
 pub fn get_piece_char(piece_type: PieceType, black_turn: bool) -> char {
     match (piece_type, black_turn) {
         (PieceType::Pawn, false) => 'P',

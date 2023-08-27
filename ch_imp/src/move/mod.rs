@@ -15,7 +15,7 @@ pub mod move_generation;
 pub mod move_magic_bitboards;
 pub mod move_segment;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq)]
 pub struct Move(u16, PieceType, bool);
 
 impl Move {

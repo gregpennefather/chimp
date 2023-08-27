@@ -3,9 +3,9 @@ use crate::{
     r#move,
     shared::{
         board_utils::get_file,
-        constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_EP_CAPTURE},
+        constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_EP_CAPTURE, MF_KING_CASTLING, MF_QUEEN_CASTLING},
         piece_type,
-    },
+    }, MOVE_DATA,
 };
 
 use super::{move_data::MoveData, Move};
@@ -17,13 +17,13 @@ pub struct GeneratedMoves {
 }
 
 impl MoveData {
-    pub fn generate_moves(&self, position: Position) -> Vec<Move> {
-        let mut psudolegal_moves = Vec::new();
+    pub fn generate_moves(&self, position: Position) -> (Vec<Move>, Vec<Move>, u64, u64, u64, u64) {
+        let mut white_moves = Vec::new();
+        let mut black_moves = Vec::new();
         let mut white_threatboard = 0;
         let mut black_threatboard = 0;
         let mut white_mobility = 0;
         let mut black_mobility = 0;
-        // let mut legal_moves = Vec::new();
 
         for index in 0..64 {
             if position.occupancy.occupied(index) {
@@ -39,15 +39,57 @@ impl MoveData {
                     position.black_queen_side_castling,
                 );
                 if is_black {
+                    black_moves.extend(generated_moves.moves);
                     black_threatboard |= generated_moves.threat_board;
                     black_mobility |= generated_moves.mobility_board;
                 } else {
+                    white_moves.extend(generated_moves.moves);
                     white_threatboard |= generated_moves.threat_board;
                     white_mobility |= generated_moves.mobility_board;
                 }
-                psudolegal_moves.extend(generated_moves.moves);
             }
         }
+
+        if position.white_king_side_castling {
+            match generate_king_castling_move(3, 1, MF_KING_CASTLING, false, MOVE_DATA.white_king_castling, position.occupancy, black_threatboard) {
+                Some(generated_move) => {
+                    white_moves.extend(generated_move.moves);
+                    white_mobility |= generated_move.mobility_board;
+                }
+                None => {}
+            }
+        }
+        if position.white_queen_side_castling {
+            match generate_king_castling_move(3, 5, MF_QUEEN_CASTLING, false, MOVE_DATA.white_queen_castling, position.occupancy, black_threatboard) {
+                Some(generated_move) => {
+                    white_moves.extend(generated_move.moves);
+                    white_mobility |= generated_move.mobility_board;
+                }
+                None => {}
+            }
+        }
+
+        if position.black_king_side_castling {
+            match generate_king_castling_move(59, 57, MF_KING_CASTLING, true, MOVE_DATA.black_king_castling, position.occupancy, white_threatboard) {
+                Some(generated_move) => {
+                    black_moves.extend(generated_move.moves);
+                    black_mobility |= generated_move.mobility_board;
+                }
+                None => {}
+            }
+        }
+
+
+        if position.white_queen_side_castling {
+            match generate_king_castling_move(59, 61, MF_QUEEN_CASTLING, true, MOVE_DATA.black_queen_castling, position.occupancy, white_threatboard) {
+                Some(generated_move) => {
+                    black_moves.extend(generated_move.moves);
+                    black_mobility |= generated_move.mobility_board;
+                }
+                None => {}
+            }
+        }
+
 
         // #TODO
         // for m in psudolegal_moves {
@@ -62,7 +104,7 @@ impl MoveData {
         //     }
         // }
 
-        psudolegal_moves
+        (white_moves, black_moves, white_threatboard, black_threatboard, white_mobility, black_mobility)
     }
 
     pub fn generate_position_moves(
@@ -336,6 +378,15 @@ impl MoveData {
             mobility_board,
         }
     }
+}
+
+
+fn generate_king_castling_move(from_index: u8, to_index:u8, castling_flag: u16, is_black: bool, castling_board: u64, occupancy: Bitboard, opponent_threat_board: u64) -> Option<GeneratedMoves> {
+    if castling_board & occupancy.0 == 0 && castling_board & opponent_threat_board == 0 {
+        let m = Move::new(from_index, to_index, castling_flag, piece_type::PieceType::King, is_black);
+        return Some(GeneratedMoves { moves: vec![m], threat_board: 0, mobility_board: 1 << to_index });
+    }
+    None
 }
 
 fn moveboard_to_moves(

@@ -40,15 +40,19 @@ impl GameState {
         }
     }
 
-    pub fn generate_moves(&self, move_data: &MoveData) -> Vec<Move> {
-        let mut moves = Vec::new();
-        for generated_move in move_data.generate_moves(self.position) {
-            if generated_move.is_black() == self.position.black_turn {
-                moves.push(generated_move);
-            }
-        }
+    // pub fn generate_moves(&self, move_data: &MoveData) -> Vec<Move> {
+    //     let mut moves = Vec::new();
+    //     for generated_move in move_data.generate_moves(self.position) {
+    //         if generated_move.is_black() == self.position.black_turn {
+    //             moves.push(generated_move);
+    //         }
+    //     }
 
-        moves
+    //     moves
+    // }
+
+    pub fn legal(&self) -> bool {
+        self.position.legal()
     }
 
     pub fn make(&self, m: Move) -> Self {
@@ -87,6 +91,14 @@ impl GameState {
             position,
             half_moves,
             full_moves
+        }
+    }
+
+    pub(crate) fn get_moves(&self) -> [Move; 64] {
+        if self.position.black_turn {
+            self.position.black_moves
+        } else {
+            self.position.white_moves
         }
     }
 }

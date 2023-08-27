@@ -1,5 +1,6 @@
 use crate::{
     r#move::{
+        move_data::MoveData,
         move_segment::{MoveSegment, MoveSegmentType},
         Move,
     },
@@ -9,6 +10,7 @@ use crate::{
         constants::MF_EP_CAPTURE,
         piece_type::{get_piece_char, PieceType},
     },
+    MOVE_DATA,
 };
 use std::fmt::Debug;
 
@@ -34,6 +36,12 @@ pub struct Position {
     pub ep_index: u8,
     pub zorb_key: u64,
     pub black_turn: bool,
+    pub white_moves: [Move; 64],
+    pub black_moves: [Move; 64],
+    pub white_threatboard: u64,
+    pub black_threatboard: u64,
+    pub white_mobility_board: u64,
+    pub black_mobility_board: u64,
 }
 
 impl Position {
@@ -179,7 +187,7 @@ impl Position {
             index_from_coords(&ep_segment)
         };
 
-        let mut r = Self {
+        let mut output = Self {
             occupancy,
             white_bitboard,
             black_bitboard,
@@ -198,11 +206,40 @@ impl Position {
             black_queen_side_castling,
             black_turn,
             zorb_key: 0,
+            white_moves: [Move::default(); 64],
+            black_moves: [Move::default(); 64],
+            white_threatboard: 0,
+            black_threatboard: 0,
+            white_mobility_board: 0,
+            black_mobility_board: 0,
         };
 
-        r.zorb_key = ZORB_SET.hash(r);
+        output.zorb_key = ZORB_SET.hash(output);
 
-        r
+        let (
+            white_moves,
+            black_moves,
+            white_threatboard,
+            black_threatboard,
+            white_mobility_board,
+            black_mobility_board,
+        ) = MOVE_DATA.generate_moves(output);
+
+        output.white_moves = to_move_array(white_moves);
+        output.black_moves = to_move_array(black_moves);
+        output.white_threatboard = white_threatboard;
+        output.black_threatboard = black_threatboard;
+        output.white_mobility_board = white_mobility_board;
+        output.black_mobility_board = black_mobility_board;
+
+        output.white_in_check = (Bitboard::new(black_threatboard) & white_bitboard & king_bitboard)
+            .count_occupied()
+            != 0;
+        output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
+            .count_occupied()
+            != 0;
+
+        output
     }
 
     pub fn from_fen(fen: String) -> Self {
@@ -213,6 +250,10 @@ impl Position {
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
         Position::new(position_segment, turn_segment, castling_segment, ep_segment)
+    }
+
+    pub fn legal(&self) -> bool {
+        return !((self.black_turn && self.white_in_check) || (!self.black_turn && self.black_in_check))
     }
 
     pub fn to_fen(&self) -> String {
@@ -625,7 +666,7 @@ impl Position {
         }
         zorb_key = ZORB_SET.apply_segments(zorb_key, self.ep_index, segments);
 
-        Self {
+        let mut output = Self {
             occupancy,
             white_bitboard,
             black_bitboard,
@@ -644,13 +685,44 @@ impl Position {
             ep_index,
             black_turn: !self.black_turn,
             zorb_key,
-        }
+            white_moves: [Move::default(); 64],
+            black_moves: [Move::default(); 64],
+            white_threatboard: 0,
+            black_threatboard: 0,
+            white_mobility_board: 0,
+            black_mobility_board: 0,
+        };
+
+        let (
+            white_moves,
+            black_moves,
+            white_threatboard,
+            black_threatboard,
+            white_mobility_board,
+            black_mobility_board,
+        ) = MOVE_DATA.generate_moves(output);
+
+        output.white_moves = to_move_array(white_moves);
+        output.black_moves = to_move_array(black_moves);
+        output.white_threatboard = white_threatboard;
+        output.black_threatboard = black_threatboard;
+        output.white_mobility_board = white_mobility_board;
+        output.black_mobility_board = black_mobility_board;
+
+        output.white_in_check = (Bitboard::new(black_threatboard) & white_bitboard & king_bitboard)
+            .count_occupied()
+            != 0;
+        output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
+            .count_occupied()
+            != 0;
+
+        output
     }
 }
 
 impl Default for Position {
     fn default() -> Self {
-        let mut r = Self {
+        let mut output = Self {
             occupancy: Bitboard::new(18446462598732906495),
             white_bitboard: Bitboard::new(65535),
             black_bitboard: Bitboard::new(18446462598732840960),
@@ -669,15 +741,41 @@ impl Default for Position {
             ep_index: u8::MAX,
             black_turn: false,
             zorb_key: 0, // TODO
+            white_moves: [Move::default(); 64],
+            black_moves: [Move::default(); 64],
+            white_threatboard: 0,
+            black_threatboard: 0,
+            white_mobility_board: 0,
+            black_mobility_board: 0,
         };
-        r.zorb_key = ZORB_SET.hash(r);
-        r
+        output.zorb_key = ZORB_SET.hash(output);
+
+        let (
+            white_moves,
+            black_moves,
+            white_threatboard,
+            black_threatboard,
+            white_mobility_board,
+            black_mobility_board,
+        ) = MOVE_DATA.generate_moves(output);
+
+        output.white_moves = to_move_array(white_moves);
+        output.black_moves = to_move_array(black_moves);
+        output.white_threatboard = white_threatboard;
+        output.black_threatboard = black_threatboard;
+        output.white_mobility_board = white_mobility_board;
+        output.black_mobility_board = black_mobility_board;
+
+        output
     }
 }
 
 impl Debug for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Position").field(&self.to_fen()).field(&self.zorb_key).finish()
+        f.debug_tuple("Position")
+            .field(&self.to_fen())
+            .field(&self.zorb_key)
+            .finish()
     }
 }
 
@@ -719,6 +817,14 @@ fn flip_piece(
         colour_bitboard.flip(index),
         all_bitboard.flip(index),
     )
+}
+
+fn to_move_array(vec: Vec<Move>) -> [Move; 64] {
+    let mut move_array = [Move::default(); 64];
+    for i in 0..vec.len() {
+        move_array[i] = vec[i];
+    }
+    move_array
 }
 
 #[cfg(test)]
