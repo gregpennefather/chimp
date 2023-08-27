@@ -1,14 +1,20 @@
 use crate::{
-    r#move::{move_segment::{MoveSegment, MoveSegmentType}, Move},
+    r#move::{
+        move_segment::{MoveSegment, MoveSegmentType},
+        Move,
+    },
+    search::zorb_set_precomputed::ZORB_SET,
     shared::{
-        board_utils::get_index_from_file_and_rank,
-        piece_type::{get_piece_char, PieceType}, constants::MF_EP_CAPTURE,
+        board_utils::{get_coords_from_index, get_index_from_file_and_rank, index_from_coords},
+        constants::MF_EP_CAPTURE,
+        piece_type::{get_piece_char, PieceType},
     },
 };
+use std::fmt::Debug;
 
 use super::bitboard::Bitboard;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Position {
     pub occupancy: Bitboard,
     pub white_bitboard: Bitboard,
@@ -21,11 +27,23 @@ pub struct Position {
     pub king_bitboard: Bitboard,
     pub white_in_check: bool,
     pub black_in_check: bool,
+    pub white_queen_side_castling: bool,
+    pub white_king_side_castling: bool,
+    pub black_queen_side_castling: bool,
+    pub black_king_side_castling: bool,
+    pub ep_index: u8,
+    pub zorb_key: u64,
+    pub black_turn: bool,
 }
 
 impl Position {
-    pub fn new(fen: String) -> Self {
-        let mut bitboard = Bitboard::default();
+    pub fn new(
+        position_segment: String,
+        turn_segment: String,
+        castling_segment: String,
+        ep_segment: String,
+    ) -> Self {
+        let mut occupancy = Bitboard::default();
         let mut white_bitboard = Bitboard::default();
         let mut black_bitboard = Bitboard::default();
         let mut pawn_bitboard = Bitboard::default();
@@ -34,25 +52,28 @@ impl Position {
         let mut rook_bitboard = Bitboard::default();
         let mut queen_bitboard = Bitboard::default();
         let mut king_bitboard = Bitboard::default();
-        let mut check = false;
+        let mut white_queen_side_castling = false;
+        let mut white_king_side_castling = false;
+        let mut black_queen_side_castling = false;
+        let mut black_king_side_castling = false;
 
         let mut position_index = 63;
-        let mut rank_lenght = 0; // The number of spaces we've worked through in the current rank
-        for i in 0..fen.len() {
+        let mut rank_length = 0; // The number of spaces we've worked through in the current rank
+        for i in 0..position_segment.len() {
             // Get char
-            let char = fen.chars().nth(i).unwrap();
+            let char = position_segment.chars().nth(i).unwrap();
 
             // Check if is a shift digit
             if char.is_ascii_digit() {
                 let digit = (char as i16 - 0x30) as i8;
                 position_index -= digit;
-                rank_lenght += digit;
+                rank_length += digit;
                 continue;
             }
 
             if char == '/' {
-                position_index -= 8 - rank_lenght;
-                rank_lenght = 0;
+                position_index -= 8 - rank_length;
+                rank_length = 0;
                 continue;
             }
 
@@ -75,51 +96,51 @@ impl Position {
 
             match piece_type {
                 PieceType::Pawn => {
-                    (pawn_bitboard, colour_board_to_change, bitboard) = flip_piece_i8(
+                    (pawn_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
                         position_index,
                         pawn_bitboard,
                         colour_board_to_change,
-                        bitboard,
+                        occupancy,
                     )
                 }
                 PieceType::Knight => {
-                    (knight_bitboard, colour_board_to_change, bitboard) = flip_piece_i8(
+                    (knight_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
                         position_index,
                         knight_bitboard,
                         colour_board_to_change,
-                        bitboard,
+                        occupancy,
                     )
                 }
                 PieceType::Bishop => {
-                    (bishop_bitboard, colour_board_to_change, bitboard) = flip_piece_i8(
+                    (bishop_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
                         position_index,
                         bishop_bitboard,
                         colour_board_to_change,
-                        bitboard,
+                        occupancy,
                     )
                 }
                 PieceType::Rook => {
-                    (rook_bitboard, colour_board_to_change, bitboard) = flip_piece_i8(
+                    (rook_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
                         position_index,
                         rook_bitboard,
                         colour_board_to_change,
-                        bitboard,
+                        occupancy,
                     )
                 }
                 PieceType::Queen => {
-                    (queen_bitboard, colour_board_to_change, bitboard) = flip_piece_i8(
+                    (queen_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
                         position_index,
                         queen_bitboard,
                         colour_board_to_change,
-                        bitboard,
+                        occupancy,
                     )
                 }
                 PieceType::King => {
-                    (king_bitboard, colour_board_to_change, bitboard) = flip_piece_i8(
+                    (king_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
                         position_index,
                         king_bitboard,
                         colour_board_to_change,
-                        bitboard,
+                        occupancy,
                     )
                 }
                 _ => panic!("Unknown piece type {:?}", piece_type),
@@ -132,11 +153,34 @@ impl Position {
             }
 
             position_index -= 1;
-            rank_lenght += 1;
+            rank_length += 1;
         }
 
-        Self {
-            occupancy: bitboard,
+        let black_turn = turn_segment.eq_ignore_ascii_case("b");
+
+        if !castling_segment.eq_ignore_ascii_case("-") {
+            if castling_segment.contains("K") {
+                white_king_side_castling = true;
+            }
+            if castling_segment.contains("Q") {
+                white_queen_side_castling = true;
+            }
+            if castling_segment.contains("k") {
+                black_king_side_castling = true;
+            }
+            if castling_segment.contains("q") {
+                black_queen_side_castling = true;
+            }
+        }
+
+        let ep_index = if ep_segment.eq("-") {
+            u8::MAX
+        } else {
+            index_from_coords(&ep_segment)
+        };
+
+        let mut r = Self {
+            occupancy,
             white_bitboard,
             black_bitboard,
             pawn_bitboard,
@@ -145,9 +189,30 @@ impl Position {
             rook_bitboard,
             queen_bitboard,
             king_bitboard,
-            white_in_check,
-            black_in_check,
-        }
+            white_in_check: false, // TODO
+            black_in_check: false, // TODO
+            ep_index,
+            white_queen_side_castling,
+            white_king_side_castling,
+            black_king_side_castling,
+            black_queen_side_castling,
+            black_turn,
+            zorb_key: 0,
+        };
+
+        r.zorb_key = ZORB_SET.hash(r);
+
+        r
+    }
+
+    pub fn from_fen(fen: String) -> Self {
+        let mut fen_segments = fen.split_whitespace();
+
+        let position_segment = fen_segments.nth(0).unwrap().to_string();
+        let turn_segment = fen_segments.nth(0).unwrap().to_string();
+        let castling_segment = fen_segments.nth(0).unwrap().to_string();
+        let ep_segment = fen_segments.nth(0).unwrap().to_string();
+        Position::new(position_segment, turn_segment, castling_segment, ep_segment)
     }
 
     pub fn to_fen(&self) -> String {
@@ -186,6 +251,44 @@ impl Position {
             gap = 0;
         }
 
+        result += if self.black_turn { " b" } else { " w" };
+        result += if self.white_king_side_castling {
+            " K"
+        } else {
+            " "
+        };
+        result += if self.white_queen_side_castling {
+            "Q"
+        } else {
+            ""
+        };
+        result += if self.black_king_side_castling {
+            "k"
+        } else {
+            ""
+        };
+        result += if self.black_queen_side_castling {
+            "q"
+        } else {
+            ""
+        };
+        result += if !self.white_queen_side_castling
+            && !self.white_king_side_castling
+            && !self.black_queen_side_castling
+            && !self.black_king_side_castling
+        {
+            "-"
+        } else {
+            ""
+        };
+
+        result += " ";
+        if self.ep_index != u8::MAX {
+            result = format!("{result}{}", get_coords_from_index(self.ep_index));
+        } else {
+            result += "-";
+        }
+
         result
     }
 
@@ -211,7 +314,17 @@ impl Position {
         return PieceType::None;
     }
 
-    pub fn generate_move_segments(&self, m: &Move, black_turn: bool) -> [MoveSegment; 5] {
+    pub fn make(&self, m: Move) -> Self {
+        let move_segments = self.generate_move_segments(&m);
+        self.apply_segments(move_segments)
+    }
+
+    pub fn zorb_key_after_move(&self, m: Move) -> u64 {
+        let segments = self.generate_move_segments(&m);
+        ZORB_SET.apply_segments(self.zorb_key, self.ep_index, segments)
+    }
+
+    pub fn generate_move_segments(&self, m: &Move) -> [MoveSegment; 5] {
         let mut segments = [MoveSegment::default(); 5];
 
         let from_index = m.from();
@@ -229,31 +342,31 @@ impl Position {
                 MoveSegmentType::Pickup,
                 from_index,
                 PieceType::King,
-                black_turn,
+                self.black_turn,
             ); // remove king
             segments[1] = MoveSegment::new(
                 MoveSegmentType::Pickup,
                 rook_from_index,
                 PieceType::Rook,
-                black_turn,
+                self.black_turn,
             ); // remove rook
             segments[2] = MoveSegment::new(
                 MoveSegmentType::Place,
                 to_index,
                 PieceType::King,
-                black_turn,
+                self.black_turn,
             ); // place king
             segments[3] = MoveSegment::new(
                 MoveSegmentType::Place,
                 rook_to_index,
                 PieceType::Rook,
-                black_turn,
+                self.black_turn,
             ); // place rook
             segments[4] = MoveSegment::new(
                 MoveSegmentType::ClearCastling,
                 from_index,
                 PieceType::King,
-                black_turn,
+                self.black_turn,
             ); // place rook
             segment_index = 5;
         } else if m.is_promotion() {
@@ -261,7 +374,7 @@ impl Position {
                 MoveSegmentType::Pickup,
                 from_index,
                 PieceType::Pawn,
-                black_turn,
+                self.black_turn,
             ); // pickup Pawn
             segment_index += 1;
 
@@ -272,7 +385,7 @@ impl Position {
                     MoveSegmentType::Pickup,
                     to_index,
                     captured_piece_type,
-                    !black_turn,
+                    !self.black_turn,
                 ); // pickup captured piece
                 segment_index += 1;
 
@@ -291,7 +404,7 @@ impl Position {
                 MoveSegmentType::Place,
                 to_index,
                 promotion_piece_type,
-                black_turn,
+                self.black_turn,
             ); // place new piece
             segment_index += 1;
         } else {
@@ -299,7 +412,7 @@ impl Position {
                 MoveSegmentType::Pickup,
                 from_index,
                 m.piece_type(),
-                black_turn,
+                self.black_turn,
             ); // pickup piece
             segment_index += 1;
 
@@ -313,7 +426,7 @@ impl Position {
                     MoveSegmentType::Pickup,
                     to_index,
                     captured_piece_type,
-                    !black_turn,
+                    !self.black_turn,
                 ); // pickup captured piece
                 segment_index += 1;
 
@@ -322,7 +435,7 @@ impl Position {
                         MoveSegmentType::ClearCastling,
                         to_index,
                         PieceType::Rook,
-                        !black_turn,
+                        !self.black_turn,
                     ); // place new piece
                     segment_index += 1;
                 }
@@ -332,7 +445,7 @@ impl Position {
                 MoveSegmentType::Place,
                 to_index,
                 m.piece_type(),
-                black_turn,
+                self.black_turn,
             ); // place new piece
             segment_index += 1;
 
@@ -341,7 +454,7 @@ impl Position {
                     MoveSegmentType::DoublePawnPush,
                     (from_index + to_index) / 2,
                     m.piece_type(),
-                    black_turn,
+                    self.black_turn,
                 ); // place new piece
                 segment_index += 1;
             }
@@ -352,7 +465,7 @@ impl Position {
                     MoveSegmentType::ClearCastling,
                     from_index,
                     m.piece_type(),
-                    black_turn,
+                    self.black_turn,
                 ); // place new piece
                 segment_index += 1;
             }
@@ -361,9 +474,8 @@ impl Position {
         segments
     }
 
-
     pub(crate) fn apply_segments(&self, segments: [MoveSegment; 5]) -> Position {
-        let mut bitboard = self.occupancy;
+        let mut occupancy = self.occupancy;
         let mut white_bitboard = self.white_bitboard;
         let mut black_bitboard = self.black_bitboard;
         let mut pawn_bitboard = self.pawn_bitboard;
@@ -372,73 +484,149 @@ impl Position {
         let mut rook_bitboard = self.rook_bitboard;
         let mut queen_bitboard = self.queen_bitboard;
         let mut king_bitboard = self.king_bitboard;
+        let mut white_king_side_castling = self.white_king_side_castling;
+        let mut white_queen_side_castling = self.white_queen_side_castling;
+        let mut black_king_side_castling = self.black_king_side_castling;
+        let mut black_queen_side_castling = self.black_queen_side_castling;
+        let mut ep_index = u8::MAX;
+        let mut zorb_key = self.zorb_key;
 
         for segment in segments {
-            if segment.segment_type == MoveSegmentType::Pickup
-                || segment.segment_type == MoveSegmentType::Place
-            {
-                if segment.black_piece {
-                    match segment.piece_type {
-                        PieceType::None => panic!("Unexpected lack of piece type {:?}", segment),
-                        PieceType::Pawn => {
-                            (pawn_bitboard, black_bitboard, bitboard) =
-                                flip_piece(segment.index, pawn_bitboard, black_bitboard, bitboard)
+            match segment.segment_type {
+                MoveSegmentType::Pickup | MoveSegmentType::Place => {
+                    if segment.black_piece {
+                        match segment.piece_type {
+                            PieceType::None => {
+                                panic!("Unexpected lack of piece type {:?}", segment)
+                            }
+                            PieceType::Pawn => {
+                                (pawn_bitboard, black_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    pawn_bitboard,
+                                    black_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Knight => {
+                                (knight_bitboard, black_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    knight_bitboard,
+                                    black_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Bishop => {
+                                (bishop_bitboard, black_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    bishop_bitboard,
+                                    black_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Rook => {
+                                (rook_bitboard, black_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    rook_bitboard,
+                                    black_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Queen => {
+                                (queen_bitboard, black_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    queen_bitboard,
+                                    black_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::King => {
+                                (king_bitboard, black_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    king_bitboard,
+                                    black_bitboard,
+                                    occupancy,
+                                )
+                            }
                         }
-                        PieceType::Knight => {
-                            (knight_bitboard, black_bitboard, bitboard) =
-                                flip_piece(segment.index, knight_bitboard, black_bitboard, bitboard)
-                        }
-                        PieceType::Bishop => {
-                            (bishop_bitboard, black_bitboard, bitboard) =
-                                flip_piece(segment.index, bishop_bitboard, black_bitboard, bitboard)
-                        }
-                        PieceType::Rook => {
-                            (rook_bitboard, black_bitboard, bitboard) =
-                                flip_piece(segment.index, rook_bitboard, black_bitboard, bitboard)
-                        }
-                        PieceType::Queen => {
-                            (queen_bitboard, black_bitboard, bitboard) =
-                                flip_piece(segment.index, queen_bitboard, black_bitboard, bitboard)
-                        }
-                        PieceType::King => {
-                            (king_bitboard, black_bitboard, bitboard) =
-                                flip_piece(segment.index, king_bitboard, black_bitboard, bitboard)
-                        }
-                    }
-                } else {
-                    match segment.piece_type {
-                        PieceType::None => panic!("Unexpected lack of piece type {:?}", segment),
-                        PieceType::Pawn => {
-                            (pawn_bitboard, white_bitboard, bitboard) =
-                                flip_piece(segment.index, pawn_bitboard, white_bitboard, bitboard)
-                        }
-                        PieceType::Knight => {
-                            (knight_bitboard, white_bitboard, bitboard) =
-                                flip_piece(segment.index, knight_bitboard, white_bitboard, bitboard)
-                        }
-                        PieceType::Bishop => {
-                            (bishop_bitboard, white_bitboard, bitboard) =
-                                flip_piece(segment.index, bishop_bitboard, white_bitboard, bitboard)
-                        }
-                        PieceType::Rook => {
-                            (rook_bitboard, white_bitboard, bitboard) =
-                                flip_piece(segment.index, rook_bitboard, white_bitboard, bitboard)
-                        }
-                        PieceType::Queen => {
-                            (queen_bitboard, white_bitboard, bitboard) =
-                                flip_piece(segment.index, queen_bitboard, white_bitboard, bitboard)
-                        }
-                        PieceType::King => {
-                            (king_bitboard, white_bitboard, bitboard) =
-                                flip_piece(segment.index, king_bitboard, white_bitboard, bitboard)
+                    } else {
+                        match segment.piece_type {
+                            PieceType::None => {
+                                panic!("Unexpected lack of piece type {:?}", segment)
+                            }
+                            PieceType::Pawn => {
+                                (pawn_bitboard, white_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    pawn_bitboard,
+                                    white_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Knight => {
+                                (knight_bitboard, white_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    knight_bitboard,
+                                    white_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Bishop => {
+                                (bishop_bitboard, white_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    bishop_bitboard,
+                                    white_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Rook => {
+                                (rook_bitboard, white_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    rook_bitboard,
+                                    white_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::Queen => {
+                                (queen_bitboard, white_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    queen_bitboard,
+                                    white_bitboard,
+                                    occupancy,
+                                )
+                            }
+                            PieceType::King => {
+                                (king_bitboard, white_bitboard, occupancy) = flip_piece(
+                                    segment.index,
+                                    king_bitboard,
+                                    white_bitboard,
+                                    occupancy,
+                                )
+                            }
                         }
                     }
                 }
+                MoveSegmentType::None => break,
+                MoveSegmentType::ClearCastling => {
+                    (
+                        white_queen_side_castling,
+                        white_king_side_castling,
+                        black_queen_side_castling,
+                        black_king_side_castling,
+                    ) = modify_castling(
+                        segment.index,
+                        white_queen_side_castling,
+                        white_king_side_castling,
+                        black_queen_side_castling,
+                        black_king_side_castling,
+                    )
+                }
+                MoveSegmentType::DoublePawnPush => ep_index = segment.index,
+                _ => {}
             }
         }
+        zorb_key = ZORB_SET.apply_segments(zorb_key, self.ep_index, segments);
 
         Self {
-            occupancy: bitboard,
+            occupancy,
             white_bitboard,
             black_bitboard,
             pawn_bitboard,
@@ -447,15 +635,22 @@ impl Position {
             rook_bitboard,
             queen_bitboard,
             king_bitboard,
-            white_in_check,
-            black_in_check
+            white_in_check: false, // TODO
+            black_in_check: false, // TODO
+            white_king_side_castling,
+            white_queen_side_castling,
+            black_king_side_castling,
+            black_queen_side_castling,
+            ep_index,
+            black_turn: !self.black_turn,
+            zorb_key,
         }
     }
 }
 
 impl Default for Position {
     fn default() -> Self {
-        Self {
+        let mut r = Self {
             occupancy: Bitboard::new(18446462598732906495),
             white_bitboard: Bitboard::new(65535),
             black_bitboard: Bitboard::new(18446462598732840960),
@@ -466,7 +661,41 @@ impl Default for Position {
             queen_bitboard: Bitboard::new(1152921504606846992),
             king_bitboard: Bitboard::new(576460752303423496),
             white_in_check: false,
-        }
+            black_in_check: false,
+            white_queen_side_castling: true,
+            white_king_side_castling: true,
+            black_queen_side_castling: true,
+            black_king_side_castling: true,
+            ep_index: u8::MAX,
+            black_turn: false,
+            zorb_key: 0, // TODO
+        };
+        r.zorb_key = ZORB_SET.hash(r);
+        r
+    }
+}
+
+impl Debug for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Position").field(&self.to_fen()).field(&self.zorb_key).finish()
+    }
+}
+
+fn modify_castling(
+    index: u8,
+    wqc: bool,
+    wkc: bool,
+    bqc: bool,
+    bkc: bool,
+) -> (bool, bool, bool, bool) {
+    match index {
+        0 => (wqc, false, bqc, bkc),
+        3 => (false, false, bqc, bkc),
+        7 => (false, wkc, bqc, bkc),
+        56 => (wqc, wkc, bqc, false),
+        59 => (wqc, wkc, false, false),
+        63 => (wqc, wkc, false, bkc),
+        _ => (wqc, wkc, bqc, bkc),
     }
 }
 
@@ -494,13 +723,18 @@ fn flip_piece(
 
 #[cfg(test)]
 mod test {
-    use crate::shared::constants::{MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING, MF_CAPTURE};
+    use crate::shared::constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING};
 
     use super::*;
 
     #[test]
     pub fn new_start_pos() {
-        let result = Position::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into());
+        let result = Position::new(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into(),
+            "w".into(),
+            "KQkq".into(),
+            "-".into(),
+        );
         assert_eq!(result.occupancy, Bitboard::new(18446462598732906495));
         assert_eq!(result.black_bitboard, Bitboard::new(18446462598732840960));
         assert_eq!(result.white_bitboard, Bitboard::new(65535));
@@ -514,19 +748,29 @@ mod test {
 
     #[test]
     pub fn to_fen_startpos() {
-        let result = Position::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into());
+        let result = Position::new(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into(),
+            "w".into(),
+            "KQkq".into(),
+            "-".into(),
+        );
         assert_eq!(
             result.to_fen(),
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
         );
     }
 
     #[test]
     pub fn to_fen_ending_in_empty_squares() {
-        let result = Position::new("rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1".into());
+        let result = Position::new(
+            "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1".into(),
+            "b".into(),
+            "Kq".into(),
+            "-".into(),
+        );
         assert_eq!(
             result.to_fen(),
-            "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1"
+            "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b Kq -"
         );
     }
 
@@ -535,7 +779,7 @@ mod test {
         let position = Position::default();
         let m = Move::new(11, 27, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false);
 
-        let segments = position.generate_move_segments(&m, false);
+        let segments = position.generate_move_segments(&m);
 
         assert_eq!(
             segments[0],
@@ -557,12 +801,12 @@ mod test {
 
     #[test]
     pub fn generate_move_segments_black_castling_kingside() {
-        let position = Position::new(
-            "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR".to_string(),
+        let position = Position::from_fen(
+            "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR b KQkq -".to_string(),
         );
         let m = Move::new(59, 57, MF_KING_CASTLING, PieceType::King, true);
 
-        let segments = position.generate_move_segments(&m, true);
+        let segments = position.generate_move_segments(&m);
 
         assert_eq!(
             segments[0],
@@ -590,12 +834,12 @@ mod test {
 
     #[test]
     pub fn generate_move_segments_white_moves_queenside_rook_clear_castling() {
-        let position = Position::new(
-            "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR".to_string(),
+        let position = Position::from_fen(
+            "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR w KQkq -".to_string(),
         );
         let m = Move::new(7, 6, 0b0, PieceType::Rook, true);
 
-        let segments = position.generate_move_segments(&m, false);
+        let segments = position.generate_move_segments(&m);
 
         assert_eq!(
             segments[0],
@@ -617,44 +861,44 @@ mod test {
 
     #[test]
     pub fn generate_move_segments_white_captures_black_rook_clearing_kingside_castling() {
-        let position = Position::new("r3k2r/8/8/8/8/8/8/R3K2R".to_string());
-        let m = Move::new(63, 7, MF_CAPTURE, PieceType::Rook, true);
+        let position = Position::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq -".to_string());
+        let m = Move::new(63, 7, MF_CAPTURE, PieceType::Rook, false);
 
-        let segments = position.generate_move_segments(&m, true);
+        let segments = position.generate_move_segments(&m);
 
         assert_eq!(
             segments[0],
-            MoveSegment::new(MoveSegmentType::Pickup, 63, PieceType::Rook, true)
+            MoveSegment::new(MoveSegmentType::Pickup, 63, PieceType::Rook, false)
         );
 
         assert_eq!(
             segments[1],
-            MoveSegment::new(MoveSegmentType::Pickup, 7, PieceType::Rook, false)
+            MoveSegment::new(MoveSegmentType::Pickup, 7, PieceType::Rook, true)
         );
 
         assert_eq!(
             segments[2],
-            MoveSegment::new(MoveSegmentType::ClearCastling, 7, PieceType::Rook, false)
+            MoveSegment::new(MoveSegmentType::ClearCastling, 7, PieceType::Rook, true)
         );
 
         assert_eq!(
             segments[3],
-            MoveSegment::new(MoveSegmentType::Place, 7, PieceType::Rook, true)
+            MoveSegment::new(MoveSegmentType::Place, 7, PieceType::Rook, false)
         );
         assert_eq!(
             segments[4],
-            MoveSegment::new(MoveSegmentType::ClearCastling, 63, PieceType::Rook, true)
+            MoveSegment::new(MoveSegmentType::ClearCastling, 63, PieceType::Rook, false)
         );
     }
 
     #[test]
     pub fn generate_move_segments_black_moves_king_clearing_castling() {
-        let position = Position::new(
-            "rnbqkbnr/pppp1ppp/4p3/8/2B5/4P3/PPPP1PPP/RNBQK1NR".to_string(),
+        let position = Position::from_fen(
+            "rnbqkbnr/pppp1ppp/4p3/8/2B5/4P3/PPPP1PPP/RNBQK1NR b KQkq -".to_string(),
         );
         let m = Move::new(56, 48, 0b0, PieceType::King, true);
 
-        let segments = position.generate_move_segments(&m, true);
+        let segments = position.generate_move_segments(&m);
 
         assert_eq!(
             segments[0],
@@ -674,5 +918,4 @@ mod test {
         assert_eq!(segments[3], MoveSegment::default());
         assert_eq!(segments[4], MoveSegment::default());
     }
-
 }

@@ -8,7 +8,8 @@ pub enum MoveSegmentType {
     Pickup,
     Place,
     ClearCastling, // When set the index will represent from of the piece thats move or removal cleared the castling
-    DoublePawnPush
+    DoublePawnPush,
+    ClearEP
 }
 
 #[derive(Clone, Copy, PartialEq)]

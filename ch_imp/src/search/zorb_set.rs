@@ -3,7 +3,7 @@ use rand::Rng;
 use crate::{
     board::position::Position,
     r#move::move_segment::{MoveSegment, MoveSegmentType},
-    shared::piece_type::PieceType,
+    shared::{piece_type::PieceType, board_utils::get_file},
 };
 
 const WHITE_PAWN_ID: usize = 0;
@@ -19,33 +19,52 @@ const BLACK_QUEEN_ID: usize = 9;
 const WHITE_KING_ID: usize = 10;
 const BLACK_KING_ID: usize = 11;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ZorbSet {
-    table: [[u64; 12]; 64],
-    black_turn: u64,
+    pub table: [[u64; 12]; 64],
+    pub ep_table: [u64; 8],
+    pub black_turn: u64,
+    pub wkc: u64,
+    pub wqc: u64,
+    pub bkc: u64,
+    pub bqc: u64,
 }
 
 // https://en.wikipedia.org/wiki/Zobrist_hashing
 impl ZorbSet {
     pub fn new() -> Self {
-        let mut arr: [[u64; 12]; 64] = [[0u64; 12]; 64];
         let mut rng = rand::thread_rng();
 
+        let mut arr = [[0; 12]; 64];
         for i in 0..64 {
             for j in 0..12 {
                 arr[i][j] = rng.gen();
             }
         }
+
+        let mut ep_table: [u64; 8] = [rng.gen(); 8];
+        for i in 0..8 {
+            ep_table[i] = rng.gen();
+        }
         let black_turn = rng.gen();
+        let wkc = rng.gen();
+        let wqc = rng.gen();
+        let bkc = rng.gen();
+        let bqc = rng.gen();
         Self {
             table: arr,
             black_turn,
+            ep_table,
+            wkc,
+            wqc,
+            bkc,
+            bqc,
         }
     }
 
-    pub fn hash(&self, position: Position, is_black_turn: bool) -> u64 {
+    pub fn hash(&self, position: Position) -> u64 {
         let mut r = 0;
-        if is_black_turn {
+        if position.black_turn {
             r ^= self.black_turn;
         }
         for position_index in 0..64 {
@@ -70,19 +89,75 @@ impl ZorbSet {
                 _ => panic!("Unknown piece"),
             }
         }
+        if position.white_king_side_castling {
+            r ^= self.wkc;
+        }
+        if position.white_queen_side_castling {
+            r ^= self.wqc;
+        }
+        if position.black_king_side_castling {
+            r ^= self.bkc;
+        }
+        if position.black_queen_side_castling {
+            r ^= self.bqc;
+        }
+        if position.ep_index != u8::MAX {
+            r ^= self.ep_table[get_file(position.ep_index) as usize]
+        }
         r
     }
 
     pub fn shift(&self, zorb: u64, move_segment: MoveSegment) -> u64 {
-        if move_segment.segment_type == MoveSegmentType::Pickup
-            || move_segment.segment_type == MoveSegmentType::Place
-        {
-            let piece_zorb_id = (((move_segment.piece_type as usize)-1) * 2)
-                + if move_segment.black_piece { 1 } else { 0 };
-            zorb ^ self.table[move_segment.index as usize][piece_zorb_id]
-        } else {
-            zorb
+        match move_segment.segment_type {
+            MoveSegmentType::Pickup | MoveSegmentType::Place => {
+                let piece_zorb_id = (((move_segment.piece_type as usize) - 1) * 2)
+                    + if move_segment.black_piece { 1 } else { 0 };
+                zorb ^ self.table[move_segment.index as usize][piece_zorb_id]
+            }
+            MoveSegmentType::ClearCastling => {
+                if move_segment.black_piece {
+                    match move_segment.index {
+                        56 => zorb ^ self.bkc,
+                        63 => zorb ^ self.bqc,
+                        58 => zorb ^ self.bkc ^ self.bqc,
+                        _ => zorb,
+                    }
+                } else {
+                    match move_segment.index {
+                        0 => zorb ^ self.wkc,
+                        7 => zorb ^ self.wqc,
+                        3 => zorb ^ self.wkc ^ self.wqc,
+                        _ => zorb,
+                    }
+                }
+            }
+            MoveSegmentType::DoublePawnPush => zorb ^ self.ep_table[get_file(move_segment.index) as usize],
+            MoveSegmentType::ClearEP => zorb ^ self.ep_table[move_segment.index as usize],
+            _ => zorb,
         }
+    }
+
+    pub fn apply_segments(&self, zorb: u64, ep_index: u8, move_segments: [MoveSegment; 5]) -> u64 {
+        let mut output = zorb;
+        let mut clear_ep = true;
+        for segment in move_segments {
+            if segment.segment_type != MoveSegmentType::None {
+                output = self.shift(output, segment);
+            }
+            if segment.segment_type == MoveSegmentType::DoublePawnPush {
+                clear_ep = false;
+            }
+        }
+        if clear_ep && ep_index != u8::MAX {
+            output = self.shift(
+                output,
+                MoveSegment::new(MoveSegmentType::ClearEP, get_file(ep_index), PieceType::None, false),
+            );
+        }
+
+        output ^= self.black_turn;
+
+        output
     }
 
     pub fn colour_shift(&self, zorb: u64) -> u64 {
@@ -92,14 +167,32 @@ impl ZorbSet {
 
 #[cfg(test)]
 mod test {
+    use crate::{
+        r#move::Move, search::zorb_set_precomputed::ZORB_SET,
+        shared::board_utils::index_from_coords,
+    };
+
     use super::*;
+
+    #[test]
+    pub fn hash_should_differ_based_on_ep_position() {
+        let zorb_set = ZorbSet::new();
+        let position = Position::default();
+        let position_ep_0 = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq h3".into());
+        let position_ep_5 = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq c3".into());
+
+        assert_ne!(position.zorb_key, position_ep_0.zorb_key, "No ep and ep=0 should not match");
+        assert_ne!(position_ep_5.zorb_key, position_ep_0.zorb_key, "Ep=5 and ep=0 should not match");
+        assert_ne!(position.zorb_key, position_ep_5.zorb_key, "No ep and ep=5 should not match");
+    }
 
     #[test]
     pub fn shift_by_move_segment() {
         let zorb_set = ZorbSet::new();
-        let origin_position =
-            Position::new("rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1".into());
-        let origin_hash = zorb_set.hash(origin_position, true);
+        let origin_position = Position::from_fen(
+            "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b KQkq -".into(),
+        );
+        let origin_hash = zorb_set.hash(origin_position);
 
         // Pickup
         let mut result_hash = zorb_set.shift(
@@ -124,9 +217,10 @@ mod test {
         // Switch active player
         result_hash = zorb_set.colour_shift(result_hash);
 
-        let expected_position =
-            Position::new("rnbq1rk1/ppp2pb1/3p1npp/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1".into());
-        let expected_hash = zorb_set.hash(expected_position, false);
+        let expected_position = Position::from_fen(
+            "rnbq1rk1/ppp2pb1/3p1npp/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 w KQkq -".into(),
+        );
+        let expected_hash = zorb_set.hash(expected_position);
 
         assert_eq!(result_hash, expected_hash);
     }
@@ -135,7 +229,7 @@ mod test {
     pub fn shift_by_move_segment_opening_and_retreating_knights() {
         let zorb_set = ZorbSet::new();
         let origin_position = Position::default();
-        let origin_hash = zorb_set.hash(origin_position, false);
+        let origin_hash = zorb_set.hash(origin_position);
 
         // Pickup Knight
         let mut result_hash = zorb_set.shift(
@@ -226,8 +320,106 @@ mod test {
         // Switch active player
         result_hash = zorb_set.colour_shift(result_hash);
 
-        let expected_hash = zorb_set.hash(origin_position, false);
+        let expected_hash = zorb_set.hash(origin_position);
 
         assert_eq!(result_hash, expected_hash);
+    }
+
+    #[test]
+    pub fn zorb_sequence_test_case_0() {
+        // In this black will move their king-side rook out and then back in - this should result in two different codes
+        let original_position =
+            Position::from_fen("rnbqkbnr/ppppppp1/8/7p/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -".into());
+        let moves = [
+            Move::new(
+                index_from_coords("f1"),
+                index_from_coords("e2"),
+                0b0,
+                PieceType::Bishop,
+                false,
+            ),
+            Move::new(
+                index_from_coords("h8"),
+                index_from_coords("h7"),
+                0b0,
+                PieceType::Rook,
+                true,
+            ),
+            Move::new(
+                index_from_coords("e2"),
+                index_from_coords("f1"),
+                0b0,
+                PieceType::Bishop,
+                false,
+            ),
+            Move::new(
+                index_from_coords("h7"),
+                index_from_coords("h8"),
+                0b0,
+                PieceType::Rook,
+                true,
+            ),
+        ];
+        let mut position = original_position;
+        for m in moves {
+            position = position.make(m);
+        }
+        assert_ne!(
+            position.zorb_key, original_position.zorb_key,
+            "New zorb should not match original"
+        );
+
+        let new_position =
+            Position::from_fen("rnbqkbnr/ppppppp1/8/7p/4P3/8/PPPP1PPP/RNBQKBNR w KQq -".into());
+        assert_eq!(position.zorb_key, new_position.zorb_key)
+    }
+
+    #[test]
+    pub fn zorb_sequence_test_case_1() {
+        // In this white has double pawn pushed leaving themself open to a EP capture, black does not capture, instead pushing forward a knight, white pushes their own knight, then both retreat
+
+        let original_position = Position::from_fen("1k6/8/8/5n2/6pP/8/8/1K2N3 b - h3".into());
+        let moves = [
+            Move::new(
+                index_from_coords("f5"),
+                index_from_coords("e3"),
+                0b0,
+                PieceType::Knight,
+                true,
+            ),
+            Move::new(
+                index_from_coords("e1"),
+                index_from_coords("c2"),
+                0b0,
+                PieceType::Knight,
+                false,
+            ),
+            Move::new(
+                index_from_coords("e3"),
+                index_from_coords("f5"),
+                0b0,
+                PieceType::Knight,
+                true,
+            ),
+            Move::new(
+                index_from_coords("c2"),
+                index_from_coords("e1"),
+                0b0,
+                PieceType::Knight,
+                false,
+            ),
+        ];
+
+        let mut position = original_position;
+        for m in moves {
+            position = position.make(m);
+        }
+        assert_ne!(position, original_position);
+        assert_ne!(
+            position.zorb_key, original_position.zorb_key,
+            "New zorb should not match original"
+        );
+        let new_position = Position::from_fen("1k6/8/8/5n2/6pP/8/8/1K2N3 b - -".into());
+        assert_eq!(position.zorb_key, new_position.zorb_key)
     }
 }

@@ -11,6 +11,7 @@ use ch_imp::{
             MagicTable, BISHOP_LEFT_SHIFT_BITS, ROOK_LEFT_SHIFT_BITS,
         },
     },
+    search::zorb_set::ZorbSet,
     shared::board_utils::index_from_coords,
 };
 
@@ -30,15 +31,18 @@ fn main() {
     // println!("{}", Bitboard::new(magic_table.get_bishop_attacks(index_from_coords("f4") as usize, game_state.position.occupancy.into())));
     // println!("{}",index_from_coords("f4"));
 
-    // perft(
-    //   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
-    //   vec![20, 400, 8902, 197281],
-    // )
-
     perft(
-        "rnbqkbnr/ppp1pppp/3p4/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into(),
-        vec![30, 781, 24086],
-      )
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
+      vec![20, 400, 8902, 197281],
+    )
+
+    // perft(
+    //     "rnbqkbnr/ppp1pppp/3p4/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into(),
+    //     vec![30, 781, 24086],
+    //   )
+
+    // let zorb_set = ZorbSet::new();
+    // println!("{zorb_set:?}");
 
     // let mut magics = [0; 64];
     // for i in 0..64usize {

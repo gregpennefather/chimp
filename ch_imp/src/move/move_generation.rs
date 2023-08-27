@@ -17,28 +17,26 @@ pub struct GeneratedMoves {
 }
 
 impl MoveData {
-    pub fn generate_moves(
-        &self,
-        position: Position,
-        black_turn: bool,
-        ep_index: u8,
-        wkc: bool,
-        wqc: bool,
-        bkc: bool,
-        bqc: bool,
-    ) -> Vec<Move> {
+    pub fn generate_moves(&self, position: Position) -> Vec<Move> {
         let mut psudolegal_moves = Vec::new();
         let mut white_threatboard = 0;
         let mut black_threatboard = 0;
         let mut white_mobility = 0;
         let mut black_mobility = 0;
-        let mut legal_moves = Vec::new();
+        // let mut legal_moves = Vec::new();
 
         for index in 0..64 {
             if position.occupancy.occupied(index) {
                 let is_black = position.black_bitboard.occupied(index);
                 let generated_moves = self.generate_position_moves(
-                    position, index, is_black, ep_index, wkc, wqc, bkc, bqc,
+                    position,
+                    index,
+                    is_black,
+                    position.ep_index,
+                    position.white_king_side_castling,
+                    position.white_queen_side_castling,
+                    position.black_king_side_castling,
+                    position.black_queen_side_castling,
                 );
                 if is_black {
                     black_threatboard |= generated_moves.threat_board;
@@ -51,17 +49,20 @@ impl MoveData {
             }
         }
 
-        for m in psudolegal_moves {
-            if (m.is_black() == black_turn) {
-                let move_segments = position.generate_move_segments(&m, black_turn);
-                let n_p = position.apply_segments(move_segments);
-                if (black_turn && !n_p.black_in_check)  || (!black_turn && !n_p.white_in_check) {
-                    legal_moves.push(m);
-                }
-            }
-        }
+        // #TODO
+        // for m in psudolegal_moves {
+        //     if (m.is_black() == position.black_turn) {
+        //         let move_segments = position.generate_move_segments(&m);
+        //         let n_p = position.apply_segments(move_segments);
+        //         if (position.black_turn && !n_p.black_in_check)
+        //             || (!position.black_turn && !n_p.white_in_check)
+        //         {
+        //             legal_moves.push(m);
+        //         }
+        //     }
+        // }
 
-        legal_moves
+        psudolegal_moves
     }
 
     pub fn generate_position_moves(
@@ -310,25 +311,30 @@ impl MoveData {
 
         capture_board ^= 1 << first_capture_index;
         let second_capture_index = capture_board.trailing_zeros() as u8;
-        threat_board |= 1 << second_capture_index;
-        if second_capture_index != 64
-            && (opponent_occupancy.occupied(second_capture_index)
+        if second_capture_index != 64 {
+            threat_board |= 1 << second_capture_index;
+            if (opponent_occupancy.occupied(second_capture_index)
                 || second_capture_index == ep_index)
-        {
-            moves.push(Move::new(
-                index,
-                second_capture_index,
-                if second_capture_index == ep_index {
-                    MF_EP_CAPTURE
-                } else {
-                    MF_CAPTURE
-                },
-                piece_type::PieceType::Pawn,
-                is_black,
-            ));
+            {
+                moves.push(Move::new(
+                    index,
+                    second_capture_index,
+                    if second_capture_index == ep_index {
+                        MF_EP_CAPTURE
+                    } else {
+                        MF_CAPTURE
+                    },
+                    piece_type::PieceType::Pawn,
+                    is_black,
+                ));
+            }
         }
 
-        GeneratedMoves { moves: moves, threat_board, mobility_board }
+        GeneratedMoves {
+            moves: moves,
+            threat_board,
+            mobility_board,
+        }
     }
 }
 

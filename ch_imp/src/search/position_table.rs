@@ -1,16 +1,12 @@
 use std::collections::HashMap;
 
 use super::zorb_set::ZorbSet;
-use crate::{
-    board::position::Position,
-    match_state::game_state::GameState,
-    r#move::{move_segment::MoveSegment, Move},
-};
+use crate::{board::position::Position, r#move::Move};
 
 pub struct PositionTranspositionTable(HashMap<u64, Position>, ZorbSet);
 
 pub trait MoveTableLookup {
-    fn lookup(&mut self, m: Move, game_state: GameState, position_zorb: u64) -> Position;
+    fn lookup(&mut self, m: Move, position: Position) -> Position;
 }
 
 impl PositionTranspositionTable {
@@ -20,22 +16,14 @@ impl PositionTranspositionTable {
 }
 
 impl MoveTableLookup for PositionTranspositionTable {
-    fn lookup(&mut self, m: Move, game_state: GameState, position_zorb: u64) -> Position {
-        let mut key: u64 = position_zorb;
-        let move_segments = game_state.position.generate_move_segments(&m, game_state.black_turn);
-        let mut iter = move_segments.iter();
-        while let Some(&segment) = iter.next() {
-            key = self.1.shift(key, segment)
-        }
-        key = self.1.colour_shift(key);
+    fn lookup(&mut self, m: Move, position: Position) -> Position {
+        let key = position.zorb_key_after_move(m);
+        // let mut iter = move_segments.iter();
+        // while let Some(&segment) = iter.next() {
+        //     key = self.1.shift(key, segment)
+        // }
+        // key = self.1.colour_shift(key);
 
-        *self
-            .0
-            .entry(key)
-            .or_insert_with(|| apply_move_segments(game_state.position, move_segments))
+        *self.0.entry(key).or_insert_with(|| position.make(m))
     }
-}
-
-fn apply_move_segments(position: Position, segments: [MoveSegment; 5]) -> Position {
-    position.apply_segments(segments)
 }
