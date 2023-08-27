@@ -10,28 +10,58 @@ use crate::{
 
 use super::{move_data::MoveData, Move};
 
+pub struct GeneratedMoves {
+    moves: Vec<Move>,
+    threat_board: u64,
+    mobility_board: u64,
+}
+
 impl MoveData {
     pub fn generate_moves(
         &self,
         position: Position,
+        black_turn: bool,
         ep_index: u8,
         wkc: bool,
         wqc: bool,
         bkc: bool,
         bqc: bool,
     ) -> Vec<Move> {
-        let mut moves = Vec::new();
+        let mut psudolegal_moves = Vec::new();
+        let mut white_threatboard = 0;
+        let mut black_threatboard = 0;
+        let mut white_mobility = 0;
+        let mut black_mobility = 0;
+        let mut legal_moves = Vec::new();
 
         for index in 0..64 {
             if position.occupancy.occupied(index) {
                 let is_black = position.black_bitboard.occupied(index);
-                moves.extend(self.generate_position_moves(
+                let generated_moves = self.generate_position_moves(
                     position, index, is_black, ep_index, wkc, wqc, bkc, bqc,
-                ));
+                );
+                if is_black {
+                    black_threatboard |= generated_moves.threat_board;
+                    black_mobility |= generated_moves.mobility_board;
+                } else {
+                    white_threatboard |= generated_moves.threat_board;
+                    white_mobility |= generated_moves.mobility_board;
+                }
+                psudolegal_moves.extend(generated_moves.moves);
             }
         }
 
-        moves
+        for m in psudolegal_moves {
+            if (m.is_black() == black_turn) {
+                let move_segments = position.generate_move_segments(&m, black_turn);
+                let n_p = position.apply_segments(move_segments);
+                if (black_turn && !n_p.black_in_check)  || (!black_turn && !n_p.white_in_check) {
+                    legal_moves.push(m);
+                }
+            }
+        }
+
+        legal_moves
     }
 
     pub fn generate_position_moves(
@@ -44,7 +74,7 @@ impl MoveData {
         wqc: bool,
         bkc: bool,
         bqc: bool,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         let piece_type = position.get_piece_type_at_index(index);
         let opponent_occupancy = if is_black {
             position.white_bitboard
@@ -106,7 +136,7 @@ impl MoveData {
         wqc: bool,
         bkc: bool,
         bqc: bool,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         moveboard_to_moves(
             index,
             piece_type::PieceType::King,
@@ -124,7 +154,7 @@ impl MoveData {
         opponent_occupancy: Bitboard,
         occupancy: Bitboard,
         is_black: bool,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         let moveboard = self
             .magic_bitboard_table
             .get_bishop_attacks(index as usize, position.occupancy.into())
@@ -148,7 +178,7 @@ impl MoveData {
         opponent_occupancy: Bitboard,
         occupancy: Bitboard,
         is_black: bool,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         let moveboard = self
             .magic_bitboard_table
             .get_rook_attacks(index as usize, position.occupancy.into());
@@ -169,7 +199,7 @@ impl MoveData {
         opponent_occupancy: Bitboard,
         occupancy: Bitboard,
         is_black: bool,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         let moveboard = self
             .magic_bitboard_table
             .get_bishop_attacks(index as usize, position.occupancy.into());
@@ -189,7 +219,7 @@ impl MoveData {
         opponent_occupancy: Bitboard,
         occupancy: Bitboard,
         is_black: bool,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         moveboard_to_moves(
             index,
             piece_type::PieceType::Knight,
@@ -207,18 +237,33 @@ impl MoveData {
         is_black: bool,
         ep_index: u8,
         opponent_occupancy: Bitboard,
-    ) -> Vec<Move> {
+    ) -> GeneratedMoves {
         let mut moves = Vec::new();
+        let mut threat_board = 0;
+        let mut mobility_board = 0;
         let mut moveboard = if is_black {
             self.black_pawn_moves[index as usize]
         } else {
             self.white_pawn_moves[index as usize]
         };
 
-        let to_index = moveboard.trailing_zeros() as u8;
-        moveboard ^= 1 << to_index;
-        let to_index_dpp = moveboard.trailing_zeros() as u8;
+        let (to_index, to_index_dpp) = if is_black {
+            let to_index_dpp = moveboard.trailing_zeros() as u8;
+            moveboard ^= 1 << to_index_dpp;
+            let to_index = moveboard.trailing_zeros() as u8;
+            if to_index == 64 {
+                (to_index_dpp, 64)
+            } else {
+                (to_index, to_index_dpp)
+            }
+        } else {
+            let to_index = moveboard.trailing_zeros() as u8;
+            moveboard ^= 1 << to_index;
+            let to_index_dpp = moveboard.trailing_zeros() as u8;
+            (to_index, to_index_dpp)
+        };
 
+        mobility_board |= 1 << to_index;
         if !position.occupancy.occupied(to_index) {
             moves.push(Move::new(
                 index,
@@ -228,6 +273,7 @@ impl MoveData {
                 is_black,
             ));
             if to_index_dpp != 64 {
+                mobility_board |= 1 << to_index_dpp;
                 if !position.occupancy.occupied(to_index_dpp) {
                     moves.push(Move::new(
                         index,
@@ -247,6 +293,7 @@ impl MoveData {
         };
 
         let first_capture_index = capture_board.trailing_zeros() as u8;
+        threat_board |= 1 << first_capture_index;
         if opponent_occupancy.occupied(first_capture_index) || first_capture_index == ep_index {
             moves.push(Move::new(
                 index,
@@ -263,16 +310,11 @@ impl MoveData {
 
         capture_board ^= 1 << first_capture_index;
         let second_capture_index = capture_board.trailing_zeros() as u8;
+        threat_board |= 1 << second_capture_index;
         if second_capture_index != 64
             && (opponent_occupancy.occupied(second_capture_index)
                 || second_capture_index == ep_index)
         {
-            let n_capture_board = if is_black {
-                self.black_pawn_captures[index as usize]
-            } else {
-                self.white_pawn_captures[index as usize]
-            };
-
             moves.push(Move::new(
                 index,
                 second_capture_index,
@@ -286,7 +328,7 @@ impl MoveData {
             ));
         }
 
-        moves
+        GeneratedMoves { moves: moves, threat_board, mobility_board }
     }
 }
 
@@ -297,25 +339,33 @@ fn moveboard_to_moves(
     opponent_occupancy: Bitboard,
     occupancy: Bitboard,
     is_black: bool,
-) -> Vec<Move> {
-    let mut moves = Vec::new();
+) -> GeneratedMoves {
+    let mut generated_moves = Vec::new();
     let mut m_b = moveboard;
     let mut to_index = 0;
+    let mut threat_board = 0;
+    let mut mobility_board = 0;
     while m_b != 0 {
         let lsb = m_b.trailing_zeros() as u8;
         to_index += lsb;
+        threat_board |= 1 << to_index;
         if opponent_occupancy.occupied(to_index) {
-            moves.push(Move::new(
+            generated_moves.push(Move::new(
                 from_index, to_index, MF_CAPTURE, piece_type, is_black,
             ));
         } else if !occupancy.occupied(to_index) {
-            moves.push(Move::new(from_index, to_index, 0b0, piece_type, is_black));
+            mobility_board |= 1 << to_index;
+            generated_moves.push(Move::new(from_index, to_index, 0b0, piece_type, is_black));
         };
         to_index += 1; // Account for the move we just added
         m_b >>= lsb + 1;
     }
 
-    moves
+    GeneratedMoves {
+        moves: generated_moves,
+        threat_board,
+        mobility_board,
+    }
 }
 
 #[cfg(test)]

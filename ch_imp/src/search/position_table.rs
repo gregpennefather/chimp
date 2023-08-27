@@ -22,7 +22,7 @@ impl PositionTranspositionTable {
 impl MoveTableLookup for PositionTranspositionTable {
     fn lookup(&mut self, m: Move, game_state: GameState, position_zorb: u64) -> Position {
         let mut key: u64 = position_zorb;
-        let move_segments = game_state.generate_move_segments(&m);
+        let move_segments = game_state.position.generate_move_segments(&m, game_state.black_turn);
         let mut iter = move_segments.iter();
         while let Some(&segment) = iter.next() {
             key = self.1.shift(key, segment)

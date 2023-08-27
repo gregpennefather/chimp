@@ -97,6 +97,7 @@ impl Debug for Move {
         f.debug_tuple("Move")
             .field(&self.uci())
             .field(&self.piece_type())
+            .field(&self.flags())
             .finish()
     }
 }

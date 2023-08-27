@@ -29,7 +29,9 @@ pub fn perft(fen: String, counts: Vec<usize>) {
             let mut new_edge_states = Vec::new();
             for game_state in &top_level_state.2 {
                 let moves = game_state.generate_moves(&move_data);
-                //println!("{} => {}", game_state.to_fen(), moves.len());
+                if top_level_state.0.uci().eq("a2a4") && depth == 2 {
+                    println!("depth {depth}: {} => {}", game_state.to_fen(), moves.len());
+                }
                 count += moves.len();
                 for m in moves {
                     new_edge_states.push(game_state.make(m));
