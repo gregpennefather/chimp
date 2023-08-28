@@ -9,10 +9,15 @@ use ch_imp::{
         move_magic_bitboards::{
             find_bishop_magics, find_rook_magics, generate_blocker_patterns, rook_mask_generation,
             MagicTable, BISHOP_LEFT_SHIFT_BITS, ROOK_LEFT_SHIFT_BITS,
-        }, Move,
+        },
+        Move,
     },
     search::zorb_set::ZorbSet,
-    shared::{board_utils::index_from_coords, piece_type::PieceType, constants::{MF_EP_CAPTURE, MF_QUEEN_PROMOTION}},
+    shared::{
+        board_utils::index_from_coords,
+        constants::{MF_EP_CAPTURE, MF_QUEEN_PROMOTION},
+        piece_type::PieceType,
+    },
 };
 
 fn main() {
@@ -30,6 +35,11 @@ fn main() {
     // println!("{}", moves.len());
     // println!("{}", Bitboard::new(magic_table.get_bishop_attacks(index_from_coords("f4") as usize, game_state.position.occupancy.into())));
     // println!("{}",index_from_coords("f4"));
+
+    // println!("{}", mem::size_of::<Position>());
+    // println!("{}", mem::size_of_val::<Position>(&Position::from_fen(
+    //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
+    // )));
 
     perft(
         "Perft".into(),
@@ -67,11 +77,11 @@ fn main() {
         vec![46, 2079, 89890, 3894594],
     );
 
-    // perft(
-    //     "Kiwipete Perft drill".into(),
-    //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3KB1R b KQkq - 1 1".into(),
-    //     vec![44, 2060],
-    // );
+    perft(
+        "Kiwipete Perft drill".into(),
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3KB1R b KQkq - 1 1".into(),
+        vec![44, 2060],
+    );
 
     //  let mut position =
     //      Position::from_fen("r3k2r/p1ppqpb1/b3pnp1/3PN3/1pn1P3/2N2Q1p/PPPB1PPP/R3KB1R w KQkq - 2 2".into());

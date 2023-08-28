@@ -4,17 +4,21 @@ use crate::{
         move_segment::{MoveSegment, MoveSegmentType},
         Move,
     },
-    search::zorb_set_precomputed::ZORB_SET,
+    search::{position_table::MoveTableLookup, zorb_set_precomputed::ZORB_SET},
     shared::{
-        board_utils::{get_coords_from_index, get_index_from_file_and_rank, index_from_coords},
+        board_utils::{
+            get_coords_from_index, get_file, get_index_from_file_and_rank, index_from_coords,
+        },
         constants::MF_EP_CAPTURE,
         piece_type::{get_piece_char, PieceType},
     },
-    MOVE_DATA,
+    MOVE_DATA, POSITION_TRANSPOSITION_TABLE,
 };
 use std::fmt::Debug;
 
 use super::bitboard::Bitboard;
+
+pub type MoveSegmentArray = [MoveSegment; 6];
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct Position {
@@ -239,6 +243,11 @@ impl Position {
             .count_occupied()
             != 0;
 
+        POSITION_TRANSPOSITION_TABLE
+            .write()
+            .unwrap()
+            .insert(output.zorb_key, output);
+
         output
     }
 
@@ -253,7 +262,8 @@ impl Position {
     }
 
     pub fn legal(&self) -> bool {
-        return !((self.black_turn && self.white_in_check) || (!self.black_turn && self.black_in_check))
+        return !((self.black_turn && self.white_in_check)
+            || (!self.black_turn && self.black_in_check));
     }
 
     pub fn to_fen(&self) -> String {
@@ -356,21 +366,43 @@ impl Position {
     }
 
     pub fn make(&self, m: Move) -> Self {
-        let move_segments = self.generate_move_segments(&m);
-        self.apply_segments(move_segments)
+        // #TODO: remocve this method
+        let (new_zorb, move_segments) = self.zorb_key_after_move(m);
+        let binding = POSITION_TRANSPOSITION_TABLE.read().unwrap();
+        let lookup_result = binding.get(&new_zorb);
+        //drop(binding);
+        println!("lookup happened");
+        match lookup_result {
+            Some(&new_position) => {
+                println!("time saved!");
+                new_position
+            }
+            None => self.apply_segments(move_segments),
+        }
+        // self.apply_segments(move_segments)
     }
 
-    pub fn zorb_key_after_move(&self, m: Move) -> u64 {
+    pub fn zorb_key_after_move(&self, m: Move) -> (u64, MoveSegmentArray) {
         let segments = self.generate_move_segments(&m);
-        ZORB_SET.apply_segments(self.zorb_key, self.ep_index, segments)
+        (ZORB_SET.apply_segments(self.zorb_key, segments), segments)
     }
 
-    pub fn generate_move_segments(&self, m: &Move) -> [MoveSegment; 5] {
-        let mut segments = [MoveSegment::default(); 5];
+    pub fn generate_move_segments(&self, m: &Move) -> MoveSegmentArray {
+        let mut segments = [MoveSegment::default(); 6];
 
         let from_index = m.from();
         let to_index = m.to();
         let mut segment_index = 0;
+
+        if self.ep_index != u8::MAX {
+            segments[segment_index] = MoveSegment::new(
+                MoveSegmentType::ClearEP,
+                get_file(self.ep_index),
+                PieceType::None,
+                !self.black_turn,
+            ); // pickup captured piece
+            segment_index += 1;
+        }
 
         if m.is_castling() {
             let (rook_from_index, rook_to_index) = if m.is_king_castling() {
@@ -379,37 +411,41 @@ impl Position {
                 (from_index + 4, to_index - 1)
             };
 
-            segments[0] = MoveSegment::new(
+            segments[segment_index] = MoveSegment::new(
                 MoveSegmentType::Pickup,
                 from_index,
                 PieceType::King,
                 self.black_turn,
             ); // remove king
-            segments[1] = MoveSegment::new(
+            segment_index += 1;
+            segments[segment_index] = MoveSegment::new(
                 MoveSegmentType::Pickup,
                 rook_from_index,
                 PieceType::Rook,
                 self.black_turn,
             ); // remove rook
-            segments[2] = MoveSegment::new(
+            segment_index += 1;
+            segments[segment_index] = MoveSegment::new(
                 MoveSegmentType::Place,
                 to_index,
                 PieceType::King,
                 self.black_turn,
             ); // place king
-            segments[3] = MoveSegment::new(
+            segment_index += 1;
+            segments[segment_index] = MoveSegment::new(
                 MoveSegmentType::Place,
                 rook_to_index,
                 PieceType::Rook,
                 self.black_turn,
             ); // place rook
-            segments[4] = MoveSegment::new(
+            segment_index += 1;
+            segments[segment_index] = MoveSegment::new(
                 MoveSegmentType::ClearCastling,
                 from_index,
                 PieceType::King,
                 self.black_turn,
             ); // place rook
-            segment_index = 5;
+            segment_index += 1;
         } else if m.is_promotion() {
             segments[segment_index] = MoveSegment::new(
                 MoveSegmentType::Pickup,
@@ -467,7 +503,14 @@ impl Position {
 
             if m.is_capture() {
                 let (captured_piece_type, captured_index) = if m.flags() == MF_EP_CAPTURE {
-                    (PieceType::Pawn, if m.is_black() { self.ep_index + 8 } else { self.ep_index - 8})
+                    (
+                        PieceType::Pawn,
+                        if m.is_black() {
+                            self.ep_index + 8
+                        } else {
+                            self.ep_index - 8
+                        },
+                    )
                 } else {
                     (self.get_piece_type_at_index(to_index), to_index)
                 };
@@ -523,7 +566,7 @@ impl Position {
         segments
     }
 
-    pub(crate) fn apply_segments(&self, segments: [MoveSegment; 5]) -> Position {
+    pub(crate) fn apply_segments(&self, segments: MoveSegmentArray) -> Position {
         let mut occupancy = self.occupancy;
         let mut white_bitboard = self.white_bitboard;
         let mut black_bitboard = self.black_bitboard;
@@ -672,7 +715,7 @@ impl Position {
                 _ => {}
             }
         }
-        zorb_key = ZORB_SET.apply_segments(zorb_key, self.ep_index, segments);
+        zorb_key = ZORB_SET.apply_segments(zorb_key, segments);
 
         let mut output = Self {
             occupancy,
@@ -723,6 +766,11 @@ impl Position {
         output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
             .count_occupied()
             != 0;
+
+        POSITION_TRANSPOSITION_TABLE
+            .write()
+            .unwrap()
+            .insert(output.zorb_key, output);
 
         output
     }

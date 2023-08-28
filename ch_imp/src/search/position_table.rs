@@ -1,29 +1,35 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::DerefMut, ops::Deref};
 
 use super::zorb_set::ZorbSet;
 use crate::{board::position::Position, r#move::Move};
 
-pub struct PositionTranspositionTable(HashMap<u64, Position>, ZorbSet);
+pub struct PositionTranspositionTable(pub HashMap<u64, Position>);
 
 pub trait MoveTableLookup {
-    fn lookup(&mut self, m: Move, position: Position) -> Position;
+    fn set (&mut self, position: Position);
+    fn find(&self, key: u64) -> Option<&Position>;
 }
 
 impl PositionTranspositionTable {
-    pub fn new(zorb_set: ZorbSet) -> Self {
-        Self(HashMap::with_capacity(4000000), zorb_set)
+    pub fn new() -> Self {
+        Self(HashMap::with_capacity(4000000))
     }
 }
 
 impl MoveTableLookup for PositionTranspositionTable {
-    fn lookup(&mut self, m: Move, position: Position) -> Position {
-        let key = position.zorb_key_after_move(m);
-        // let mut iter = move_segments.iter();
-        // while let Some(&segment) = iter.next() {
-        //     key = self.1.shift(key, segment)
-        // }
-        // key = self.1.colour_shift(key);
-
-        *self.0.entry(key).or_insert_with(|| position.make(m))
+    fn set (&mut self, position: Position) {
+        let set_result = self.0.insert(position.zorb_key, position);
+        match set_result {
+            Some(old_result) => println!("Replacing old result {:?} => {:?}", old_result, position),
+            None => {},
+        }
+    }
+    fn find(&self, key: u64) -> Option<&Position> {
+        let r = self.0.get(&key);
+        match r {
+            None=> println!("{key} not in hash"),
+            Some(pos) => println!("Found {pos:?}")
+        }
+        self.0.get(&key)
     }
 }

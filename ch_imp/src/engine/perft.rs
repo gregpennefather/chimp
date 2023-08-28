@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::{match_state::game_state::GameState, r#move::{move_data::MoveData, Move}};
+use crate::{match_state::game_state::GameState, r#move::{move_data::MoveData, Move}, POSITION_TRANSPOSITION_TABLE};
 
 pub fn perft(name:String, fen: String, counts: Vec<usize>) {
     println!("--- {name} ---");
@@ -56,6 +56,7 @@ pub fn perft(name:String, fen: String, counts: Vec<usize>) {
             return;
         }
     }
+    println!("Table size: {}", POSITION_TRANSPOSITION_TABLE.read().unwrap().len())
 }
 
 fn print_move_counts(top_level_states: &Vec<(Move, usize, Vec<GameState>)>) {
