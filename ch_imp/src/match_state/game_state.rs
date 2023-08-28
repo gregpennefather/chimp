@@ -7,9 +7,9 @@ use crate::{
     },
     search::position_table::MoveTableLookup,
     shared::{
-        board_utils::{get_coords_from_index, index_from_coords},
-        constants::MF_EP_CAPTURE,
-        piece_type::PieceType,
+        board_utils::{get_coords_from_index, index_from_coords, get_file},
+        constants::{MF_EP_CAPTURE, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_KNIGHT_CAPTURE_PROMOTION, MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_KNIGHT_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_PROMOTION, MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION, MF_KING_CASTLING, MF_QUEEN_CASTLING},
+        piece_type::{PieceType, get_piece_type_from_char},
     },
     POSITION_TRANSPOSITION_TABLE,
 };
@@ -101,12 +101,64 @@ impl GameState {
             self.position.white_moves
         }
     }
+
+    pub fn move_from_uci(&self, move_uci: &str) -> Move {
+        let from = index_from_coords(&move_uci[0..2]);
+        let to = index_from_coords(&move_uci[2..4]);
+
+        let promotion = if move_uci.len() == 5 { get_piece_type_from_char(move_uci.chars().nth(4).unwrap()) } else { PieceType:: None };
+
+        let opponent_occupancy = if self.position.black_turn { self.position.white_bitboard } else { self.position.black_bitboard };
+
+        let mut flags = 0;
+
+        let piece_type = self.position.get_piece_type_at_index(from);
+
+        let is_capture = if opponent_occupancy.occupied(to) {
+            flags = MF_CAPTURE;
+            true
+        } else {false};
+
+        match piece_type {
+            PieceType::Pawn => {
+                if from.abs_diff(to) == 16 {
+                    flags = MF_DOUBLE_PAWN_PUSH;
+                } else if self.position.ep_index == to {
+                    flags = MF_EP_CAPTURE
+                } else if promotion != PieceType::None {
+                    flags = match (is_capture, promotion) {
+                        (true, PieceType::Knight) => MF_KNIGHT_CAPTURE_PROMOTION,
+                        (false, PieceType::Knight) => MF_KNIGHT_PROMOTION,
+                        (true, PieceType::Bishop) => MF_BISHOP_CAPTURE_PROMOTION,
+                        (false, PieceType::Bishop) => MF_BISHOP_PROMOTION,
+                        (true, PieceType::Rook) => MF_ROOK_CAPTURE_PROMOTION,
+                        (false, PieceType::Rook) => MF_ROOK_PROMOTION,
+                        (true, PieceType::Queen) => MF_QUEEN_CAPTURE_PROMOTION,
+                        (false, PieceType::Queen) => MF_QUEEN_PROMOTION,
+                        _ => panic!("")
+                    }
+                }
+            },
+            PieceType::King => {
+                let dif = get_file(from) as i8 - get_file(to) as i8;
+                if dif == -2 {
+                    flags = MF_KING_CASTLING;
+                } else if dif == 2 {
+                    flags = MF_QUEEN_CASTLING;
+                }
+            }
+            _ => {}
+        }
+
+        Move::new(from, to, flags, piece_type, self.position.black_turn)
+    }
 }
 
 impl Debug for GameState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("GameState")
             .field(&self.to_fen())
+            .field(&self.position.evaluation)
             .field(&self.position.zorb_key)
             .finish()
     }

@@ -7,7 +7,7 @@ use crate::{
     shared::{
         board_utils::{get_coords_from_index, get_file, index_from_coords},
         constants::MF_EP_CAPTURE,
-        piece_type::{get_piece_char, PieceType},
+        piece_type::{get_piece_char, get_piece_type_from_char, PieceType},
     },
     MOVE_DATA,
 };
@@ -43,6 +43,7 @@ pub struct Position {
     pub black_threatboard: u64,
     pub white_mobility_board: u64,
     pub black_mobility_board: u64,
+    pub evaluation: f32,
 }
 
 impl Position {
@@ -86,15 +87,7 @@ impl Position {
                 continue;
             }
 
-            let piece_type = match char {
-                'P' | 'p' => PieceType::Pawn,
-                'B' | 'b' => PieceType::Bishop,
-                'N' | 'n' => PieceType::Knight,
-                'R' | 'r' => PieceType::Rook,
-                'Q' | 'q' => PieceType::Queen,
-                'K' | 'k' => PieceType::King,
-                _ => panic!("Unknown piece type {}", char),
-            };
+            let piece_type = get_piece_type_from_char(char);
 
             let piece_is_black = char.is_ascii_lowercase();
             let mut colour_board_to_change = if piece_is_black {
@@ -213,6 +206,7 @@ impl Position {
             black_threatboard: 0,
             white_mobility_board: 0,
             black_mobility_board: 0,
+            evaluation: 0.0,
         };
 
         output.zorb_key = ZORB_SET.hash(output);
@@ -239,6 +233,8 @@ impl Position {
         output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
             .count_occupied()
             != 0;
+
+        output.evaluation = evaluate(output);
 
         output
     }
@@ -716,6 +712,7 @@ impl Position {
             black_threatboard: 0,
             white_mobility_board: 0,
             black_mobility_board: 0,
+            evaluation: 0.0,
         };
 
         let (
@@ -741,8 +738,37 @@ impl Position {
             .count_occupied()
             != 0;
 
+        output.evaluation = evaluate(output);
         output
     }
+}
+
+fn evaluate(position: Position) -> f32 {
+    let mut eval = 0.0;
+    for index in 0..64 {
+        if position.occupancy.occupied(index) {
+            let is_black = position.black_bitboard.occupied(index);
+            let piece_type = position.get_piece_type_at_index(index);
+            let factor = if is_black { -1.0 } else { 1.0 };
+            eval += factor
+                * match piece_type {
+                    PieceType::Pawn => 1.0,
+                    PieceType::Knight => 3.0,
+                    PieceType::Bishop => 3.0,
+                    PieceType::Rook => 5.0,
+                    PieceType::Queen => 9.0,
+                    PieceType::King => 0.0,
+                    PieceType::None => panic!("unknown piece type"),
+                }
+        }
+    }
+
+    eval += position.white_threatboard.count_ones() as f32 * 0.005;
+    eval += position.white_mobility_board.count_ones() as f32 * 0.01;
+    eval -= position.black_threatboard.count_ones() as f32 * 0.005;
+    eval -= position.black_mobility_board.count_ones() as f32 * 0.01;
+
+    eval
 }
 
 impl Default for Position {
@@ -772,6 +798,7 @@ impl Default for Position {
             black_threatboard: 0,
             white_mobility_board: 0,
             black_mobility_board: 0,
+            evaluation: 0.0
         };
         output.zorb_key = ZORB_SET.hash(output);
 

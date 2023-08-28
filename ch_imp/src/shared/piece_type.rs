@@ -32,3 +32,15 @@ pub fn get_piece_char(piece_type: PieceType, black_turn: bool) -> char {
         _ => 'X',
     }
 }
+
+pub fn get_piece_type_from_char(c: char) -> PieceType {
+    match c {
+        'P' | 'p' => PieceType::Pawn,
+        'B' | 'b' => PieceType::Bishop,
+        'N' | 'n' => PieceType::Knight,
+        'R' | 'r' => PieceType::Rook,
+        'Q' | 'q' => PieceType::Queen,
+        'K' | 'k' => PieceType::King,
+        _ => panic!("Unknown piece type {}", c),
+    }
+}

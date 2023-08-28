@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 
 ch_imp = {path = "../ch_imp"}
+log = "0.4.20"
+log4rs = "1.2.0"
