@@ -1,18 +1,15 @@
 use crate::{
     r#move::{
-        move_data::MoveData,
         move_segment::{MoveSegment, MoveSegmentType},
         Move,
     },
-    search::{position_table::MoveTableLookup, zorb_set_precomputed::ZORB_SET},
+    search::zorb_set_precomputed::ZORB_SET,
     shared::{
-        board_utils::{
-            get_coords_from_index, get_file, get_index_from_file_and_rank, index_from_coords,
-        },
+        board_utils::{get_coords_from_index, get_file, index_from_coords},
         constants::MF_EP_CAPTURE,
         piece_type::{get_piece_char, PieceType},
     },
-    MOVE_DATA, POSITION_TRANSPOSITION_TABLE,
+    MOVE_DATA,
 };
 use std::fmt::Debug;
 
@@ -243,11 +240,6 @@ impl Position {
             .count_occupied()
             != 0;
 
-        POSITION_TRANSPOSITION_TABLE
-            .write()
-            .unwrap()
-            .insert(output.zorb_key, output);
-
         output
     }
 
@@ -365,29 +357,12 @@ impl Position {
         return PieceType::None;
     }
 
-    pub fn make(&self, m: Move) -> Self {
-        // #TODO: remocve this method
-        let (new_zorb, move_segments) = self.zorb_key_after_move(m);
-        let binding = POSITION_TRANSPOSITION_TABLE.read().unwrap();
-        let lookup_result = binding.get(&new_zorb);
-        //drop(binding);
-        println!("lookup happened");
-        match lookup_result {
-            Some(&new_position) => {
-                println!("time saved!");
-                new_position
-            }
-            None => self.apply_segments(move_segments),
-        }
-        // self.apply_segments(move_segments)
-    }
-
     pub fn zorb_key_after_move(&self, m: Move) -> (u64, MoveSegmentArray) {
         let segments = self.generate_move_segments(&m);
         (ZORB_SET.apply_segments(self.zorb_key, segments), segments)
     }
 
-    pub fn generate_move_segments(&self, m: &Move) -> MoveSegmentArray {
+    fn generate_move_segments(&self, m: &Move) -> MoveSegmentArray {
         let mut segments = [MoveSegment::default(); 6];
 
         let from_index = m.from();
@@ -566,7 +541,7 @@ impl Position {
         segments
     }
 
-    pub(crate) fn apply_segments(&self, segments: MoveSegmentArray) -> Position {
+    pub(crate) fn apply_segments(&self, segments: MoveSegmentArray, new_zorb_key: u64) -> Position {
         let mut occupancy = self.occupancy;
         let mut white_bitboard = self.white_bitboard;
         let mut black_bitboard = self.black_bitboard;
@@ -581,7 +556,7 @@ impl Position {
         let mut black_king_side_castling = self.black_king_side_castling;
         let mut black_queen_side_castling = self.black_queen_side_castling;
         let mut ep_index = u8::MAX;
-        let mut zorb_key = self.zorb_key;
+        let mut zorb_key = new_zorb_key;
 
         for segment in segments {
             match segment.segment_type {
@@ -715,7 +690,6 @@ impl Position {
                 _ => {}
             }
         }
-        zorb_key = ZORB_SET.apply_segments(zorb_key, segments);
 
         let mut output = Self {
             occupancy,
@@ -766,11 +740,6 @@ impl Position {
         output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
             .count_occupied()
             != 0;
-
-        POSITION_TRANSPOSITION_TABLE
-            .write()
-            .unwrap()
-            .insert(output.zorb_key, output);
 
         output
     }

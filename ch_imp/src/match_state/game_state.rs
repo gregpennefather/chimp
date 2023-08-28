@@ -31,6 +31,7 @@ impl GameState {
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
         let position = Position::new(position_segment, turn_segment, castling_segment, ep_segment);
+        insert_into_position_table(position);
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
@@ -42,17 +43,6 @@ impl GameState {
         }
     }
 
-    // pub fn generate_moves(&self, move_data: &MoveData) -> Vec<Move> {
-    //     let mut moves = Vec::new();
-    //     for generated_move in move_data.generate_moves(self.position) {
-    //         if generated_move.is_black() == self.position.black_turn {
-    //             moves.push(generated_move);
-    //         }
-    //     }
-
-    //     moves
-    // }
-
     pub fn legal(&self) -> bool {
         self.position.legal()
     }
@@ -60,7 +50,7 @@ impl GameState {
     pub fn make(&self, m: Move) -> Self {
         let (new_zorb, move_segments) = self.position.zorb_key_after_move(m);
 
-        let lookup_result = lookup(new_zorb);
+        let lookup_result = lookup_position_table(new_zorb);
         let new_position = match lookup_result {
             // Some(new_position) => {
             //     let calc_position =  self.position.apply_segments(move_segments);
@@ -68,7 +58,11 @@ impl GameState {
             //     new_position
             // }
             Some(new_position) => new_position,
-            None => self.position.apply_segments(move_segments),
+            None => {
+                let new_position = self.position.apply_segments(move_segments, new_zorb);
+                insert_into_position_table(new_position);
+                new_position
+            }
         };
 
         let mut half_moves = self.half_moves;
@@ -118,7 +112,7 @@ impl Debug for GameState {
     }
 }
 
-fn lookup(zorb_key: u64) -> Option<Position> {
+fn lookup_position_table(zorb_key: u64) -> Option<Position> {
     // return None;
     POSITION_TRANSPOSITION_TABLE
         .try_read()
@@ -127,22 +121,11 @@ fn lookup(zorb_key: u64) -> Option<Position> {
         .copied()
 }
 
-fn modify_castling(
-    index: u8,
-    wqc: bool,
-    wkc: bool,
-    bqc: bool,
-    bkc: bool,
-) -> (bool, bool, bool, bool) {
-    match index {
-        0 => (wqc, false, bqc, bkc),
-        3 => (false, false, bqc, bkc),
-        7 => (false, wkc, bqc, bkc),
-        56 => (wqc, wkc, bqc, false),
-        59 => (wqc, wkc, false, false),
-        63 => (wqc, wkc, false, bkc),
-        _ => (wqc, wkc, bqc, bkc),
-    }
+fn insert_into_position_table(position: Position) {
+    POSITION_TRANSPOSITION_TABLE
+        .write()
+        .unwrap()
+        .insert(position.zorb_key, position);
 }
 
 impl Default for GameState {
@@ -152,7 +135,7 @@ impl Default for GameState {
 }
 #[cfg(test)]
 mod test {
-    use crate::shared::constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING};
+    use crate::shared::constants::{MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING};
 
     use super::*;
 
@@ -327,11 +310,21 @@ mod test {
 
     #[test]
     pub fn black_moving_king_to_clear_flags() {
-        let state = GameState::new("r2k3r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b Q - 3 2".into());
+        let state = GameState::new(
+            "r2k3r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b Q - 3 2".into(),
+        );
 
-        let state_after_move = state.make(Move::new(index_from_coords("d8"), index_from_coords("e8"), 0b0, PieceType::King, true));
+        let state_after_move = state.make(Move::new(
+            index_from_coords("d8"),
+            index_from_coords("e8"),
+            0b0,
+            PieceType::King,
+            true,
+        ));
 
-        let expected_state = GameState::new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w Q - 4 3".into());
+        let expected_state = GameState::new(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w Q - 4 3".into(),
+        );
 
         assert_eq!(state_after_move, expected_state);
     }

@@ -18,10 +18,6 @@ impl Bitboard {
         self.0 >> index & 0b1 > 0
     }
 
-    fn occupied_i8(&self, index: i8) -> bool {
-        self.0 >> index & 0b1 > 0
-    }
-
     pub fn flip(&self, index: u8) -> Bitboard {
         Bitboard(self.0 ^ (1 << index))
     }
@@ -30,30 +26,12 @@ impl Bitboard {
         Bitboard(self.0 | (1 << index))
     }
 
-    fn position_to_piece_index(&self, position_index: u8) -> usize {
-        let bitboard_relevant = self.0 & (u64::pow(2, position_index.into()) - 1);
-        bitboard_relevant.count_ones() as usize
-    }
-
     pub fn count_occupied(&self) -> u8 {
         self.0.count_ones() as u8
     }
 
     fn get_rank(&self, rank: u8) -> u8 {
         (self.0 >> (rank * 8) & 255) as u8
-    }
-
-    fn get_nth_piece_position_index(&self, n: u8) -> u8 {
-        let mut count = 0;
-        for pos in 0..64 {
-            if self.0 >> pos & 0b1 == 1 {
-                count += 1;
-                if count > n {
-                    return pos;
-                }
-            }
-        }
-        panic!("Could not find nth piece for n={n}");
     }
 }
 

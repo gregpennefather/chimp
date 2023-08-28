@@ -1,24 +1,22 @@
 use crate::{
     board::{bitboard::Bitboard, position::Position},
-    r#move,
     shared::{
-        board_utils::get_file,
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
-            MF_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
+            MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
         piece_type,
     },
-    MOVE_DATA,
 };
 
 use super::{
     move_data::{
-        MoveData, BLACK_PAWN_PROMOTION_RANK, BLACK_QUEEN_CASTLING_CHECK,
-        BLACK_QUEEN_CASTLING_CLEARANCE, WHITE_PAWN_PROMOTION_RANK,
-        WHITE_QUEEN_CASTLING_CHECK, WHITE_QUEEN_CASTLING_CLEARANCE, WHITE_KING_CASTLING_CHECK, BLACK_KING_CASTLING_CLEARANCE, BLACK_KING_CASTLING_CHECK, WHITE_KING_CASTLING_CLEARANCE,
+        MoveData, BLACK_KING_CASTLING_CHECK, BLACK_KING_CASTLING_CLEARANCE,
+        BLACK_PAWN_PROMOTION_RANK, BLACK_QUEEN_CASTLING_CHECK, BLACK_QUEEN_CASTLING_CLEARANCE,
+        WHITE_KING_CASTLING_CHECK, WHITE_KING_CASTLING_CLEARANCE, WHITE_PAWN_PROMOTION_RANK,
+        WHITE_QUEEN_CASTLING_CHECK, WHITE_QUEEN_CASTLING_CLEARANCE,
     },
     Move,
 };
@@ -45,11 +43,7 @@ impl MoveData {
                     position,
                     index,
                     is_black,
-                    position.ep_index,
-                    position.white_king_side_castling,
-                    position.white_queen_side_castling,
-                    position.black_king_side_castling,
-                    position.black_queen_side_castling,
+                    position.ep_index
                 );
                 if is_black {
                     black_moves.extend(generated_moves.moves);
@@ -138,19 +132,6 @@ impl MoveData {
             }
         }
 
-        // #TODO
-        // for m in psudolegal_moves {
-        //     if (m.is_black() == position.black_turn) {
-        //         let move_segments = position.generate_move_segments(&m);
-        //         let n_p = position.apply_segments(move_segments);
-        //         if (position.black_turn && !n_p.black_in_check)
-        //             || (!position.black_turn && !n_p.white_in_check)
-        //         {
-        //             legal_moves.push(m);
-        //         }
-        //     }
-        // }
-
         (
             white_moves,
             black_moves,
@@ -166,11 +147,7 @@ impl MoveData {
         position: Position,
         index: u8,
         is_black: bool,
-        ep_index: u8,
-        wkc: bool,
-        wqc: bool,
-        bkc: bool,
-        bqc: bool,
+        ep_index: u8
     ) -> GeneratedMoves {
         let piece_type = position.get_piece_type_at_index(index);
         let opponent_occupancy = if is_black {
@@ -209,30 +186,20 @@ impl MoveData {
                 is_black,
             ),
             piece_type::PieceType::King => self.generate_king_moves(
-                position,
                 index,
                 opponent_occupancy,
                 position.occupancy,
-                is_black,
-                wkc,
-                wqc,
-                bkc,
-                bqc,
+                is_black
             ),
         }
     }
 
     fn generate_king_moves(
         &self,
-        position: Position,
         index: u8,
         opponent_occupancy: Bitboard,
         occupancy: Bitboard,
-        is_black: bool,
-        wkc: bool,
-        wqc: bool,
-        bkc: bool,
-        bqc: bool,
+        is_black: bool
     ) -> GeneratedMoves {
         moveboard_to_moves(
             index,
@@ -410,7 +377,10 @@ impl MoveData {
             // Does capturing right lead to a promotion?
             if (1 << first_capture_index) & promotion_rank != 0 {
                 moves.extend(generate_pawn_promotion_moves(
-                    index, first_capture_index, true, is_black,
+                    index,
+                    first_capture_index,
+                    true,
+                    is_black,
                 ))
             } else {
                 moves.push(Move::new(
@@ -432,13 +402,15 @@ impl MoveData {
         let second_capture_index = capture_board.trailing_zeros() as u8;
         if second_capture_index != 64 {
             threat_board |= 1 << second_capture_index;
-            if opponent_occupancy.occupied(second_capture_index)
-                || second_capture_index == ep_index
+            if opponent_occupancy.occupied(second_capture_index) || second_capture_index == ep_index
             {
                 // Does capturing left lead to a promotion?
                 if (1 << second_capture_index) & promotion_rank != 0 {
                     moves.extend(generate_pawn_promotion_moves(
-                        index, second_capture_index, true, is_black,
+                        index,
+                        second_capture_index,
+                        true,
+                        is_black,
                     ))
                 } else {
                     moves.push(Move::new(
@@ -480,7 +452,7 @@ fn generate_pawn_promotion_moves(
                 MF_KNIGHT_CAPTURE_PROMOTION
             },
             piece_type::PieceType::Pawn,
-            is_black
+            is_black,
         ), // Knight
         Move::new(
             from_index,
@@ -491,7 +463,7 @@ fn generate_pawn_promotion_moves(
                 MF_BISHOP_CAPTURE_PROMOTION
             },
             piece_type::PieceType::Pawn,
-            is_black
+            is_black,
         ), // Bishop
         Move::new(
             from_index,
@@ -502,7 +474,7 @@ fn generate_pawn_promotion_moves(
                 MF_ROOK_CAPTURE_PROMOTION
             },
             piece_type::PieceType::Pawn,
-            is_black
+            is_black,
         ), // Rook
         Move::new(
             from_index,
@@ -513,7 +485,7 @@ fn generate_pawn_promotion_moves(
                 MF_QUEEN_CAPTURE_PROMOTION
             },
             piece_type::PieceType::Pawn,
-            is_black
+            is_black,
         ), // Queen
     ];
 }

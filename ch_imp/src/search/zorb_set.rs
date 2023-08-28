@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use crate::{
-    board::position::{Position, MoveSegmentArray},
+    board::position::{MoveSegmentArray, Position},
     r#move::move_segment::{MoveSegment, MoveSegmentType},
     shared::{board_utils::get_file, piece_type::PieceType},
 };

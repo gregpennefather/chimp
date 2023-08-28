@@ -19,7 +19,13 @@ pub mod move_segment;
 pub struct Move(u16, PieceType, bool);
 
 impl Move {
-    pub fn new(from_index: u8, to_index: u8, flags: u16, piece_type: PieceType, is_black: bool) -> Move {
+    pub fn new(
+        from_index: u8,
+        to_index: u8,
+        flags: u16,
+        piece_type: PieceType,
+        is_black: bool,
+    ) -> Move {
         let f: u16 = from_index.into();
         let t: u16 = to_index.into();
         let m: u16 = f << 10 | t << 4 | flags;
