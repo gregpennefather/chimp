@@ -3,12 +3,25 @@ use crate::{
     r#move,
     shared::{
         board_utils::get_file,
-        constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_EP_CAPTURE, MF_KING_CASTLING, MF_QUEEN_CASTLING},
+        constants::{
+            MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
+            MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
+            MF_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
+            MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
+        },
         piece_type,
-    }, MOVE_DATA,
+    },
+    MOVE_DATA,
 };
 
-use super::{move_data::MoveData, Move};
+use super::{
+    move_data::{
+        MoveData, BLACK_PAWN_PROMOTION_RANK, BLACK_QUEEN_CASTLING_CHECK,
+        BLACK_QUEEN_CASTLING_CLEARANCE, WHITE_PAWN_PROMOTION_RANK,
+        WHITE_QUEEN_CASTLING_CHECK, WHITE_QUEEN_CASTLING_CLEARANCE, WHITE_KING_CASTLING_CHECK, BLACK_KING_CASTLING_CLEARANCE, BLACK_KING_CASTLING_CHECK, WHITE_KING_CASTLING_CLEARANCE,
+    },
+    Move,
+};
 
 pub struct GeneratedMoves {
     moves: Vec<Move>,
@@ -51,7 +64,16 @@ impl MoveData {
         }
 
         if position.white_king_side_castling {
-            match generate_king_castling_move(3, 1, MF_KING_CASTLING, false, MOVE_DATA.white_king_castling, position.occupancy, black_threatboard) {
+            match generate_king_castling_move(
+                3,
+                1,
+                MF_KING_CASTLING,
+                false,
+                WHITE_KING_CASTLING_CLEARANCE,
+                position.occupancy,
+                WHITE_KING_CASTLING_CHECK,
+                black_threatboard,
+            ) {
                 Some(generated_move) => {
                     white_moves.extend(generated_move.moves);
                     white_mobility |= generated_move.mobility_board;
@@ -60,7 +82,16 @@ impl MoveData {
             }
         }
         if position.white_queen_side_castling {
-            match generate_king_castling_move(3, 5, MF_QUEEN_CASTLING, false, MOVE_DATA.white_queen_castling, position.occupancy, black_threatboard) {
+            match generate_king_castling_move(
+                3,
+                5,
+                MF_QUEEN_CASTLING,
+                false,
+                WHITE_QUEEN_CASTLING_CLEARANCE,
+                position.occupancy,
+                WHITE_QUEEN_CASTLING_CHECK,
+                black_threatboard,
+            ) {
                 Some(generated_move) => {
                     white_moves.extend(generated_move.moves);
                     white_mobility |= generated_move.mobility_board;
@@ -70,7 +101,16 @@ impl MoveData {
         }
 
         if position.black_king_side_castling {
-            match generate_king_castling_move(59, 57, MF_KING_CASTLING, true, MOVE_DATA.black_king_castling, position.occupancy, white_threatboard) {
+            match generate_king_castling_move(
+                59,
+                57,
+                MF_KING_CASTLING,
+                true,
+                BLACK_KING_CASTLING_CLEARANCE,
+                position.occupancy,
+                BLACK_KING_CASTLING_CHECK,
+                white_threatboard,
+            ) {
                 Some(generated_move) => {
                     black_moves.extend(generated_move.moves);
                     black_mobility |= generated_move.mobility_board;
@@ -79,9 +119,17 @@ impl MoveData {
             }
         }
 
-
-        if position.white_queen_side_castling {
-            match generate_king_castling_move(59, 61, MF_QUEEN_CASTLING, true, MOVE_DATA.black_queen_castling, position.occupancy, white_threatboard) {
+        if position.black_queen_side_castling {
+            match generate_king_castling_move(
+                59,
+                61,
+                MF_QUEEN_CASTLING,
+                true,
+                BLACK_QUEEN_CASTLING_CLEARANCE,
+                position.occupancy,
+                BLACK_QUEEN_CASTLING_CHECK,
+                white_threatboard,
+            ) {
                 Some(generated_move) => {
                     black_moves.extend(generated_move.moves);
                     black_mobility |= generated_move.mobility_board;
@@ -89,7 +137,6 @@ impl MoveData {
                 None => {}
             }
         }
-
 
         // #TODO
         // for m in psudolegal_moves {
@@ -104,7 +151,14 @@ impl MoveData {
         //     }
         // }
 
-        (white_moves, black_moves, white_threatboard, black_threatboard, white_mobility, black_mobility)
+        (
+            white_moves,
+            black_moves,
+            white_threatboard,
+            black_threatboard,
+            white_mobility,
+            black_mobility,
+        )
     }
 
     pub fn generate_position_moves(
@@ -290,41 +344,55 @@ impl MoveData {
             self.white_pawn_moves[index as usize]
         };
 
-        let (to_index, to_index_dpp) = if is_black {
+        // Black and whites move bitboards have different orientations that we need to parse out. For white its fairly simple, for black we need to see if a
+        // double pawn push is possible or not before determining what the normal move to_index is
+        let (to_index, to_index_dpp, promotion_rank) = if is_black {
             let to_index_dpp = moveboard.trailing_zeros() as u8;
+            if (to_index_dpp >= 64) {
+                println!("{}", position.to_fen());
+            }
             moveboard ^= 1 << to_index_dpp;
             let to_index = moveboard.trailing_zeros() as u8;
             if to_index == 64 {
-                (to_index_dpp, 64)
+                (to_index_dpp, 64, BLACK_PAWN_PROMOTION_RANK)
             } else {
-                (to_index, to_index_dpp)
+                (to_index, to_index_dpp, BLACK_PAWN_PROMOTION_RANK)
             }
         } else {
             let to_index = moveboard.trailing_zeros() as u8;
             moveboard ^= 1 << to_index;
             let to_index_dpp = moveboard.trailing_zeros() as u8;
-            (to_index, to_index_dpp)
+            (to_index, to_index_dpp, WHITE_PAWN_PROMOTION_RANK)
         };
 
+        // Can we move one square
         mobility_board |= 1 << to_index;
         if !position.occupancy.occupied(to_index) {
-            moves.push(Move::new(
-                index,
-                to_index,
-                0b0,
-                piece_type::PieceType::Pawn,
-                is_black,
-            ));
-            if to_index_dpp != 64 {
-                mobility_board |= 1 << to_index_dpp;
-                if !position.occupancy.occupied(to_index_dpp) {
-                    moves.push(Move::new(
-                        index,
-                        to_index_dpp,
-                        MF_DOUBLE_PAWN_PUSH,
-                        piece_type::PieceType::Pawn,
-                        is_black,
-                    ));
+            // Does moving that one square lead to a promotion?
+            if (1 << to_index) & promotion_rank != 0 {
+                moves.extend(generate_pawn_promotion_moves(
+                    index, to_index, false, is_black,
+                ));
+            } else {
+                moves.push(Move::new(
+                    index,
+                    to_index,
+                    0b0,
+                    piece_type::PieceType::Pawn,
+                    is_black,
+                ));
+                // Can we move a second square in a Double Pawn Push?
+                if to_index_dpp != 64 {
+                    mobility_board |= 1 << to_index_dpp;
+                    if !position.occupancy.occupied(to_index_dpp) {
+                        moves.push(Move::new(
+                            index,
+                            to_index_dpp,
+                            MF_DOUBLE_PAWN_PUSH,
+                            piece_type::PieceType::Pawn,
+                            is_black,
+                        ));
+                    }
                 }
             }
         }
@@ -335,33 +403,20 @@ impl MoveData {
             self.white_pawn_captures[index as usize]
         };
 
+        // Can we capture right or EP capture right
         let first_capture_index = capture_board.trailing_zeros() as u8;
         threat_board |= 1 << first_capture_index;
         if opponent_occupancy.occupied(first_capture_index) || first_capture_index == ep_index {
-            moves.push(Move::new(
-                index,
-                first_capture_index,
-                if first_capture_index == ep_index {
-                    MF_EP_CAPTURE
-                } else {
-                    MF_CAPTURE
-                },
-                piece_type::PieceType::Pawn,
-                is_black,
-            ));
-        }
-
-        capture_board ^= 1 << first_capture_index;
-        let second_capture_index = capture_board.trailing_zeros() as u8;
-        if second_capture_index != 64 {
-            threat_board |= 1 << second_capture_index;
-            if (opponent_occupancy.occupied(second_capture_index)
-                || second_capture_index == ep_index)
-            {
+            // Does capturing right lead to a promotion?
+            if (1 << first_capture_index) & promotion_rank != 0 {
+                moves.extend(generate_pawn_promotion_moves(
+                    index, first_capture_index, true, is_black,
+                ))
+            } else {
                 moves.push(Move::new(
                     index,
-                    second_capture_index,
-                    if second_capture_index == ep_index {
+                    first_capture_index,
+                    if first_capture_index == ep_index {
                         MF_EP_CAPTURE
                     } else {
                         MF_CAPTURE
@@ -369,6 +424,35 @@ impl MoveData {
                     piece_type::PieceType::Pawn,
                     is_black,
                 ));
+            }
+        }
+
+        // Can we capture left or EP capture left
+        capture_board ^= 1 << first_capture_index;
+        let second_capture_index = capture_board.trailing_zeros() as u8;
+        if second_capture_index != 64 {
+            threat_board |= 1 << second_capture_index;
+            if opponent_occupancy.occupied(second_capture_index)
+                || second_capture_index == ep_index
+            {
+                // Does capturing left lead to a promotion?
+                if (1 << second_capture_index) & promotion_rank != 0 {
+                    moves.extend(generate_pawn_promotion_moves(
+                        index, second_capture_index, true, is_black,
+                    ))
+                } else {
+                    moves.push(Move::new(
+                        index,
+                        second_capture_index,
+                        if second_capture_index == ep_index {
+                            MF_EP_CAPTURE
+                        } else {
+                            MF_CAPTURE
+                        },
+                        piece_type::PieceType::Pawn,
+                        is_black,
+                    ));
+                }
             }
         }
 
@@ -380,11 +464,85 @@ impl MoveData {
     }
 }
 
+fn generate_pawn_promotion_moves(
+    from_index: u8,
+    to_index: u8,
+    is_capture: bool,
+    is_black: bool,
+) -> Vec<Move> {
+    return vec![
+        Move::new(
+            from_index,
+            to_index,
+            if !is_capture {
+                MF_KNIGHT_PROMOTION
+            } else {
+                MF_KNIGHT_CAPTURE_PROMOTION
+            },
+            piece_type::PieceType::Pawn,
+            is_black
+        ), // Knight
+        Move::new(
+            from_index,
+            to_index,
+            if !is_capture {
+                MF_BISHOP_PROMOTION
+            } else {
+                MF_BISHOP_CAPTURE_PROMOTION
+            },
+            piece_type::PieceType::Pawn,
+            is_black
+        ), // Bishop
+        Move::new(
+            from_index,
+            to_index,
+            if !is_capture {
+                MF_ROOK_PROMOTION
+            } else {
+                MF_ROOK_CAPTURE_PROMOTION
+            },
+            piece_type::PieceType::Pawn,
+            is_black
+        ), // Rook
+        Move::new(
+            from_index,
+            to_index,
+            if !is_capture {
+                MF_QUEEN_PROMOTION
+            } else {
+                MF_QUEEN_CAPTURE_PROMOTION
+            },
+            piece_type::PieceType::Pawn,
+            is_black
+        ), // Queen
+    ];
+}
 
-fn generate_king_castling_move(from_index: u8, to_index:u8, castling_flag: u16, is_black: bool, castling_board: u64, occupancy: Bitboard, opponent_threat_board: u64) -> Option<GeneratedMoves> {
-    if castling_board & occupancy.0 == 0 && castling_board & opponent_threat_board == 0 {
-        let m = Move::new(from_index, to_index, castling_flag, piece_type::PieceType::King, is_black);
-        return Some(GeneratedMoves { moves: vec![m], threat_board: 0, mobility_board: 1 << to_index });
+fn generate_king_castling_move(
+    from_index: u8,
+    to_index: u8,
+    castling_flag: u16,
+    is_black: bool,
+    castling_clearance_board: u64,
+    occupancy: Bitboard,
+    castling_check_board: u64,
+    opponent_threat_board: u64,
+) -> Option<GeneratedMoves> {
+    if (castling_clearance_board & occupancy.0 == 0)
+        && (castling_check_board & opponent_threat_board == 0)
+    {
+        let m = Move::new(
+            from_index,
+            to_index,
+            castling_flag,
+            piece_type::PieceType::King,
+            is_black,
+        );
+        return Some(GeneratedMoves {
+            moves: vec![m],
+            threat_board: 0,
+            mobility_board: 1 << to_index,
+        });
     }
     None
 }

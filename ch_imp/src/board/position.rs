@@ -36,8 +36,8 @@ pub struct Position {
     pub ep_index: u8,
     pub zorb_key: u64,
     pub black_turn: bool,
-    pub white_moves: [Move; 64],
-    pub black_moves: [Move; 64],
+    pub white_moves: [Move; 128],
+    pub black_moves: [Move; 128],
     pub white_threatboard: u64,
     pub black_threatboard: u64,
     pub white_mobility_board: u64,
@@ -206,8 +206,8 @@ impl Position {
             black_queen_side_castling,
             black_turn,
             zorb_key: 0,
-            white_moves: [Move::default(); 64],
-            black_moves: [Move::default(); 64],
+            white_moves: [Move::default(); 128],
+            black_moves: [Move::default(); 128],
             white_threatboard: 0,
             black_threatboard: 0,
             white_mobility_board: 0,
@@ -430,7 +430,15 @@ impl Position {
                 ); // pickup captured piece
                 segment_index += 1;
 
-                // TODO: Rook captures clear castling rights
+                if captured_piece_type == PieceType::Rook {
+                    segments[segment_index] = MoveSegment::new(
+                        MoveSegmentType::ClearCastling,
+                        to_index,
+                        PieceType::Rook,
+                        !self.black_turn,
+                    ); // place new piece
+                    segment_index += 1;
+                }
             }
 
             let promotion_piece_type = match m.flags() {
@@ -458,14 +466,14 @@ impl Position {
             segment_index += 1;
 
             if m.is_capture() {
-                let captured_piece_type = if m.flags() == MF_EP_CAPTURE {
-                    PieceType::Pawn
+                let (captured_piece_type, captured_index) = if m.flags() == MF_EP_CAPTURE {
+                    (PieceType::Pawn, if m.is_black() { self.ep_index + 8 } else { self.ep_index - 8})
                 } else {
-                    self.get_piece_type_at_index(to_index)
+                    (self.get_piece_type_at_index(to_index), to_index)
                 };
                 segments[segment_index] = MoveSegment::new(
                     MoveSegmentType::Pickup,
-                    to_index,
+                    captured_index,
                     captured_piece_type,
                     !self.black_turn,
                 ); // pickup captured piece
@@ -474,7 +482,7 @@ impl Position {
                 if captured_piece_type == PieceType::Rook {
                     segments[segment_index] = MoveSegment::new(
                         MoveSegmentType::ClearCastling,
-                        to_index,
+                        captured_index,
                         PieceType::Rook,
                         !self.black_turn,
                     ); // place new piece
@@ -685,8 +693,8 @@ impl Position {
             ep_index,
             black_turn: !self.black_turn,
             zorb_key,
-            white_moves: [Move::default(); 64],
-            black_moves: [Move::default(); 64],
+            white_moves: [Move::default(); 128],
+            black_moves: [Move::default(); 128],
             white_threatboard: 0,
             black_threatboard: 0,
             white_mobility_board: 0,
@@ -741,8 +749,8 @@ impl Default for Position {
             ep_index: u8::MAX,
             black_turn: false,
             zorb_key: 0, // TODO
-            white_moves: [Move::default(); 64],
-            black_moves: [Move::default(); 64],
+            white_moves: [Move::default(); 128],
+            black_moves: [Move::default(); 128],
             white_threatboard: 0,
             black_threatboard: 0,
             white_mobility_board: 0,
@@ -819,8 +827,11 @@ fn flip_piece(
     )
 }
 
-fn to_move_array(vec: Vec<Move>) -> [Move; 64] {
-    let mut move_array = [Move::default(); 64];
+fn to_move_array(vec: Vec<Move>) -> [Move; 128] {
+    let mut move_array = [Move::default(); 128];
+    if (vec.len() >= 128) {
+        println!("Too many moves! {}", vec.len());
+    }
     for i in 0..vec.len() {
         move_array[i] = vec[i];
     }

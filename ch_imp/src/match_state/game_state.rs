@@ -94,7 +94,7 @@ impl GameState {
         }
     }
 
-    pub(crate) fn get_moves(&self) -> [Move; 64] {
+    pub(crate) fn get_moves(&self) -> [Move; 128] {
         if self.position.black_turn {
             self.position.black_moves
         } else {

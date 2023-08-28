@@ -9,10 +9,10 @@ use ch_imp::{
         move_magic_bitboards::{
             find_bishop_magics, find_rook_magics, generate_blocker_patterns, rook_mask_generation,
             MagicTable, BISHOP_LEFT_SHIFT_BITS, ROOK_LEFT_SHIFT_BITS,
-        },
+        }, Move,
     },
     search::zorb_set::ZorbSet,
-    shared::{board_utils::index_from_coords, piece_type::PieceType},
+    shared::{board_utils::index_from_coords, piece_type::PieceType, constants::{MF_EP_CAPTURE, MF_QUEEN_PROMOTION}},
 };
 
 fn main() {
@@ -43,24 +43,53 @@ fn main() {
         vec![48, 2039, 97862, 4085603],
     );
 
+    perft(
+        "Perft Position 3".into(),
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1".into(),
+        vec![14, 191, 2812, 43238, 674624],
+    );
 
-    //let position =
-    //    Position::from_fen("rnbqkbnr/pppp1ppp/4p3/8/8/BP6/P1PPPPPP/RN1QKBNR b KQkq - 1 2".into());
-    //for mi in 0..64 {
-    //    let m = position.black_moves[mi];
-    //    if m.from() == m.to() && m.from() == 0 {
-    //        break;
-    //    }
-    //    if (m.piece_type() == PieceType::King) {
-    //        println!("pre-move");
-    //    }
-    //    let applied = position.make(m);
-    //    if (m.piece_type() == PieceType::King) {
-    //        println!("kingpos:\n{}", applied.king_bitboard);
-    //        println!("wthreat:\n{}", Bitboard::new(applied.white_threatboard));
-    //    }
-    //    println!("{m:?}: {}", applied.legal());
-    //}
+    perft(
+        "Perft Position 4".into(),
+        "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1".into(),
+        vec![6, 264, 9467, 422333],
+    );
+
+    perft(
+        "Perft Position 5".into(),
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8".into(),
+        vec![44, 1486, 62379, 2103487],
+    );
+
+    perft(
+        "Perft Position 6".into(),
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10".into(),
+        vec![46, 2079, 89890, 3894594],
+    );
+
+    // perft(
+    //     "Kiwipete Perft drill".into(),
+    //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3KB1R b KQkq - 1 1".into(),
+    //     vec![44, 2060],
+    // );
+
+    //  let mut position =
+    //      Position::from_fen("r3k2r/p1ppqpb1/b3pnp1/3PN3/1pn1P3/2N2Q1p/PPPB1PPP/R3KB1R w KQkq - 2 2".into());
+    // // position = position.make(Move::new(9, 1, MF_QUEEN_PROMOTION, PieceType::Pawn, true));
+    // // println!("{}", position.to_fen());
+    // let mut c = 0;
+    // for mi in 0..64 {
+    //     let m = if position.black_turn { position.black_moves[mi]} else {position.white_moves[mi]};
+    //     if m.from() == m.to() && m.from() == 0 {
+    //         break;
+    //     }
+    //     let applied = position.make(m);
+    //     if  applied.legal() {
+    //         c+= 1;
+    //         println!("{}: 1", m.uci());
+    //     }
+    // }
+    // println!("Count: {}", c);
 
     // perft(
     //     "rnbqkbnr/ppp1pppp/3p4/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into(),
