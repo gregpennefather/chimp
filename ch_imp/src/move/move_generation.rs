@@ -39,12 +39,8 @@ impl MoveData {
         for index in 0..64 {
             if position.occupancy.occupied(index) {
                 let is_black = position.black_bitboard.occupied(index);
-                let generated_moves = self.generate_position_moves(
-                    position,
-                    index,
-                    is_black,
-                    position.ep_index
-                );
+                let generated_moves =
+                    self.generate_position_moves(position, index, is_black, position.ep_index);
                 if is_black {
                     black_moves.extend(generated_moves.moves);
                     black_threatboard |= generated_moves.threat_board;
@@ -147,7 +143,7 @@ impl MoveData {
         position: Position,
         index: u8,
         is_black: bool,
-        ep_index: u8
+        ep_index: u8,
     ) -> GeneratedMoves {
         let piece_type = position.get_piece_type_at_index(index);
         let opponent_occupancy = if is_black {
@@ -157,7 +153,7 @@ impl MoveData {
         };
 
         match piece_type {
-            piece_type::PieceType::None => panic!("Unknown piece"),
+            piece_type::PieceType::None => panic!("Unknown piece {piece_type:?} at position {index} : {}", position.to_fen()),
             piece_type::PieceType::Pawn => {
                 self.generate_pawn_moves(position, index, is_black, ep_index, opponent_occupancy)
             }
@@ -185,21 +181,18 @@ impl MoveData {
                 position.occupancy,
                 is_black,
             ),
-            piece_type::PieceType::King => self.generate_king_moves(
-                index,
-                opponent_occupancy,
-                position.occupancy,
-                is_black
-            ),
+            piece_type::PieceType::King => {
+                self.generate_king_moves(index, opponent_occupancy, position.occupancy, is_black)
+            }
         }
     }
 
     fn generate_king_moves(
         &self,
         index: u8,
-        opponent_occupancy: Bitboard,
-        occupancy: Bitboard,
-        is_black: bool
+        opponent_occupancy: u64,
+        occupancy: u64,
+        is_black: bool,
     ) -> GeneratedMoves {
         moveboard_to_moves(
             index,
@@ -215,8 +208,8 @@ impl MoveData {
         &self,
         index: u8,
         position: Position,
-        opponent_occupancy: Bitboard,
-        occupancy: Bitboard,
+        opponent_occupancy: u64,
+        occupancy: u64,
         is_black: bool,
     ) -> GeneratedMoves {
         let moveboard = self
@@ -239,8 +232,8 @@ impl MoveData {
         &self,
         index: u8,
         position: Position,
-        opponent_occupancy: Bitboard,
-        occupancy: Bitboard,
+        opponent_occupancy: u64,
+        occupancy: u64,
         is_black: bool,
     ) -> GeneratedMoves {
         let moveboard = self
@@ -260,8 +253,8 @@ impl MoveData {
         &self,
         index: u8,
         position: Position,
-        opponent_occupancy: Bitboard,
-        occupancy: Bitboard,
+        opponent_occupancy: u64,
+        occupancy: u64,
         is_black: bool,
     ) -> GeneratedMoves {
         let moveboard = self
@@ -280,8 +273,8 @@ impl MoveData {
     fn generate_knight_moves(
         &self,
         index: u8,
-        opponent_occupancy: Bitboard,
-        occupancy: Bitboard,
+        opponent_occupancy: u64,
+        occupancy: u64,
         is_black: bool,
     ) -> GeneratedMoves {
         moveboard_to_moves(
@@ -300,7 +293,7 @@ impl MoveData {
         index: u8,
         is_black: bool,
         ep_index: u8,
-        opponent_occupancy: Bitboard,
+        opponent_occupancy: u64,
     ) -> GeneratedMoves {
         let mut moves = Vec::new();
         let mut threat_board = 0;
@@ -311,7 +304,7 @@ impl MoveData {
             self.white_pawn_moves[index as usize]
         };
 
-        // Black and whites move bitboards have different orientations that we need to parse out. For white its fairly simple, for black we need to see if a
+        // Black and whites move u64s have different orientations that we need to parse out. For white its fairly simple, for black we need to see if a
         // double pawn push is possible or not before determining what the normal move to_index is
         let (to_index, to_index_dpp, promotion_rank) = if is_black {
             let to_index_dpp = moveboard.trailing_zeros() as u8;
@@ -496,11 +489,11 @@ fn generate_king_castling_move(
     castling_flag: u16,
     is_black: bool,
     castling_clearance_board: u64,
-    occupancy: Bitboard,
+    occupancy: u64,
     castling_check_board: u64,
     opponent_threat_board: u64,
 ) -> Option<GeneratedMoves> {
-    if (castling_clearance_board & occupancy.0 == 0)
+    if (castling_clearance_board & occupancy == 0)
         && (castling_check_board & opponent_threat_board == 0)
     {
         let m = Move::new(
@@ -523,8 +516,8 @@ fn moveboard_to_moves(
     from_index: u8,
     piece_type: piece_type::PieceType,
     moveboard: u64,
-    opponent_occupancy: Bitboard,
-    occupancy: Bitboard,
+    opponent_occupancy: u64,
+    occupancy: u64,
     is_black: bool,
 ) -> GeneratedMoves {
     let mut generated_moves = Vec::new();

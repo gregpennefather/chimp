@@ -96,6 +96,10 @@ impl Move {
             promotion
         )
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
 }
 
 impl Debug for Move {
@@ -104,6 +108,7 @@ impl Debug for Move {
             .field(&self.uci())
             .field(&self.piece_type())
             .field(&self.flags())
+            .field(&self.is_black())
             .finish()
     }
 }

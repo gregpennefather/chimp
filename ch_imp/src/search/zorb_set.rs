@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use crate::{
-    board::position::{MoveSegmentArray, Position},
+    board::{position::{MoveSegmentArray, Position}, bitboard::Bitboard},
     r#move::move_segment::{MoveSegment, MoveSegmentType},
     shared::{board_utils::get_file, piece_type::PieceType},
 };
@@ -73,6 +73,7 @@ impl ZorbSet {
             }
             let piece_type = position.get_piece_type_at_index(position_index as u8);
             let is_black = position.black_bitboard.occupied(position_index as u8);
+
             r ^= match (piece_type, is_black) {
                 (PieceType::Pawn, false) => self.table[position_index][WHITE_PAWN_ID],
                 (PieceType::Knight, false) => self.table[position_index][WHITE_KNIGHT_ID],
@@ -86,7 +87,7 @@ impl ZorbSet {
                 (PieceType::Rook, true) => self.table[position_index][BLACK_ROOK_ID],
                 (PieceType::Queen, true) => self.table[position_index][BLACK_QUEEN_ID],
                 (PieceType::King, true) => self.table[position_index][BLACK_KING_ID],
-                _ => panic!("Unknown piece"),
+                _ => panic!("Unknown piece {:?} at {} is black {}", piece_type, position_index, is_black),
             }
         }
         if position.white_king_side_castling {

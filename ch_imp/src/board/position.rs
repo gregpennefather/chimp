@@ -1,4 +1,5 @@
 use crate::{
+    evaluation::{self, base_eval, early_eval::early_eval},
     r#move::{
         move_segment::{MoveSegment, MoveSegmentType},
         Move,
@@ -17,17 +18,24 @@ use super::bitboard::Bitboard;
 
 pub type MoveSegmentArray = [MoveSegment; 6];
 
+pub type OrderedMoveList = [Move; 64];
+
+fn default_ordered_move_list() -> OrderedMoveList {
+    [Move::default(); 64]
+}
+
 #[derive(Copy, Clone, PartialEq)]
 pub struct Position {
-    pub occupancy: Bitboard,
-    pub white_bitboard: Bitboard,
-    pub black_bitboard: Bitboard,
-    pub pawn_bitboard: Bitboard,
-    pub knight_bitboard: Bitboard,
-    pub bishop_bitboard: Bitboard,
-    pub rook_bitboard: Bitboard,
-    pub queen_bitboard: Bitboard,
-    pub king_bitboard: Bitboard,
+    pub occupancy: u64,
+    pub white_bitboard: u64,
+    pub black_bitboard: u64,
+    pub pawn_bitboard: u64,
+    pub knight_bitboard: u64,
+    pub bishop_bitboard: u64,
+    pub rook_bitboard: u64,
+    pub queen_bitboard: u64,
+    pub black_king_position: u8,
+    pub white_king_position: u8,
     pub white_in_check: bool,
     pub black_in_check: bool,
     pub white_queen_side_castling: bool,
@@ -37,31 +45,30 @@ pub struct Position {
     pub ep_index: u8,
     pub zorb_key: u64,
     pub black_turn: bool,
-    pub white_moves: [Move; 128],
-    pub black_moves: [Move; 128],
     pub white_threatboard: u64,
     pub black_threatboard: u64,
     pub white_mobility_board: u64,
     pub black_mobility_board: u64,
-    pub evaluation: f32,
+    pub eval: i32,
 }
 
 impl Position {
-    pub fn new(
+    pub fn build(
         position_segment: String,
         turn_segment: String,
         castling_segment: String,
         ep_segment: String,
-    ) -> Self {
-        let mut occupancy = Bitboard::default();
-        let mut white_bitboard = Bitboard::default();
-        let mut black_bitboard = Bitboard::default();
-        let mut pawn_bitboard = Bitboard::default();
-        let mut knight_bitboard = Bitboard::default();
-        let mut bishop_bitboard = Bitboard::default();
-        let mut rook_bitboard = Bitboard::default();
-        let mut queen_bitboard = Bitboard::default();
-        let mut king_bitboard = Bitboard::default();
+    ) -> (Self, Vec<Move>) {
+        let mut occupancy = 0;
+        let mut white_bitboard = 0;
+        let mut black_bitboard = 0;
+        let mut pawn_bitboard = 0;
+        let mut knight_bitboard = 0;
+        let mut bishop_bitboard = 0;
+        let mut rook_bitboard = 0;
+        let mut queen_bitboard = 0;
+        let mut black_king_position = 0;
+        let mut white_king_position = 0;
         let mut white_queen_side_castling = false;
         let mut white_king_side_castling = false;
         let mut black_queen_side_castling = false;
@@ -138,12 +145,13 @@ impl Position {
                     )
                 }
                 PieceType::King => {
-                    (king_bitboard, colour_board_to_change, occupancy) = flip_piece_i8(
-                        position_index,
-                        king_bitboard,
-                        colour_board_to_change,
-                        occupancy,
-                    )
+                    if piece_is_black {
+                        black_king_position = position_index as u8;
+                    } else {
+                        white_king_position = position_index as u8;
+                    }
+                    colour_board_to_change = colour_board_to_change.flip(position_index as u8);
+                    occupancy = occupancy.flip(position_index as u8);
                 }
                 _ => panic!("Unknown piece type {:?}", piece_type),
             }
@@ -190,7 +198,8 @@ impl Position {
             bishop_bitboard,
             rook_bitboard,
             queen_bitboard,
-            king_bitboard,
+            black_king_position,
+            white_king_position,
             white_in_check: false, // TODO
             black_in_check: false, // TODO
             ep_index,
@@ -200,43 +209,18 @@ impl Position {
             black_queen_side_castling,
             black_turn,
             zorb_key: 0,
-            white_moves: [Move::default(); 128],
-            black_moves: [Move::default(); 128],
             white_threatboard: 0,
             black_threatboard: 0,
             white_mobility_board: 0,
             black_mobility_board: 0,
-            evaluation: 0.0,
+            eval: 0,
         };
 
         output.zorb_key = ZORB_SET.hash(output);
 
-        let (
-            white_moves,
-            black_moves,
-            white_threatboard,
-            black_threatboard,
-            white_mobility_board,
-            black_mobility_board,
-        ) = MOVE_DATA.generate_moves(output);
+        let (output, moves) = set_position_moves_and_meta(output);
 
-        output.white_moves = to_move_array(white_moves);
-        output.black_moves = to_move_array(black_moves);
-        output.white_threatboard = white_threatboard;
-        output.black_threatboard = black_threatboard;
-        output.white_mobility_board = white_mobility_board;
-        output.black_mobility_board = black_mobility_board;
-
-        output.white_in_check = (Bitboard::new(black_threatboard) & white_bitboard & king_bitboard)
-            .count_occupied()
-            != 0;
-        output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
-            .count_occupied()
-            != 0;
-
-        output.evaluation = evaluate(output);
-
-        output
+        (output, moves)
     }
 
     pub fn from_fen(fen: String) -> Self {
@@ -246,7 +230,7 @@ impl Position {
         let turn_segment = fen_segments.nth(0).unwrap().to_string();
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
-        Position::new(position_segment, turn_segment, castling_segment, ep_segment)
+        Position::build(position_segment, turn_segment, castling_segment, ep_segment).0
     }
 
     pub fn legal(&self) -> bool {
@@ -332,6 +316,9 @@ impl Position {
     }
 
     pub fn get_piece_type_at_index(&self, index: u8) -> PieceType {
+        if index == self.white_king_position || index == self.black_king_position {
+            return PieceType::King;
+        }
         if self.pawn_bitboard.occupied(index) {
             return PieceType::Pawn;
         }
@@ -346,9 +333,6 @@ impl Position {
         }
         if self.queen_bitboard.occupied(index) {
             return PieceType::Queen;
-        }
-        if self.king_bitboard.occupied(index) {
-            return PieceType::King;
         }
         return PieceType::None;
     }
@@ -537,7 +521,11 @@ impl Position {
         segments
     }
 
-    pub(crate) fn apply_segments(&self, segments: MoveSegmentArray, new_zorb_key: u64) -> Position {
+    pub(crate) fn apply_segments(
+        &self,
+        segments: MoveSegmentArray,
+        new_zorb_key: u64,
+    ) -> (Position, Vec<Move>) {
         let mut occupancy = self.occupancy;
         let mut white_bitboard = self.white_bitboard;
         let mut black_bitboard = self.black_bitboard;
@@ -546,11 +534,12 @@ impl Position {
         let mut bishop_bitboard = self.bishop_bitboard;
         let mut rook_bitboard = self.rook_bitboard;
         let mut queen_bitboard = self.queen_bitboard;
-        let mut king_bitboard = self.king_bitboard;
         let mut white_king_side_castling = self.white_king_side_castling;
         let mut white_queen_side_castling = self.white_queen_side_castling;
         let mut black_king_side_castling = self.black_king_side_castling;
         let mut black_queen_side_castling = self.black_queen_side_castling;
+        let mut white_king_position = self.white_king_position;
+        let mut black_king_position = self.black_king_position;
         let mut ep_index = u8::MAX;
         let mut zorb_key = new_zorb_key;
 
@@ -603,12 +592,9 @@ impl Position {
                                 )
                             }
                             PieceType::King => {
-                                (king_bitboard, black_bitboard, occupancy) = flip_piece(
-                                    segment.index,
-                                    king_bitboard,
-                                    black_bitboard,
-                                    occupancy,
-                                )
+                                black_king_position = segment.index;
+                                black_bitboard = black_bitboard.flip(segment.index);
+                                occupancy = occupancy.flip(segment.index);
                             }
                         }
                     } else {
@@ -657,12 +643,9 @@ impl Position {
                                 )
                             }
                             PieceType::King => {
-                                (king_bitboard, white_bitboard, occupancy) = flip_piece(
-                                    segment.index,
-                                    king_bitboard,
-                                    white_bitboard,
-                                    occupancy,
-                                )
+                                white_king_position = segment.index;
+                                white_bitboard = white_bitboard.flip(segment.index);
+                                occupancy = occupancy.flip(segment.index);
                             }
                         }
                     }
@@ -687,7 +670,7 @@ impl Position {
             }
         }
 
-        let mut output = Self {
+        let output = Self {
             occupancy,
             white_bitboard,
             black_bitboard,
@@ -696,7 +679,8 @@ impl Position {
             bishop_bitboard,
             rook_bitboard,
             queen_bitboard,
-            king_bitboard,
+            white_king_position,
+            black_king_position,
             white_in_check: false, // TODO
             black_in_check: false, // TODO
             white_king_side_castling,
@@ -706,83 +690,39 @@ impl Position {
             ep_index,
             black_turn: !self.black_turn,
             zorb_key,
-            white_moves: [Move::default(); 128],
-            black_moves: [Move::default(); 128],
             white_threatboard: 0,
             black_threatboard: 0,
             white_mobility_board: 0,
             black_mobility_board: 0,
-            evaluation: 0.0,
+            eval: 0,
         };
 
-        let (
-            white_moves,
-            black_moves,
-            white_threatboard,
-            black_threatboard,
-            white_mobility_board,
-            black_mobility_board,
-        ) = MOVE_DATA.generate_moves(output);
+        // if output.white_king_position == output.black_king_position {
+        //     println!("from: {}", self.to_fen());
+        //     println!("segments:\n{:?}", segments);
+        //     println!("blackbb:\n{}", self.black_bitboard.to_board_format());
+        //     println!("occ:\n{}", self.occupancy.to_board_format())
+        // }
 
-        output.white_moves = to_move_array(white_moves);
-        output.black_moves = to_move_array(black_moves);
-        output.white_threatboard = white_threatboard;
-        output.black_threatboard = black_threatboard;
-        output.white_mobility_board = white_mobility_board;
-        output.black_mobility_board = black_mobility_board;
+        let (output, moves) = set_position_moves_and_meta(output);
 
-        output.white_in_check = (Bitboard::new(black_threatboard) & white_bitboard & king_bitboard)
-            .count_occupied()
-            != 0;
-        output.black_in_check = (Bitboard::new(white_threatboard) & black_bitboard & king_bitboard)
-            .count_occupied()
-            != 0;
-
-        output.evaluation = evaluate(output);
-        output
+        (output, moves)
     }
-}
-
-fn evaluate(position: Position) -> f32 {
-    let mut eval = 0.0;
-    for index in 0..64 {
-        if position.occupancy.occupied(index) {
-            let is_black = position.black_bitboard.occupied(index);
-            let piece_type = position.get_piece_type_at_index(index);
-            let factor = if is_black { -1.0 } else { 1.0 };
-            eval += factor
-                * match piece_type {
-                    PieceType::Pawn => 1.0,
-                    PieceType::Knight => 3.0,
-                    PieceType::Bishop => 3.0,
-                    PieceType::Rook => 5.0,
-                    PieceType::Queen => 9.0,
-                    PieceType::King => 0.0,
-                    PieceType::None => panic!("unknown piece type"),
-                }
-        }
-    }
-
-    eval += position.white_threatboard.count_ones() as f32 * 0.005;
-    eval += position.white_mobility_board.count_ones() as f32 * 0.01;
-    eval -= position.black_threatboard.count_ones() as f32 * 0.005;
-    eval -= position.black_mobility_board.count_ones() as f32 * 0.01;
-
-    eval
 }
 
 impl Default for Position {
     fn default() -> Self {
         let mut output = Self {
-            occupancy: Bitboard::new(18446462598732906495),
-            white_bitboard: Bitboard::new(65535),
-            black_bitboard: Bitboard::new(18446462598732840960),
-            pawn_bitboard: Bitboard::new(71776119061282560),
-            knight_bitboard: Bitboard::new(4755801206503243842),
-            bishop_bitboard: Bitboard::new(2594073385365405732),
-            rook_bitboard: Bitboard::new(9295429630892703873),
-            queen_bitboard: Bitboard::new(1152921504606846992),
-            king_bitboard: Bitboard::new(576460752303423496),
+            occupancy: 18446462598732906495,
+            white_bitboard: 65535,
+            black_bitboard: 18446462598732840960,
+            pawn_bitboard: 71776119061282560,
+            knight_bitboard: 4755801206503243842,
+            bishop_bitboard: 2594073385365405732,
+            rook_bitboard: 9295429630892703873,
+            queen_bitboard: 1152921504606846992,
+            white_king_position: 3,
+            black_king_position: 59,
             white_in_check: false,
             black_in_check: false,
             white_queen_side_castling: true,
@@ -792,34 +732,44 @@ impl Default for Position {
             ep_index: u8::MAX,
             black_turn: false,
             zorb_key: 0, // TODO
-            white_moves: [Move::default(); 128],
-            black_moves: [Move::default(); 128],
             white_threatboard: 0,
             black_threatboard: 0,
             white_mobility_board: 0,
             black_mobility_board: 0,
-            evaluation: 0.0
+            eval: 0,
         };
         output.zorb_key = ZORB_SET.hash(output);
 
-        let (
-            white_moves,
-            black_moves,
-            white_threatboard,
-            black_threatboard,
-            white_mobility_board,
-            black_mobility_board,
-        ) = MOVE_DATA.generate_moves(output);
-
-        output.white_moves = to_move_array(white_moves);
-        output.black_moves = to_move_array(black_moves);
-        output.white_threatboard = white_threatboard;
-        output.black_threatboard = black_threatboard;
-        output.white_mobility_board = white_mobility_board;
-        output.black_mobility_board = black_mobility_board;
+        output = set_position_moves_and_meta(output).0;
 
         output
     }
+}
+
+fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) {
+    let (
+        white_moves,
+        black_moves,
+        white_threatboard,
+        black_threatboard,
+        white_mobility_board,
+        black_mobility_board,
+    ) = MOVE_DATA.generate_moves(position);
+
+    // Sort moves
+    let mut combined_moves = [white_moves, black_moves].concat();
+    combined_moves.sort_by(|a, b| b.flags().cmp(&a.flags()));
+
+    position.white_threatboard = white_threatboard;
+    position.black_threatboard = black_threatboard;
+    position.white_mobility_board = white_mobility_board;
+    position.black_mobility_board = black_mobility_board;
+
+    position.white_in_check = black_threatboard.occupied(position.white_king_position);
+    position.black_in_check = white_threatboard.occupied(position.black_king_position);
+
+    position.eval = evaluation::calculate(position, combined_moves.clone());
+    (position, combined_moves)
 }
 
 impl Debug for Position {
@@ -851,19 +801,19 @@ fn modify_castling(
 
 fn flip_piece_i8(
     index: i8,
-    piece_bitboard: Bitboard,
-    colour_bitboard: Bitboard,
-    all_bitboard: Bitboard,
-) -> (Bitboard, Bitboard, Bitboard) {
+    piece_bitboard: u64,
+    colour_bitboard: u64,
+    all_bitboard: u64,
+) -> (u64, u64, u64) {
     flip_piece(index as u8, piece_bitboard, colour_bitboard, all_bitboard)
 }
 
 fn flip_piece(
     index: u8,
-    piece_bitboard: Bitboard,
-    colour_bitboard: Bitboard,
-    all_bitboard: Bitboard,
-) -> (Bitboard, Bitboard, Bitboard) {
+    piece_bitboard: u64,
+    colour_bitboard: u64,
+    all_bitboard: u64,
+) -> (u64, u64, u64) {
     (
         piece_bitboard.flip(index),
         colour_bitboard.flip(index),
@@ -871,12 +821,15 @@ fn flip_piece(
     )
 }
 
-fn to_move_array(vec: Vec<Move>) -> [Move; 128] {
-    let mut move_array = [Move::default(); 128];
-    if (vec.len() >= 128) {
+fn to_move_array(mut vec: Vec<Move>) -> OrderedMoveList {
+    let mut move_array = default_ordered_move_list();
+    vec.sort_by(|a, b| b.flags().cmp(&a.flags()));
+    let mut len = vec.len();
+    if vec.len() >= 64 {
         println!("Too many moves! {}", vec.len());
+        len = 64;
     }
-    for i in 0..vec.len() {
+    for i in 0..len {
         move_array[i] = vec[i];
     }
     move_array
@@ -890,31 +843,34 @@ mod test {
 
     #[test]
     pub fn new_start_pos() {
-        let result = Position::new(
+        let result = Position::build(
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into(),
             "w".into(),
             "KQkq".into(),
             "-".into(),
-        );
-        assert_eq!(result.occupancy, Bitboard::new(18446462598732906495));
-        assert_eq!(result.black_bitboard, Bitboard::new(18446462598732840960));
-        assert_eq!(result.white_bitboard, Bitboard::new(65535));
-        assert_eq!(result.pawn_bitboard, Bitboard::new(71776119061282560));
-        assert_eq!(result.bishop_bitboard, Bitboard::new(2594073385365405732));
-        assert_eq!(result.knight_bitboard, Bitboard::new(4755801206503243842));
-        assert_eq!(result.rook_bitboard, Bitboard::new(9295429630892703873));
-        assert_eq!(result.queen_bitboard, Bitboard::new(1152921504606846992));
-        assert_eq!(result.king_bitboard, Bitboard::new(576460752303423496));
+        )
+        .0;
+        assert_eq!(result.occupancy, 18446462598732906495);
+        assert_eq!(result.black_bitboard, 18446462598732840960);
+        assert_eq!(result.white_bitboard, 65535);
+        assert_eq!(result.pawn_bitboard, 71776119061282560);
+        assert_eq!(result.bishop_bitboard, 2594073385365405732);
+        assert_eq!(result.knight_bitboard, 4755801206503243842);
+        assert_eq!(result.rook_bitboard, 9295429630892703873);
+        assert_eq!(result.queen_bitboard, 1152921504606846992);
+        assert_eq!(result.white_king_position, 3);
+        assert_eq!(result.black_king_position, 59);
     }
 
     #[test]
     pub fn to_fen_startpos() {
-        let result = Position::new(
+        let result = Position::build(
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".into(),
             "w".into(),
             "KQkq".into(),
             "-".into(),
-        );
+        )
+        .0;
         assert_eq!(
             result.to_fen(),
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
@@ -923,12 +879,13 @@ mod test {
 
     #[test]
     pub fn to_fen_ending_in_empty_squares() {
-        let result = Position::new(
+        let result = Position::build(
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1".into(),
             "b".into(),
             "Kq".into(),
             "-".into(),
-        );
+        )
+        .0;
         assert_eq!(
             result.to_fen(),
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b Kq -"
@@ -1078,5 +1035,17 @@ mod test {
 
         assert_eq!(segments[3], MoveSegment::default());
         assert_eq!(segments[4], MoveSegment::default());
+    }
+
+    #[test]
+    pub fn order_moves_case_capture_over_quiet() {
+        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true);
+        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true);
+        let moves = vec![quiet, capture];
+
+        let ordered = to_move_array(moves);
+        assert_eq!(ordered[0], capture);
+        assert_eq!(ordered[1], quiet);
+        assert!(ordered[2].is_empty())
     }
 }

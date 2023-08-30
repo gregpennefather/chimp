@@ -5,22 +5,9 @@ use std::{
 
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
-    engine::{perft::perft, ChimpEngine},
-    match_state::game_state::{self, GameState},
-    r#move::{
-        move_data::MoveData,
-        move_magic_bitboards::{
-            find_bishop_magics, find_rook_magics, generate_blocker_patterns, rook_mask_generation,
-            MagicTable, BISHOP_LEFT_SHIFT_BITS, ROOK_LEFT_SHIFT_BITS,
-        },
-        Move,
-    },
-    search::zorb_set::ZorbSet,
-    shared::{
-        board_utils::index_from_coords,
-        constants::{MF_EP_CAPTURE, MF_QUEEN_PROMOTION},
-        piece_type::PieceType,
-    },
+    engine::{perft::perft, san::build_san, ChimpEngine},
+    evaluation::{base_eval::base_eval, early_eval},
+    r#move::Move,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -30,25 +17,6 @@ use log4rs::{
     Config,
 };
 fn main() {
-    let stdout = ConsoleAppender::builder().build();
-    let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
-        .build(format!(
-            "log/chimp_{:?}.log",
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        ))
-        .unwrap();
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
-        .unwrap();
-    let _handle = log4rs::init_config(config).unwrap();
-
     //perfts();
     // let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
@@ -65,7 +33,8 @@ fn main() {
     // println!("{}", Bitboard::new(magic_table.get_bishop_attacks(index_from_coords("f4") as usize, game_state.position.occupancy.into())));
     // println!("{}",index_from_coords("f4"));
 
-    // println!("{}", mem::size_of::<Position>());
+    //println!("{}", mem::size_of::<Position>());
+    //println!("{}", mem::size_of::<Move>());
     // println!("{}", mem::size_of_val::<Position>(&Position::from_fen(
     //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
     // )));
@@ -118,22 +87,65 @@ fn main() {
     // let gs = GameState::new("r3k2r/p1ppqpb1/bn1Npnp1/3PN3/1p2P3/5Q2/PPPBBPpP/R3K2R b KQkq - 1 2".into());
     // println!("{:?}", gs.move_from_uci("g2h1q"));
     // println!("{:?}", gs.move_from_uci("g2g1n"));
-    park_table(10);
+
+    // let bitboard = 0.set(27).set(28).set(35).set(36);
+    // println!("{}", bitboard.to_board_format());
+    // println!("{}", bitboard);
+
+    // let position = Position::from_fen("rn1qkbnr/ppp2ppp/8/3pPb2/4P3/8/PPP2PPP/RNBQKBNR w KQkq - 1 4".into());
+    // println!("{}", position.base_eval);
+
+    // compare_evals("r1bqkb1r/1pp2pp1/5p1p/3p4/pn1P4/2N2N2/PPPKPPPP/1R1Q1B1R b kq - 1 9".into(), "r1bqkb1r/1pp2pp1/5p1p/3p4/pn1P4/P1N2N2/1PP1PPPP/1R1QKB1R b Kkq - 0 9".into());
+
+    park_table(50);
+}
+
+fn compare_evals(fen_1: String, fen_2: String) {
+    let p1 = Position::from_fen(fen_1);
+    let p2 = Position::from_fen(fen_2);
+
+    println!(
+        "{} vs {}",
+        p1.eval,
+        p2.eval
+    )
 }
 
 fn park_table(ply_count: usize) {
+    let stdout = ConsoleAppender::builder().build();
+    let chimp_logs = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
+        .build(format!(
+            "log/chimp_v0.0.0.3_{:?}.log",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ))
+        .unwrap();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("chimp").build(LevelFilter::Info))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
     let start = Instant::now();
     let mut engine: ChimpEngine = ChimpEngine::new();
+    let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     info!("Park Table (ply_count:{ply_count}):");
     for _i in 0..(ply_count) {
         let m = engine.go();
         move_ucis.push(m.uci());
+        moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace())
     }
     let duration = start.elapsed();
     info!("Runtime: {:?}", duration);
     info!("Moves: {move_ucis:?}");
+    info!("SAN: {}", build_san(moves));
     info!("Final state: {:?}", engine.current_game_state);
 }
 
@@ -149,7 +161,7 @@ fn perfts() {
     perft(
         "Perft".into(),
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
-        vec![20, 400, 8902, 197281],
+        vec![20, 400, 8902, 197281, 4865609],
     );
 
     perft(

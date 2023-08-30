@@ -1,5 +1,8 @@
 use crate::{
-    board::position::{MoveSegmentArray, Position},
+    board::{
+        bitboard::Bitboard,
+        position::{MoveSegmentArray, OrderedMoveList, Position},
+    },
     r#move::{
         move_data::MoveData,
         move_segment::{MoveSegment, MoveSegmentType},
@@ -7,15 +10,20 @@ use crate::{
     },
     search::position_table::MoveTableLookup,
     shared::{
-        board_utils::{get_coords_from_index, index_from_coords, get_file},
-        constants::{MF_EP_CAPTURE, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_KNIGHT_CAPTURE_PROMOTION, MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_KNIGHT_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_PROMOTION, MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION, MF_KING_CASTLING, MF_QUEEN_CASTLING},
-        piece_type::{PieceType, get_piece_type_from_char},
+        board_utils::{get_coords_from_index, get_file, index_from_coords},
+        constants::{
+            MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
+            MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
+            MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
+            MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
+        },
+        piece_type::{get_piece_type_from_char, PieceType},
     },
-    POSITION_TRANSPOSITION_TABLE,
+    HASH_HITS, HASH_MISSES, MOVES_TRANSPOSITION_TABLE, POSITION_TRANSPOSITION_TABLE,
 };
 use core::fmt::Debug;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct GameState {
     pub position: Position,
     pub half_moves: u8,
@@ -30,14 +38,15 @@ impl GameState {
         let turn_segment = fen_segments.nth(0).unwrap().to_string();
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
-        let position = Position::new(position_segment, turn_segment, castling_segment, ep_segment);
-        insert_into_position_table(position);
+        let (position, moves) =
+            Position::build(position_segment, turn_segment, castling_segment, ep_segment);
+        insert_into_position_table(position, moves);
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
 
         Self {
-            position,
+            position: position,
             half_moves,
             full_moves,
         }
@@ -50,6 +59,11 @@ impl GameState {
     pub fn make(&self, m: Move) -> Self {
         let (new_zorb, move_segments) = self.position.zorb_key_after_move(m);
 
+        if (m.is_black() != self.position.black_turn) {
+            println!("m:{}", m.uci());
+            println!("segments:{move_segments:?}");
+        }
+
         let lookup_result = lookup_position_table(new_zorb);
         let new_position = match lookup_result {
             // Some(new_position) => {
@@ -57,10 +71,16 @@ impl GameState {
             //     assert_eq!(new_position, calc_position, "{self:?}:{m:?}");
             //     new_position
             // }
-            Some(new_position) => new_position,
+            Some(new_position) => {
+                let mut count = HASH_HITS.lock().unwrap();
+                *count += 1;
+                new_position
+            }
             None => {
-                let new_position = self.position.apply_segments(move_segments, new_zorb);
-                insert_into_position_table(new_position);
+                let mut count = HASH_MISSES.lock().unwrap();
+                *count += 1;
+                let (new_position, moves) = self.position.apply_segments(move_segments, new_zorb);
+                insert_into_position_table(new_position, moves);
                 new_position
             }
         };
@@ -94,21 +114,25 @@ impl GameState {
         result
     }
 
-    pub(crate) fn get_moves(&self) -> [Move; 128] {
-        if self.position.black_turn {
-            self.position.black_moves
-        } else {
-            self.position.white_moves
-        }
+    pub(crate) fn get_moves(&self) -> Vec<Move> {
+        lookup_moves_table(self.position.zorb_key).unwrap()
     }
 
     pub fn move_from_uci(&self, move_uci: &str) -> Move {
         let from = index_from_coords(&move_uci[0..2]);
         let to = index_from_coords(&move_uci[2..4]);
 
-        let promotion = if move_uci.len() == 5 { get_piece_type_from_char(move_uci.chars().nth(4).unwrap()) } else { PieceType:: None };
+        let promotion = if move_uci.len() == 5 {
+            get_piece_type_from_char(move_uci.chars().nth(4).unwrap())
+        } else {
+            PieceType::None
+        };
 
-        let opponent_occupancy = if self.position.black_turn { self.position.white_bitboard } else { self.position.black_bitboard };
+        let opponent_occupancy = if self.position.black_turn {
+            self.position.white_bitboard
+        } else {
+            self.position.black_bitboard
+        };
 
         let mut flags = 0;
 
@@ -117,7 +141,9 @@ impl GameState {
         let is_capture = if opponent_occupancy.occupied(to) {
             flags = MF_CAPTURE;
             true
-        } else {false};
+        } else {
+            false
+        };
 
         match piece_type {
             PieceType::Pawn => {
@@ -135,10 +161,10 @@ impl GameState {
                         (false, PieceType::Rook) => MF_ROOK_PROMOTION,
                         (true, PieceType::Queen) => MF_QUEEN_CAPTURE_PROMOTION,
                         (false, PieceType::Queen) => MF_QUEEN_PROMOTION,
-                        _ => panic!("")
+                        _ => panic!(""),
                     }
                 }
-            },
+            }
             PieceType::King => {
                 let dif = get_file(from) as i8 - get_file(to) as i8;
                 if dif == -2 {
@@ -158,7 +184,7 @@ impl Debug for GameState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("GameState")
             .field(&self.to_fen())
-            .field(&self.position.evaluation)
+            .field(&self.position.eval)
             .field(&self.position.zorb_key)
             .finish()
     }
@@ -170,14 +196,28 @@ fn lookup_position_table(zorb_key: u64) -> Option<Position> {
         .try_read()
         .unwrap()
         .get(&zorb_key)
-        .copied()
+        .cloned()
 }
 
-fn insert_into_position_table(position: Position) {
+fn lookup_moves_table(zorb_key: u64) -> Option<Vec<Move>> {
+    // return None;
+    MOVES_TRANSPOSITION_TABLE
+        .try_read()
+        .unwrap()
+        .get(&zorb_key)
+        .cloned()
+}
+
+fn insert_into_position_table(position: Position, moves: Vec<Move>) {
     POSITION_TRANSPOSITION_TABLE
         .write()
         .unwrap()
         .insert(position.zorb_key, position);
+
+    MOVES_TRANSPOSITION_TABLE
+        .write()
+        .unwrap()
+        .insert(position.zorb_key, moves);
 }
 
 impl Default for GameState {
