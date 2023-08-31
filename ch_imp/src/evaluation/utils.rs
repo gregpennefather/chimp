@@ -3,7 +3,7 @@ use crate::{
     shared::piece_type::{self, PieceType},
 };
 
-use super::eval_precomputed_data::PieceValues;
+use super::eval_precomputed_data::{PieceValues, PieceValueBoard};
 
 pub(super) fn half_board_occupancy_score(pov_occupancy: u64, pov_board: u32, factor: i32) -> i32 {
     (pov_occupancy & pov_board as u64).count_ones() as i32 * factor
@@ -35,5 +35,22 @@ pub(super) fn piece_aggregate_score(
     r += board_occupancy_score(p.queen_bitboard, white_hanging, piece_value[4]);
     r += board_occupancy_score(p.pawn_bitboard, white_hanging, piece_value[5]);
 
+    r
+}
+
+pub(super) fn piece_square_score(
+    piece_bitboard: u64,
+    piece_value_board: PieceValueBoard
+) -> i32 {
+    let mut bb = piece_bitboard;
+    let mut r = 0;
+    let mut position = 0;
+    while bb != 0 {
+        let lsb =  bb.trailing_zeros() as usize;
+        position += lsb;
+        r += piece_value_board[position];
+        position += 1;
+        bb >>= lsb + 1;
+    }
     r
 }

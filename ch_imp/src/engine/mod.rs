@@ -77,7 +77,7 @@ impl ChimpEngine {
     pub fn go(&self) -> Move {
         let (m, state) = ab_search(
             self.current_game_state.clone(),
-            5,
+            4,
             i32::MIN,
             i32::MAX,
         )

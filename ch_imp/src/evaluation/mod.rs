@@ -5,8 +5,6 @@ use self::{utils::piece_aggregate_score, eval_precomputed_data::PHASE_MATERIAL_V
 pub mod base_eval;
 pub mod early_eval;
 mod eval_precomputed_data;
-pub mod late_eval;
-pub mod mid_eval;
 mod utils;
 mod opening;
 mod endgame;

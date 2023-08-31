@@ -92,7 +92,7 @@ fn main() {
     // println!("{}", bitboard.to_board_format());
     // println!("{}", bitboard);
 
-    // let position = Position::from_fen("rn1qkbnr/ppp2ppp/8/3pPb2/4P3/8/PPP2PPP/RNBQKBNR w KQkq - 1 4".into());
+    //let position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
     // println!("{}", position.base_eval);
 
     // compare_evals("r1bqkb1r/1pp2pp1/5p1p/3p4/pn1P4/2N2N2/PPPKPPPP/1R1Q1B1R b kq - 1 9".into(), "r1bqkb1r/1pp2pp1/5p1p/3p4/pn1P4/P1N2N2/1PP1PPPP/1R1QKB1R b Kkq - 0 9".into());
@@ -116,7 +116,7 @@ fn park_table(ply_count: usize) {
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.3_{:?}.log",
+            "log/chimp_v0.0.0.4_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()

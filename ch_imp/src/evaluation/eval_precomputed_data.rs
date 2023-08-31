@@ -1,4 +1,5 @@
 pub(super) type PieceValues = [i32; 6];
+pub(super) type PieceValueBoard  = [i32; 64];
 
 // --- Values ---
 // Reward
