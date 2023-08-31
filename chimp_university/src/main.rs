@@ -97,9 +97,9 @@ fn main() {
     // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
     // println!("{:?}", game_state.result_state());
 
-    //    compare_evals("r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/R6R b - - 1 28".into(), "r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/4RR2 b - - 1 28".into());
+    compare_evals("r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/R6R b - - 1 28".into(), "r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/4RR2 b - - 1 28".into());
 
-    park_table();
+    // park_table();
 }
 
 fn compare_evals(fen_1: String, fen_2: String) {

@@ -75,8 +75,23 @@ impl ChimpEngine {
         // }
     }
 
-    pub fn go(&self) -> Move {
-        let timeout = Instant::now().checked_add(Duration::from_secs(1)).unwrap();
+    pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> Move {
+        let ms = if (self.current_game_state.position.black_turn) {
+            binc + i32::min(15000, btime / 10)
+        } else {
+            winc + i32::min(15000, wtime / 10)
+        };
+        info!(
+            "go {} {ms:?}",
+            if self.current_game_state.position.black_turn {
+                "black"
+            } else {
+                "white"
+            }
+        );
+        let timeout = Instant::now()
+            .checked_add(Duration::from_millis(ms as u64))
+            .unwrap();
         iterative_deepening(self.current_game_state.clone(), timeout)
     }
 
@@ -108,7 +123,9 @@ fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
     while cur_time < timeout {
         depth += 1;
         let r = ab_search(game_state.clone(), depth, timeout, i32::MIN, i32::MAX).unwrap(); // Possible optimization with alpha + beta
-        if (!game_state.position.black_turn && r.1 > output_r.1) || (game_state.position.black_turn && r.1 < output_r.1) {
+        if (!game_state.position.black_turn && r.1 > output_r.1)
+            || (game_state.position.black_turn && r.1 < output_r.1)
+        {
             output_r = r;
         }
         cur_time = Instant::now();
