@@ -13,14 +13,14 @@ pub fn build_san(moves: Vec<Move>) -> String {
     let mut game_state = GameState::default();
 
     for m in moves {
-        r += &format!(" {}", to_san(m, game_state));
+        r += &format!(" {}", to_san(m, &game_state));
         game_state = game_state.make(m);
     }
 
     r
 }
 
-fn to_san(m: Move, game_state: GameState) -> String {
+fn to_san(m: Move, game_state: &GameState) -> String {
     let piece_type = m.piece_type();
     let piece_letter = get_piece_char(m.piece_type(), false);
 

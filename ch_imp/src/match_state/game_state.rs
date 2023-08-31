@@ -23,9 +23,10 @@ use crate::{
 };
 use core::fmt::Debug;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct GameState {
     pub position: Position,
+    pub moves: Vec<Move>,
     pub half_moves: u8,
     pub full_moves: u32,
 }
@@ -40,13 +41,14 @@ impl GameState {
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
         let (position, moves) =
             Position::build(position_segment, turn_segment, castling_segment, ep_segment);
-        insert_into_position_table(position, moves);
+        insert_into_position_table(position, moves.clone());
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
 
         Self {
-            position: position,
+            position,
+            moves,
             half_moves,
             full_moves,
         }
@@ -64,8 +66,10 @@ impl GameState {
             println!("segments:{move_segments:?}");
         }
 
+        let mut moves = Vec::new();
+
         let lookup_result = lookup_position_table(new_zorb);
-        let new_position = match lookup_result {
+        let (new_position, moves) = match lookup_result {
             // Some(new_position) => {
             //     let calc_position =  self.position.apply_segments(move_segments);
             //     assert_eq!(new_position, calc_position, "{self:?}:{m:?}");
@@ -74,14 +78,15 @@ impl GameState {
             Some(new_position) => {
                 let mut count = HASH_HITS.lock().unwrap();
                 *count += 1;
-                new_position
+                moves = lookup_moves_table(new_zorb).unwrap();
+                (new_position, moves)
             }
             None => {
                 let mut count = HASH_MISSES.lock().unwrap();
                 *count += 1;
                 let (new_position, moves) = self.position.apply_segments(move_segments, new_zorb);
-                insert_into_position_table(new_position, moves);
-                new_position
+                insert_into_position_table(new_position, moves.clone());
+                (new_position, moves)
             }
         };
 
@@ -100,6 +105,7 @@ impl GameState {
 
         Self {
             position: new_position,
+            moves,
             half_moves,
             full_moves,
         }
