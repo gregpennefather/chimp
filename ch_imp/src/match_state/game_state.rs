@@ -34,6 +34,7 @@ pub struct GameState {
     pub(crate) pl_moves: Vec<Move>,
     pub half_moves: u8,
     pub full_moves: u32,
+    recent_moves: [Move; 6],
 }
 
 impl GameState {
@@ -63,6 +64,7 @@ impl GameState {
             pl_moves: moves,
             half_moves,
             full_moves,
+            recent_moves: [Move::default(); 6],
         }
     }
 
@@ -72,6 +74,16 @@ impl GameState {
 
     pub fn result_state(&self) -> MatchResultState {
         if self.half_moves >= 50 {
+            return MatchResultState::Draw;
+        }
+
+        if !self.recent_moves[0].is_empty()
+            && !self.recent_moves[1].is_empty()
+            && self.recent_moves[0] == self.recent_moves[2]
+            && self.recent_moves[0] == self.recent_moves[4]
+            && self.recent_moves[1] == self.recent_moves[3]
+            && self.recent_moves[1] == self.recent_moves[5]
+        {
             return MatchResultState::Draw;
         }
 
@@ -141,11 +153,21 @@ impl GameState {
             full_moves += 1;
         }
 
+        let recent_moves = [
+            m,
+            self.recent_moves[0],
+            self.recent_moves[1],
+            self.recent_moves[2],
+            self.recent_moves[3],
+            self.recent_moves[4],
+        ];
+
         Self {
             position: new_position,
             pl_moves: moves,
             half_moves,
             full_moves,
+            recent_moves,
         }
     }
 
@@ -162,7 +184,8 @@ impl GameState {
         match lookup_l_moves_table(self.position.zorb_key) {
             Some(r) => r,
             None => {
-                let legal_moves: Vec<Move> = self.pl_moves
+                let legal_moves: Vec<Move> = self
+                    .pl_moves
                     .clone()
                     .into_iter()
                     .filter(|m| self.position.is_legal_move(m))
