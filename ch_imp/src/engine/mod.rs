@@ -1,11 +1,12 @@
-use std::str::SplitAsciiWhitespace;
+use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
 use log::{error, info};
 
 use crate::{
     match_state::game_state::{self, GameState, MatchResultState},
     r#move::Move,
-    HASH_HITS, HASH_MISSES, POSITION_TRANSPOSITION_TABLE, shared::piece_type::PieceType,
+    shared::piece_type::PieceType,
+    HASH_HITS, HASH_MISSES, POSITION_TRANSPOSITION_TABLE,
 };
 
 pub mod perft;
@@ -75,19 +76,8 @@ impl ChimpEngine {
     }
 
     pub fn go(&self) -> Move {
-        let (m, state) = ab_search(self.current_game_state.clone(), 4, i32::MIN, i32::MAX).unwrap();
-        println!("\ngo {m:?}");
-        println!(
-            "Table size: {}",
-            POSITION_TRANSPOSITION_TABLE.read().unwrap().len()
-        );
-        let mut hits = HASH_HITS.lock().unwrap();
-        let mut misses = HASH_MISSES.lock().unwrap();
-        println!("Hits: {hits}");
-        println!("Misses: {misses}");
-        *hits = 0;
-        *misses = 0;
-        m
+        let timeout = Instant::now().checked_add(Duration::from_secs(1)).unwrap();
+        iterative_deepening(self.current_game_state.clone(), timeout)
     }
 
     fn reset_state(&mut self) {
@@ -102,9 +92,36 @@ impl ChimpEngine {
     }
 }
 
+fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
+    let mut depth = 1;
+
+    let mut output_r = (
+        Move::default(),
+        if game_state.position.black_turn {
+            i32::MAX
+        } else {
+            i32::MIN
+        },
+    );
+
+    let mut cur_time = Instant::now();
+    while cur_time < timeout {
+        depth += 1;
+        let r = ab_search(game_state.clone(), depth, timeout, i32::MIN, i32::MAX).unwrap(); // Possible optimization with alpha + beta
+        if (!game_state.position.black_turn && r.1 > output_r.1) || (game_state.position.black_turn && r.1 < output_r.1) {
+            output_r = r;
+        }
+        cur_time = Instant::now();
+    }
+    let m = output_r.0;
+    info!("\ngo {m:?} (depth: {depth})");
+    m
+}
+
 fn ab_search(
     game_state: GameState,
     depth: u8,
+    timeout: Instant,
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Move, i32), String> {
@@ -114,12 +131,16 @@ fn ab_search(
 
     match game_state.result_state() {
         MatchResultState::Draw => {
-            println!("draw");
             return Ok((Move::default(), 0));
         }
-        MatchResultState::WhiteVictory => return Ok((Move::default(), i32::MAX-1)),
-        MatchResultState::BlackVictory => return Ok((Move::default(), i32::MIN+1)),
+        MatchResultState::WhiteVictory => return Ok((Move::default(), i32::MAX - 1)),
+        MatchResultState::BlackVictory => return Ok((Move::default(), i32::MIN + 1)),
         _ => {}
+    }
+
+    let now = Instant::now();
+    if now > timeout {
+        return Ok((Move::default(), game_state.position.eval));
     }
 
     let legal_moves = game_state.get_legal_moves();
@@ -133,7 +154,7 @@ fn ab_search(
 
     for &test_move in &legal_moves {
         let new_state = game_state.make(test_move);
-        let (m, result_eval) = match ab_search(new_state, depth - 1, alpha, beta) {
+        let (m, result_eval) = match ab_search(new_state, depth - 1, timeout, alpha, beta) {
             Ok(r) => r,
             Err(e) => {
                 error!("{e}");
@@ -142,7 +163,6 @@ fn ab_search(
         };
 
         if !game_state.position.black_turn {
-
             if result_eval > chosen_move_eval {
                 chosen_move = test_move;
                 chosen_move_eval = result_eval;

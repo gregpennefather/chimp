@@ -2,7 +2,7 @@ use crate::{
     match_state::game_state::GameState,
     r#move::Move,
     shared::{
-        board_utils::{char_from_file, get_coords_from_index, get_file},
+        board_utils::{char_from_file, get_coords_from_index, get_file, get_rank},
         piece_type::{get_piece_char, PieceType},
     },
 };
@@ -49,9 +49,11 @@ impl GameState {
             }
         }
 
-        if moves_targeting_square.len() > 0 {
-            let from_file = char_from_file(get_file(m.from()));
-            r = format!("{r}{from_file}");
+        let from_file = char_from_file(get_file(m.from()));
+        r = format!("{r}{from_file}");
+        if moves_targeting_square.len() > 1 {
+            let from_rank = get_rank(m.from()) + 1;
+            r = format!("{r}{from_rank}");
         }
 
         if m.is_capture() {

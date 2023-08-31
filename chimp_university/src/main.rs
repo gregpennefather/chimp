@@ -7,14 +7,14 @@ use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
     engine::{perft::perft, san::build_san, ChimpEngine},
     evaluation::{base_eval::base_eval, early_eval},
-    r#move::Move, match_state::game_state::{MatchResultState, GameState},
+    match_state::game_state::{GameState, MatchResultState, self},
+    r#move::Move,
 };
 use log::{info, LevelFilter};
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Root},
+    config::{Appender, Config, Logger, Root},
     encode::pattern::PatternEncoder,
-    Config,
 };
 fn main() {
     //perfts();
@@ -97,7 +97,7 @@ fn main() {
     // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
     // println!("{:?}", game_state.result_state());
 
-   // compare_evals("rnbqkbnr/ppppp1pp/5p2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into(), "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into());
+    //    compare_evals("r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/R6R b - - 1 28".into(), "r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/4RR2 b - - 1 28".into());
 
     park_table();
 }
@@ -106,19 +106,15 @@ fn compare_evals(fen_1: String, fen_2: String) {
     let p1 = Position::from_fen(fen_1);
     let p2 = Position::from_fen(fen_2);
 
-    println!(
-        "{} vs {}",
-        p1.eval,
-        p2.eval
-    )
+    println!("{} vs {}", p1.eval, p2.eval)
 }
 
 fn park_table() {
     let stdout = ConsoleAppender::builder().build();
     let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
+        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.4_{:?}.log",
+            "log/chimp_v0.0.0.5_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -129,7 +125,7 @@ fn park_table() {
     let config = Config::builder()
         .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("chimp").build(LevelFilter::Info))
+        .build(Root::builder().appender("stdout").appender("chimp").build(LevelFilter::Info))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
@@ -148,8 +144,8 @@ fn park_table() {
         }
     }
     let duration = start.elapsed();
+    info!("Result: {:?}", engine.current_game_state.result_state());
     info!("Runtime: {:?}", duration);
-    info!("Moves: {move_ucis:?}");
     info!("SAN: {}", build_san(moves));
     info!("Final state: {:?}", engine.current_game_state);
 }

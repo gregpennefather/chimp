@@ -1,16 +1,22 @@
 use std::panic;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
-use chimp::engine::ChimpEngine;
-use log::{debug, LevelFilter, info};
+use ch_imp::engine::*;
+use log::{debug, info, LevelFilter};
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
 fn main() {
     let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
-        .build("log/chimp.log")
+        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+        .build(format!(
+            "log/chimp_v0.0.0.5_{:?}.log",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ))
         .unwrap();
 
     let config = Config::builder()
@@ -34,7 +40,7 @@ fn main() {
 
 fn run() -> bool {
     let mut input = String::new();
-    let mut engine = ChimpEngine::new();
+    let mut engine: ChimpEngine = ChimpEngine::new();
     debug!(target:"app:chimp", "\n==================================== Chimp Started ===============================\n");
     loop {
         std::io::stdin().read_line(&mut input).unwrap();
@@ -53,7 +59,7 @@ fn run() -> bool {
                     engine.position(split_string);
                 }
                 "go" => {
-                    println!("bestmove {}", engine.go(split_string));
+                    println!("bestmove {}", engine.go().uci());
                 }
                 "quit" => break,
                 _ => {
@@ -65,6 +71,6 @@ fn run() -> bool {
         }
         input = String::new();
     }
-    info!("wrangler quit");
+    info!("ucichimp quit");
     true
 }
