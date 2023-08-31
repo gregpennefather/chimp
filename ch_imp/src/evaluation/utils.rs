@@ -23,17 +23,16 @@ pub(super) fn piece_positional_reward(occupancy: u64, index: u8, factor: i32) ->
 
 pub(super) fn piece_aggregate_score(
     p: Position,
-    white_hanging: u64,
+    occ: u64,
     piece_value: PieceValues,
 ) -> i32 {
     let mut r = 0;
 
-    r += board_occupancy_score(p.pawn_bitboard, white_hanging, piece_value[0]);
-    r += board_occupancy_score(p.knight_bitboard, white_hanging, piece_value[1]);
-    r += board_occupancy_score(p.bishop_bitboard, white_hanging, piece_value[2]);
-    r += board_occupancy_score(p.rook_bitboard, white_hanging, piece_value[3]);
-    r += board_occupancy_score(p.queen_bitboard, white_hanging, piece_value[4]);
-    r += board_occupancy_score(p.pawn_bitboard, white_hanging, piece_value[5]);
+    r += board_occupancy_score(p.pawn_bitboard, occ, piece_value[0]);
+    r += board_occupancy_score(p.knight_bitboard, occ, piece_value[1]);
+    r += board_occupancy_score(p.bishop_bitboard, occ, piece_value[2]);
+    r += board_occupancy_score(p.rook_bitboard, occ, piece_value[3]);
+    r += board_occupancy_score(p.queen_bitboard, occ, piece_value[4]);
 
     r
 }
@@ -44,13 +43,10 @@ pub(super) fn piece_square_score(
 ) -> i32 {
     let mut bb = piece_bitboard;
     let mut r = 0;
-    let mut position = 0;
     while bb != 0 {
         let lsb =  bb.trailing_zeros() as usize;
-        position += lsb;
-        r += piece_value_board[position];
-        position += 1;
-        bb >>= lsb + 1;
+        r += piece_value_board[lsb];
+        bb ^= 1 << lsb;
     }
     r
 }

@@ -8,7 +8,8 @@ use crate::{
     shared::{
         board_utils::{get_coords_from_index, get_file, index_from_coords},
         constants::MF_EP_CAPTURE,
-        piece_type::{get_piece_char, get_piece_type_from_char, PieceType},
+        piece_type::{self, get_piece_char, get_piece_type_from_char, PieceType},
+        transposition_table::{insert_into_position_table, lookup_position_table},
     },
     MOVE_DATA,
 };
@@ -234,8 +235,23 @@ impl Position {
     }
 
     pub fn legal(&self) -> bool {
-        return !((self.black_turn && self.white_in_check)
-            || (!self.black_turn && self.black_in_check));
+        return self.black_king_position == u8::MAX
+            || self.white_king_position == u8::MAX
+            || !((self.black_turn && self.white_in_check)
+                || (!self.black_turn && self.black_in_check));
+    }
+
+    pub fn is_legal_move(&self, m: &Move) -> bool {
+        let (new_zorb, move_segments) = self.zorb_key_after_move(*m);
+        let position = match lookup_position_table(new_zorb) {
+            Some(gs) => gs,
+            None => {
+                let (new_position, moves) = self.apply_segments(move_segments, new_zorb);
+                insert_into_position_table(new_position, moves.clone());
+                new_position
+            }
+        };
+        position.legal()
     }
 
     pub fn to_fen(&self) -> String {
@@ -592,7 +608,12 @@ impl Position {
                                 )
                             }
                             PieceType::King => {
-                                black_king_position = segment.index;
+                                black_king_position =
+                                    if segment.segment_type == MoveSegmentType::Pickup {
+                                        u8::MAX
+                                    } else {
+                                        segment.index
+                                    };
                                 black_bitboard = black_bitboard.flip(segment.index);
                                 occupancy = occupancy.flip(segment.index);
                             }
@@ -643,7 +664,12 @@ impl Position {
                                 )
                             }
                             PieceType::King => {
-                                white_king_position = segment.index;
+                                white_king_position =
+                                    if segment.segment_type == MoveSegmentType::Pickup {
+                                        u8::MAX
+                                    } else {
+                                        segment.index
+                                    };
                                 white_bitboard = white_bitboard.flip(segment.index);
                                 occupancy = occupancy.flip(segment.index);
                             }
@@ -757,8 +783,12 @@ fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) 
     ) = MOVE_DATA.generate_moves(position);
 
     // Sort moves
-    let mut combined_moves = [white_moves, black_moves].concat();
-    combined_moves.sort_by(|a, b| b.flags().cmp(&a.flags()));
+    let mut active_colour_moves = if position.black_turn {
+        black_moves.clone()
+    } else {
+        white_moves.clone()
+    };
+    active_colour_moves.sort_by(|a, b| b.flags().cmp(&a.flags()));
 
     position.white_threatboard = white_threatboard;
     position.black_threatboard = black_threatboard;
@@ -768,8 +798,9 @@ fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) 
     position.white_in_check = black_threatboard.occupied(position.white_king_position);
     position.black_in_check = white_threatboard.occupied(position.black_king_position);
 
-    position.eval = evaluation::calculate(position, combined_moves.clone());
-    (position, combined_moves)
+    position.eval = evaluation::calculate(position, &white_moves, &black_moves);
+
+    (position, active_colour_moves)
 }
 
 impl Debug for Position {

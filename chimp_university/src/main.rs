@@ -7,7 +7,7 @@ use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
     engine::{perft::perft, san::build_san, ChimpEngine},
     evaluation::{base_eval::base_eval, early_eval},
-    r#move::Move,
+    r#move::Move, match_state::game_state::{MatchResultState, GameState},
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -84,20 +84,22 @@ fn main() {
     // println!("{:?}", gs.move_from_uci("e1c1"));
     // println!("{:?}", gs.move_from_uci("e1g1"));
 
-    // let gs = GameState::new("r3k2r/p1ppqpb1/bn1Npnp1/3PN3/1p2P3/5Q2/PPPBBPpP/R3K2R b KQkq - 1 2".into());
-    // println!("{:?}", gs.move_from_uci("g2h1q"));
-    // println!("{:?}", gs.move_from_uci("g2g1n"));
+    // let gs = GameState::new("R1brk3/3p4/4p3/6B1/2B1P1p1/6N1/1PPK1pP1/8 b - - 0 30".into());
+    // let legal_moves = gs.get_legal_moves();
+    // for m in legal_moves {
+    //     println!("{:?}:{:?}", gs.to_san(m), m);
+    // }
 
     // let bitboard = 0.set(27).set(28).set(35).set(36);
     // println!("{}", bitboard.to_board_format());
     // println!("{}", bitboard);
 
-    //let position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
-    // println!("{}", position.base_eval);
+    // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
+    // println!("{:?}", game_state.result_state());
 
-    // compare_evals("r1bqkb1r/1pp2pp1/5p1p/3p4/pn1P4/2N2N2/PPPKPPPP/1R1Q1B1R b kq - 1 9".into(), "r1bqkb1r/1pp2pp1/5p1p/3p4/pn1P4/P1N2N2/1PP1PPPP/1R1QKB1R b Kkq - 0 9".into());
+   // compare_evals("rnbqkbnr/ppppp1pp/5p2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into(), "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2".into());
 
-    park_table(50);
+    park_table();
 }
 
 fn compare_evals(fen_1: String, fen_2: String) {
@@ -111,7 +113,7 @@ fn compare_evals(fen_1: String, fen_2: String) {
     )
 }
 
-fn park_table(ply_count: usize) {
+fn park_table() {
     let stdout = ConsoleAppender::builder().build();
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d} - {m}{n}")))
@@ -135,12 +137,15 @@ fn park_table(ply_count: usize) {
     let mut engine: ChimpEngine = ChimpEngine::new();
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    info!("Park Table (ply_count:{ply_count}):");
-    for _i in 0..(ply_count) {
+    info!("Park Table:");
+    for _i in 0..200 {
         let m = engine.go();
         move_ucis.push(m.uci());
         moves.push(m);
-        engine.position(get_moves_string(&move_ucis).split_ascii_whitespace())
+        engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
+        if engine.current_game_state.result_state() != MatchResultState::Active {
+            break;
+        }
     }
     let duration = start.elapsed();
     info!("Runtime: {:?}", duration);

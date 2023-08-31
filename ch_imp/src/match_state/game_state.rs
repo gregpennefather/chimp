@@ -1,16 +1,8 @@
 use crate::{
-    board::{
-        bitboard::Bitboard,
-        position::{MoveSegmentArray, OrderedMoveList, Position},
-    },
-    r#move::{
-        move_data::MoveData,
-        move_segment::{MoveSegment, MoveSegmentType},
-        Move,
-    },
-    search::position_table::MoveTableLookup,
+    board::{bitboard::Bitboard, position::Position},
+    r#move::Move,
     shared::{
-        board_utils::{get_coords_from_index, get_file, index_from_coords},
+        board_utils::{get_file, index_from_coords},
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
@@ -18,15 +10,28 @@ use crate::{
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
         piece_type::{get_piece_type_from_char, PieceType},
+        transposition_table::{
+            insert_into_l_moves_table, insert_into_position_table, lookup_l_moves_table,
+            lookup_pl_moves_table, lookup_position_table,
+        },
     },
-    HASH_HITS, HASH_MISSES, MOVES_TRANSPOSITION_TABLE, POSITION_TRANSPOSITION_TABLE,
+    HASH_HITS, HASH_MISSES,
 };
 use core::fmt::Debug;
+
+#[repr(u8)]
+#[derive(PartialEq, Debug)]
+pub enum MatchResultState {
+    Active = 0u8,
+    Draw = 1u8,
+    WhiteVictory = 2u8,
+    BlackVictory = 3,
+}
 
 #[derive(Clone, PartialEq)]
 pub struct GameState {
     pub position: Position,
-    pub moves: Vec<Move>,
+    pub(crate) pl_moves: Vec<Move>,
     pub half_moves: u8,
     pub full_moves: u32,
 }
@@ -43,12 +48,19 @@ impl GameState {
             Position::build(position_segment, turn_segment, castling_segment, ep_segment);
         insert_into_position_table(position, moves.clone());
 
+        let legal_moves: Vec<Move> = moves
+            .clone()
+            .into_iter()
+            .filter(|m| position.is_legal_move(m))
+            .collect();
+        insert_into_l_moves_table(position.zorb_key, legal_moves.clone());
+
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
 
         Self {
             position,
-            moves,
+            pl_moves: moves,
             half_moves,
             full_moves,
         }
@@ -56,6 +68,26 @@ impl GameState {
 
     pub fn legal(&self) -> bool {
         self.position.legal()
+    }
+
+    pub fn result_state(&self) -> MatchResultState {
+        if self.half_moves >= 50 {
+            return MatchResultState::Draw;
+        }
+
+        let current_player_has_moves =
+            has_player_moves(&self.get_legal_moves(), self.position.black_turn);
+        if !current_player_has_moves {
+            if self.position.black_turn && self.position.black_in_check {
+                return MatchResultState::WhiteVictory;
+            }
+            if !self.position.black_turn && self.position.white_in_check {
+                return MatchResultState::BlackVictory;
+            }
+
+            return MatchResultState::Draw;
+        }
+        MatchResultState::Active
     }
 
     pub fn make(&self, m: Move) -> Self {
@@ -78,14 +110,20 @@ impl GameState {
             Some(new_position) => {
                 let mut count = HASH_HITS.lock().unwrap();
                 *count += 1;
-                moves = lookup_moves_table(new_zorb).unwrap();
+                moves = lookup_pl_moves_table(new_zorb).unwrap();
                 (new_position, moves)
             }
             None => {
                 let mut count = HASH_MISSES.lock().unwrap();
                 *count += 1;
                 let (new_position, moves) = self.position.apply_segments(move_segments, new_zorb);
+                let legal_moves: Vec<Move> = moves
+                    .clone()
+                    .into_iter()
+                    .filter(|m| new_position.is_legal_move(m))
+                    .collect();
                 insert_into_position_table(new_position, moves.clone());
+                insert_into_l_moves_table(new_position.zorb_key, legal_moves.clone());
                 (new_position, moves)
             }
         };
@@ -105,7 +143,7 @@ impl GameState {
 
         Self {
             position: new_position,
-            moves,
+            pl_moves: moves,
             half_moves,
             full_moves,
         }
@@ -120,8 +158,19 @@ impl GameState {
         result
     }
 
-    pub(crate) fn get_moves(&self) -> Vec<Move> {
-        lookup_moves_table(self.position.zorb_key).unwrap()
+    pub fn get_legal_moves(&self) -> Vec<Move> {
+        match lookup_l_moves_table(self.position.zorb_key) {
+            Some(r) => r,
+            None => {
+                let legal_moves: Vec<Move> = self.pl_moves
+                    .clone()
+                    .into_iter()
+                    .filter(|m| self.position.is_legal_move(m))
+                    .collect();
+                insert_into_l_moves_table(self.position.zorb_key, legal_moves.clone());
+                (legal_moves)
+            }
+        }
     }
 
     pub fn move_from_uci(&self, move_uci: &str) -> Move {
@@ -196,34 +245,13 @@ impl Debug for GameState {
     }
 }
 
-fn lookup_position_table(zorb_key: u64) -> Option<Position> {
-    // return None;
-    POSITION_TRANSPOSITION_TABLE
-        .try_read()
-        .unwrap()
-        .get(&zorb_key)
-        .cloned()
-}
-
-fn lookup_moves_table(zorb_key: u64) -> Option<Vec<Move>> {
-    // return None;
-    MOVES_TRANSPOSITION_TABLE
-        .try_read()
-        .unwrap()
-        .get(&zorb_key)
-        .cloned()
-}
-
-fn insert_into_position_table(position: Position, moves: Vec<Move>) {
-    POSITION_TRANSPOSITION_TABLE
-        .write()
-        .unwrap()
-        .insert(position.zorb_key, position);
-
-    MOVES_TRANSPOSITION_TABLE
-        .write()
-        .unwrap()
-        .insert(position.zorb_key, moves);
+fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {
+    for m in moves {
+        if m.is_black() == is_black {
+            return true;
+        }
+    }
+    return false;
 }
 
 impl Default for GameState {

@@ -5,21 +5,21 @@
             "name": "(Windows) Launch",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceRoot}/chimp-school/target/debug/chimp-school.exe",
+            "program": "${workspaceRoot}/chimp_university/target/debug/chimp_university.exe",
             "args": [
                 "-namespace", "default",
                 "-id", "1234",
                 "-address", "\\\\.\\pipe\\containerd-containerd",
             ],
             "stopAtEntry": false,
-            "cwd": "${workspaceRoot}/chimp-school",
+            "cwd": "${workspaceRoot}/chimp_university",
             "environment": [
                 {
                 "name": "TTRPC_ADDRESS",
                 "value": "\\\\.\\pipe\\containerd-containerd.ttrpc"
                 }
             ],
-            "preLaunchTask": "chimp-school"
+            "preLaunchTask": "chimp_university"
         }
     ]
 }

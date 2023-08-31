@@ -3,9 +3,9 @@ use std::str::SplitAsciiWhitespace;
 use log::{error, info};
 
 use crate::{
-    match_state::game_state::{self, GameState},
+    match_state::game_state::{self, GameState, MatchResultState},
     r#move::Move,
-    HASH_HITS, HASH_MISSES, POSITION_TRANSPOSITION_TABLE,
+    HASH_HITS, HASH_MISSES, POSITION_TRANSPOSITION_TABLE, shared::piece_type::PieceType,
 };
 
 pub mod perft;
@@ -75,13 +75,7 @@ impl ChimpEngine {
     }
 
     pub fn go(&self) -> Move {
-        let (m, state) = ab_search(
-            self.current_game_state.clone(),
-            4,
-            i32::MIN,
-            i32::MAX,
-        )
-        .unwrap();
+        let (m, state) = ab_search(self.current_game_state.clone(), 4, i32::MIN, i32::MAX).unwrap();
         println!("\ngo {m:?}");
         println!(
             "Table size: {}",
@@ -118,22 +112,26 @@ fn ab_search(
         return Ok((Move::default(), game_state.position.eval));
     }
 
-    if !game_state.legal() {
-        // Todo: The whole stalemate, checkmate, etc detection needs to be improved
-        return Ok((Move::default(), if !game_state.position.black_turn { i32::MAX } else { i32::MIN }));
+    match game_state.result_state() {
+        MatchResultState::Draw => {
+            println!("draw");
+            return Ok((Move::default(), 0));
+        }
+        MatchResultState::WhiteVictory => return Ok((Move::default(), i32::MAX-1)),
+        MatchResultState::BlackVictory => return Ok((Move::default(), i32::MIN+1)),
+        _ => {}
     }
 
-    let moves = game_state.get_moves();
+    let legal_moves = game_state.get_legal_moves();
 
     let mut chosen_move = Move::default();
-    let mut chosen_move_eval = if !game_state.position.black_turn { i32::MIN } else { i32::MAX };
+    let mut chosen_move_eval = if !game_state.position.black_turn {
+        i32::MIN
+    } else {
+        i32::MAX
+    };
 
-    let mut next_position_is_illegal = 0;
-
-    for test_move in moves
-        .into_iter()
-        .filter(|m| m.is_black() == game_state.position.black_turn)
-    {
+    for &test_move in &legal_moves {
         let new_state = game_state.make(test_move);
         let (m, result_eval) = match ab_search(new_state, depth - 1, alpha, beta) {
             Ok(r) => r,
@@ -144,6 +142,7 @@ fn ab_search(
         };
 
         if !game_state.position.black_turn {
+
             if result_eval > chosen_move_eval {
                 chosen_move = test_move;
                 chosen_move_eval = result_eval;
@@ -165,8 +164,10 @@ fn ab_search(
     }
 
     if (chosen_move.is_empty()) {
+        println!("legal_moves: {legal_moves:?}");
         panic!(
-            "empty chosen move! depth:{depth},invalids:{next_position_is_illegal} => {}",
+            "empty chosen move! depth:{depth}:value{} => {}",
+            chosen_move_eval,
             game_state.to_fen()
         );
     }
