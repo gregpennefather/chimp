@@ -1,4 +1,4 @@
-use log::{debug, error, trace};
+use log::{trace};
 
 use crate::{board::position::Position, r#move::Move};
 

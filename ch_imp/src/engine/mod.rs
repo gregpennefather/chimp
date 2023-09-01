@@ -3,10 +3,8 @@ use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 use log::{debug, error, info, trace};
 
 use crate::{
-    match_state::game_state::{self, GameState, MatchResultState},
-    r#move::Move,
-    shared::piece_type::PieceType,
-    HASH_HITS, HASH_MISSES, POSITION_TRANSPOSITION_TABLE,
+    match_state::game_state::{GameState, MatchResultState},
+    r#move::Move, POSITION_TRANSPOSITION_TABLE,
 };
 
 pub mod perft;
@@ -85,7 +83,7 @@ impl ChimpEngine {
     }
 
     pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> Move {
-        let ms = if (self.current_game_state.position.black_turn) {
+        let ms = if self.current_game_state.position.black_turn {
             binc + i32::min(15000, btime / 10)
         } else {
             winc + i32::min(15000, wtime / 10)
@@ -133,8 +131,8 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
 
     let mut cur_time = Instant::now();
     while cur_time < timeout && depth < 20 {
-        let mut alpha = i32::MIN;
-        let mut beta = i32::MAX;
+        let alpha = i32::MIN;
+        let beta = i32::MAX;
         // This should maybe be re-created through more intelligent move ordering
         // if game_state.position.black_turn {
         //     beta = output_r.1;
@@ -209,7 +207,7 @@ pub fn ab_search(
 
     for &test_move in &legal_moves {
         let new_state = game_state.make(test_move);
-        let (m, result_eval) = match ab_search(new_state, depth - 1, timeout, alpha, beta) {
+        let (_m, result_eval) = match ab_search(new_state, depth - 1, timeout, alpha, beta) {
             Ok(r) => r,
             Err(e) => {
                 error!("{e}");
@@ -217,7 +215,7 @@ pub fn ab_search(
             }
         };
         if !game_state.position.black_turn {
-            if (result_eval > 1000) {
+            if result_eval > 1000 {
                 debug!("{depth}:killer white move: {test_move:?}:{result_eval:?}");
             }
 
@@ -243,7 +241,7 @@ pub fn ab_search(
         }
     }
 
-    if (chosen_move.is_empty()) {
+    if chosen_move.is_empty() {
         println!("legal_moves: {legal_moves:?}");
         panic!(
             "empty chosen move! depth:{depth}:value{} => {}",
@@ -252,7 +250,7 @@ pub fn ab_search(
         );
     }
 
-    if (chosen_move_eval == i32::MAX || chosen_move_eval == i32::MIN) {
+    if chosen_move_eval == i32::MAX || chosen_move_eval == i32::MIN {
         debug!(
             "chosen_move_eval {chosen_move_eval} at {depth} for black:{} => {chosen_move:?}",
             game_state.position.black_turn

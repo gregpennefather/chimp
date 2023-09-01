@@ -1,6 +1,5 @@
 use crate::{
     board::{bitboard::Bitboard, position::Position},
-    shared::piece_type::{self, PieceType},
 };
 
 use super::eval_precomputed_data::{PieceValues, PieceValueBoard};

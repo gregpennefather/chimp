@@ -1,4 +1,4 @@
-use crate::board::bitboard::Bitboard;
+
 use rand::Rng;
 
 pub fn rook_mask_generation(square: i64) -> u64 {
@@ -462,7 +462,7 @@ impl MagicTable {
 
         let mut rook_attack_table = Vec::with_capacity(64);
         let mut bishop_attack_table = Vec::with_capacity(64);
-        for i in 0..64 {
+        for _i in 0..64 {
             rook_attack_table.push(Vec::new());
             bishop_attack_table.push(Vec::new());
         }
@@ -562,7 +562,7 @@ pub fn find_rook_magics(square: i64, bits: usize) -> u64 {
         a[i] = generate_legal_rook_moves(square, b[i]);
     }
 
-    for k in 0..100000000 {
+    for _k in 0..100000000 {
         let magic = rng.gen::<u64>() & rng.gen::<u64>() & rng.gen::<u64>();
         if (mask.overflowing_mul(magic).0 & 0xFF00000000000000).count_ones() < 6 {
             continue;
@@ -616,7 +616,7 @@ pub fn find_bishop_magics(square: i64, bits: usize) -> u64 {
         a[i] = generate_legal_bishop_moves(square, b[i]);
     }
 
-    for k in 0..100000000 {
+    for _k in 0..100000000 {
         let magic = rng.gen::<u64>() & rng.gen::<u64>() & rng.gen::<u64>();
         if (mask.overflowing_mul(magic).0 & 0xFF00000000000000).count_ones() < 6 {
             continue;

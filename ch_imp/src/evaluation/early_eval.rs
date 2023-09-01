@@ -1,12 +1,9 @@
 use crate::board::position::Position;
 
-use super::{
-    eval_precomputed_data::*,
-    utils::{board_occupancy_score, half_board_occupancy_score, piece_positional_reward},
-};
 
-pub fn early_eval(position: Position) -> f32 {
-    let mut r = 0.0;
+
+pub fn early_eval(_position: Position) -> f32 {
+    let r = 0.0;
 
     // // Holding the center with pawns
     // r += board_occupancy_score(

@@ -1,15 +1,11 @@
 use crate::{
-    board::{bitboard::Bitboard, position::Position},
-    shared::piece_type::PieceType,
+    board::{position::Position},
 };
 
-use super::{
-    eval_precomputed_data::*,
-    utils::{board_occupancy_score, piece_aggregate_score},
-};
 
-pub fn base_eval(p: Position) -> f32 {
-    let mut eval = 0.0;
+
+pub fn base_eval(_p: Position) -> f32 {
+    let eval = 0.0;
 
     // eval += piece_aggregate_score(p, p.white_bitboard, MATERIAL_VALUES);
     // eval -= piece_aggregate_score(p, p.black_bitboard, MATERIAL_VALUES);

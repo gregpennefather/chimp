@@ -1,7 +1,7 @@
-use std::{collections::HashMap, ops::DerefMut, ops::Deref};
+use std::{collections::HashMap};
 
-use super::zorb_set::ZorbSet;
-use crate::{board::position::Position, r#move::Move};
+
+use crate::{board::position::Position};
 
 pub struct PositionTranspositionTable(pub HashMap<u64, Position>);
 

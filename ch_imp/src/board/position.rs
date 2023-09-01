@@ -1,5 +1,5 @@
 use crate::{
-    evaluation::{self, base_eval, early_eval::early_eval},
+    evaluation::{self},
     r#move::{
         move_segment::{MoveSegment, MoveSegmentType},
         Move,
@@ -8,7 +8,7 @@ use crate::{
     shared::{
         board_utils::{get_coords_from_index, get_file, index_from_coords},
         constants::MF_EP_CAPTURE,
-        piece_type::{self, get_piece_char, get_piece_type_from_char, PieceType},
+        piece_type::{get_piece_char, get_piece_type_from_char, PieceType},
         transposition_table::{insert_into_position_table, lookup_position_table},
     },
     MOVE_DATA,
@@ -557,7 +557,7 @@ impl Position {
         let mut white_king_position = self.white_king_position;
         let mut black_king_position = self.black_king_position;
         let mut ep_index = u8::MAX;
-        let mut zorb_key = new_zorb_key;
+        let zorb_key = new_zorb_key;
 
         for segment in segments {
             match segment.segment_type {

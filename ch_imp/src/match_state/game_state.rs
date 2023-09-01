@@ -105,7 +105,7 @@ impl GameState {
     pub fn make(&self, m: Move) -> Self {
         let (new_zorb, move_segments) = self.position.zorb_key_after_move(m);
 
-        if (m.is_black() != self.position.black_turn) {
+        if m.is_black() != self.position.black_turn {
             println!("m:{}", m.uci());
             println!("segments:{move_segments:?}");
         }
@@ -191,7 +191,7 @@ impl GameState {
                     .filter(|m| self.position.is_legal_move(m))
                     .collect();
                 insert_into_l_moves_table(self.position.zorb_key, legal_moves.clone());
-                (legal_moves)
+                legal_moves
             }
         }
     }

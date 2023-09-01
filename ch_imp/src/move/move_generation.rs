@@ -308,7 +308,7 @@ impl MoveData {
         // double pawn push is possible or not before determining what the normal move to_index is
         let (to_index, to_index_dpp, promotion_rank) = if is_black {
             let to_index_dpp = moveboard.trailing_zeros() as u8;
-            if (to_index_dpp >= 64) {
+            if to_index_dpp >= 64 {
                 println!("{}", position.to_fen());
             }
             moveboard ^= 1 << to_index_dpp;

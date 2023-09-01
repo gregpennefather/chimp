@@ -1,9 +1,8 @@
-use log::debug;
+
 
 use crate::{
     board::{
-        bitboard::Bitboard,
-        position::{self, Position},
+        position::{Position},
     },
     r#move::Move,
 };

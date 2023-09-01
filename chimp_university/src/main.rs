@@ -1,19 +1,16 @@
 use std::{
-    mem,
     time::{Duration, Instant, SystemTime},
 };
 
 use ch_imp::{
-    board::{bitboard::Bitboard, position::Position},
+    board::{position::Position},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
-    evaluation::{base_eval::base_eval, early_eval},
-    match_state::game_state::{self, GameState, MatchResultState},
-    r#move::Move,
+    match_state::game_state::{GameState, MatchResultState},
 };
 use log::{info, LevelFilter};
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Config, Logger, Root},
+    config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
 fn main() {
