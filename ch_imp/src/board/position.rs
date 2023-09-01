@@ -1068,15 +1068,4 @@ mod test {
         assert_eq!(segments[4], MoveSegment::default());
     }
 
-    #[test]
-    pub fn order_moves_case_capture_over_quiet() {
-        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true);
-        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true);
-        let moves = vec![quiet, capture];
-
-        let ordered = to_move_array(moves);
-        assert_eq!(ordered[0], capture);
-        assert_eq!(ordered[1], quiet);
-        assert!(ordered[2].is_empty())
-    }
 }

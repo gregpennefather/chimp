@@ -155,7 +155,7 @@ fn debug_search(fen_1: String, depth: u8) {
     while i <= depth {
         let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
 
-        let r = ab_search(game_state.clone(), i, timeout, i32::MIN, i32::MAX).unwrap();
+        let r = ab_search(game_state.clone(), vec![], i, timeout, i32::MIN, i32::MAX).unwrap();
         let dur = timer.elapsed();
         println!("{i}:{:?} {:?}", r, dur);
         i+=1;

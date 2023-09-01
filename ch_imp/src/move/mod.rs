@@ -9,13 +9,14 @@ use crate::shared::{
     piece_type::PieceType,
 };
 use core::fmt::Debug;
+use std::cmp::Ordering;
 
 pub mod move_data;
 pub mod move_generation;
 pub mod move_magic_bitboards;
 pub mod move_segment;
 
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct Move(u16, PieceType, bool);
 
 impl Move {
@@ -111,4 +112,64 @@ impl Debug for Move {
             .field(&self.is_black())
             .finish()
     }
+}
+
+impl PartialOrd for Move {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let flags_result = other.flags().cmp(&self.flags());
+        if flags_result != Ordering::Equal {
+            return Some(flags_result);
+        }
+
+        Some(other.1.cmp(&self.1))
+    }
+}
+
+impl Ord for Move {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.partial_cmp(other) {
+            Some(r) => r,
+            None => Ordering::Equal
+        }
+    }
+}
+#[cfg(test)]
+mod test {
+    use crate::{shared::{piece_type::PieceType, constants::MF_CAPTURE}, r#move::Move, engine::move_orderer::order};
+
+    #[test]
+    pub fn order_will_prioritize_greater_valued_flags() {
+        let m1 = Move::new(2,4,1, PieceType::Queen, false);
+        let m2 = Move::new(2,4,15, PieceType::Queen, false);
+
+        let mut vec = vec![m1,m2];
+        vec.sort();
+        assert_eq!(vec[0],m2);
+        assert_eq!(vec[1],m1);
+
+    }
+
+    #[test]
+    pub fn order_will_prioritize_greater_valued_pieces() {
+        let m1 = Move::new(2,4,1, PieceType::Pawn, false);
+        let m2 = Move::new(2,4,1, PieceType::Queen, false);
+
+        let mut vec = vec![m1,m2];
+        vec.sort();
+        assert_eq!(vec[0],m2);
+        assert_eq!(vec[1],m1);
+
+    }
+
+    #[test]
+    pub fn order_moves_case_capture_over_quiet() {
+        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true);
+        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true);
+        let mut moves = vec![quiet, capture];
+
+        moves.sort();
+        assert_eq!(moves[0], capture);
+        assert_eq!(moves[1], quiet);
+    }
+
 }

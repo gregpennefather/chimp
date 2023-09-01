@@ -4,9 +4,13 @@ use log::{debug, error, info, trace};
 
 use crate::{
     match_state::game_state::{GameState, MatchResultState},
-    r#move::Move, POSITION_TRANSPOSITION_TABLE,
+    r#move::Move,
+    POSITION_TRANSPOSITION_TABLE,
 };
 
+use self::move_orderer::order;
+
+pub mod move_orderer;
 pub mod perft;
 pub mod san;
 
@@ -144,7 +148,18 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
             "depth: {depth} -> val : {:?} alpha: {alpha}, beta: {beta}",
             output_r
         );
-        let r = ab_search(game_state.clone(), depth, timeout, alpha, beta).unwrap(); // Possible optimization with alpha + beta
+
+        let priority_moves = vec![output_r.0];
+
+        let r = ab_search(
+            game_state.clone(),
+            priority_moves,
+            depth,
+            timeout,
+            alpha,
+            beta,
+        )
+        .unwrap(); // Possible optimization with alpha + beta
 
         info!("depth: {depth} complete {:?}", t_time.elapsed());
         if Instant::now() > timeout {
@@ -166,6 +181,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
 
 pub fn ab_search(
     game_state: GameState,
+    priority_moves: Vec<Move>,
     depth: u8,
     timeout: Instant,
     mut alpha: i32, // maximize
@@ -196,7 +212,11 @@ pub fn ab_search(
         ));
     }
 
-    let legal_moves = game_state.get_legal_moves();
+    let legal_moves = if priority_moves.len() > 0 {
+        order(game_state.get_legal_moves(), priority_moves)
+    } else {
+        game_state.get_legal_moves()
+    };
 
     let mut chosen_move = Move::default();
     let mut chosen_move_eval = if !game_state.position.black_turn {
@@ -207,7 +227,7 @@ pub fn ab_search(
 
     for &test_move in &legal_moves {
         let new_state = game_state.make(test_move);
-        let (_m, result_eval) = match ab_search(new_state, depth - 1, timeout, alpha, beta) {
+        let (_m, result_eval) = match ab_search(new_state, vec![], depth - 1, timeout, alpha, beta) {
             Ok(r) => r,
             Err(e) => {
                 error!("{e}");
