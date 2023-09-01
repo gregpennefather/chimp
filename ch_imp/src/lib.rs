@@ -21,12 +21,6 @@ extern crate lazy_static;
 
 lazy_static! {
     static ref MOVE_DATA: MoveData = MoveData::new();
-    static ref POSITION_TRANSPOSITION_TABLE: RwLock<HashMap<u64, Position>> =
+    static ref POSITION_TRANSPOSITION_TABLE: RwLock<HashMap<u64, (Position, Option<Vec<Move>>)>> =
         RwLock::new(HashMap::with_capacity(1000000));
-    static ref PL_MOVES_TRANSPOSITION_TABLE: RwLock<HashMap<u64, Vec<Move>>> =
-        RwLock::new(HashMap::with_capacity(1000000));
-    static ref L_MOVES_TRANSPOSITION_TABLE: RwLock<HashMap<u64, Vec<Move>>> =
-        RwLock::new(HashMap::with_capacity(1000000));
-    static ref HASH_HITS: Mutex<usize> = Mutex::new(0);
-    static ref HASH_MISSES: Mutex<usize> = Mutex::new(0);
 }

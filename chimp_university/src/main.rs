@@ -96,7 +96,7 @@ fn main() {
 
     //debug_evals("r1b2k1r/pQp2pp1/2nq1n2/2bpp2p/8/2NBPN2/PPPP1PPP/R1B2K1R b - - 0 13".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
 
-    debug_deepening("r1bqkb1r/pppppppp/5n2/8/1n6/2N1PQ2/PPPP1PPP/R1B1KBNR w KQkq - 5 4".into(), 2000);
+    //debug_deepening("r1bqkb1r/pppppppp/5n2/8/1n6/2N1PQ2/PPPP1PPP/R1B1KBNR w KQkq - 5 4".into(), 2000);
 
     // debug_search(
     //     "r3k3/pp3qp1/1n2p2r/1NQp1pRp/P4P2/8/1PP2P1P/R1B2K1B w q - 1 21".into(),
@@ -197,12 +197,12 @@ fn park_table() {
         move_ucis.push(m.uci());
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
-        if engine.current_game_state.result_state() != MatchResultState::Active {
+        if engine.current_game_state.result_state != MatchResultState::Active {
             break;
         }
     }
     let duration = start.elapsed();
-    info!("Result: {:?}", engine.current_game_state.result_state());
+    info!("Result: {:?}", engine.current_game_state.result_state);
     info!("Runtime: {:?}", duration);
     info!("SAN: {}", build_san(moves));
     info!("Final state: {:?}", engine.current_game_state);

@@ -7,9 +7,8 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
     let origin_game_state = GameState::new(fen);
     let mut top_level_states = Vec::new();
 
-    let moves = origin_game_state.get_legal_moves();
     let start: Instant = Instant::now();
-    for m in moves {
+    for &m in &origin_game_state.moves {
         if m.is_black() != origin_game_state.position.black_turn {
             continue;
         }
@@ -33,8 +32,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
         for top_level_state in top_level_states.iter_mut() {
             let mut new_edge_states = Vec::new();
             for game_state in &top_level_state.2 {
-                let moves = game_state.get_legal_moves();
-                for m in moves {
+                for &m in &game_state.moves {
                     if m.is_black() != game_state.position.black_turn {
                         continue;
                     }

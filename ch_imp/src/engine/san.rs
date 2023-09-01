@@ -40,7 +40,7 @@ impl GameState {
         }
 
         let mut moves_targeting_square = Vec::new();
-        for c_m in &self.pl_moves {
+        for c_m in &self.moves {
             let cm_to = c_m.to();
             let cm_from = c_m.from();
             let cm_piece = self.position.get_piece_type_at_index(cm_from);

@@ -10,17 +10,13 @@ use crate::{
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
         piece_type::{get_piece_type_from_char, PieceType},
-        transposition_table::{
-            insert_into_l_moves_table, insert_into_position_table, lookup_l_moves_table,
-            lookup_pl_moves_table, lookup_position_table,
-        },
-    },
-    HASH_HITS, HASH_MISSES,
+        transposition_table::{insert_into_position_table, lookup_position_table},
+    }, MOVE_DATA,
 };
 use core::fmt::Debug;
 
 #[repr(u8)]
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum MatchResultState {
     Active = 0u8,
     Draw = 1u8,
@@ -31,9 +27,10 @@ pub enum MatchResultState {
 #[derive(Clone, PartialEq)]
 pub struct GameState {
     pub position: Position,
-    pub(crate) pl_moves: Vec<Move>,
+    pub(crate) moves: Vec<Move>,
     pub half_moves: u8,
     pub full_moves: u32,
+    pub result_state: MatchResultState,
     recent_moves: [Move; 6],
 }
 
@@ -45,61 +42,26 @@ impl GameState {
         let turn_segment = fen_segments.nth(0).unwrap().to_string();
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
-        let (position, moves) =
+        let (position, legal_moves) =
             Position::build(position_segment, turn_segment, castling_segment, ep_segment);
-        insert_into_position_table(position, moves.clone());
-
-        let legal_moves: Vec<Move> = moves
-            .clone()
-            .into_iter()
-            .filter(|m| position.is_legal_move(m))
-            .collect();
-        insert_into_l_moves_table(position.zorb_key, legal_moves.clone());
+        insert_into_position_table(position, Some(legal_moves.clone()));
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
-
+        let recent_moves = [Move::default(); 6];
+        let result_state = result_state(half_moves, recent_moves, position, &legal_moves);
         Self {
             position,
-            pl_moves: moves,
+            moves: legal_moves,
             half_moves,
             full_moves,
-            recent_moves: [Move::default(); 6],
+            result_state,
+            recent_moves,
         }
     }
 
     pub fn legal(&self) -> bool {
         self.position.legal()
-    }
-
-    pub fn result_state(&self) -> MatchResultState {
-        if self.half_moves >= 50 {
-            return MatchResultState::Draw;
-        }
-
-        if !self.recent_moves[0].is_empty()
-            && !self.recent_moves[1].is_empty()
-            && self.recent_moves[0] == self.recent_moves[2]
-            && self.recent_moves[0] == self.recent_moves[4]
-            && self.recent_moves[1] == self.recent_moves[3]
-            && self.recent_moves[1] == self.recent_moves[5]
-        {
-            return MatchResultState::Draw;
-        }
-
-        let current_player_has_moves =
-            has_player_moves(&self.get_legal_moves(), self.position.black_turn);
-        if !current_player_has_moves {
-            if self.position.black_turn && self.position.black_in_check {
-                return MatchResultState::WhiteVictory;
-            }
-            if !self.position.black_turn && self.position.white_in_check {
-                return MatchResultState::BlackVictory;
-            }
-
-            return MatchResultState::Draw;
-        }
-        MatchResultState::Active
     }
 
     pub fn make(&self, m: Move) -> Self {
@@ -110,33 +72,27 @@ impl GameState {
             println!("segments:{move_segments:?}");
         }
 
-        let mut moves = Vec::new();
-
         let lookup_result = lookup_position_table(new_zorb);
-        let (new_position, moves) = match lookup_result {
+        let (new_position, legal_moves) = match lookup_result {
             // Some(new_position) => {
             //     let calc_position =  self.position.apply_segments(move_segments);
             //     assert_eq!(new_position, calc_position, "{self:?}:{m:?}");
             //     new_position
             // }
-            Some(new_position) => {
-                let mut count = HASH_HITS.lock().unwrap();
-                *count += 1;
-                moves = lookup_pl_moves_table(new_zorb).unwrap();
-                (new_position, moves)
-            }
+            Some((position, lm_option)) => match lm_option {
+                Some(legal_moves) => (position, legal_moves),
+                None => update_position_with_legal_moves(position),
+            },
             None => {
-                let mut count = HASH_MISSES.lock().unwrap();
-                *count += 1;
-                let (new_position, moves) = self.position.apply_segments(move_segments, new_zorb);
-                let legal_moves: Vec<Move> = moves
+                let (new_position, pl_moves) =
+                    self.position.apply_segments(move_segments, new_zorb);
+                let legal_moves: Vec<Move> = pl_moves
                     .clone()
                     .into_iter()
                     .filter(|m| new_position.is_legal_move(m))
                     .collect();
-                insert_into_position_table(new_position, moves.clone());
-                insert_into_l_moves_table(new_position.zorb_key, legal_moves.clone());
-                (new_position, moves)
+                insert_into_position_table(new_position, Some(legal_moves.clone()));
+                (new_position, legal_moves)
             }
         };
 
@@ -162,12 +118,15 @@ impl GameState {
             self.recent_moves[4],
         ];
 
+        let result_state = result_state(half_moves, recent_moves, new_position, &legal_moves);
+
         Self {
             position: new_position,
-            pl_moves: moves,
+            moves: legal_moves,
             half_moves,
             full_moves,
             recent_moves,
+            result_state,
         }
     }
 
@@ -178,22 +137,6 @@ impl GameState {
         result = format!("{result} {}", self.full_moves);
 
         result
-    }
-
-    pub fn get_legal_moves(&self) -> Vec<Move> {
-        match lookup_l_moves_table(self.position.zorb_key) {
-            Some(r) => r,
-            None => {
-                let legal_moves: Vec<Move> = self
-                    .pl_moves
-                    .clone()
-                    .into_iter()
-                    .filter(|m| self.position.is_legal_move(m))
-                    .collect();
-                insert_into_l_moves_table(self.position.zorb_key, legal_moves.clone());
-                legal_moves
-            }
-        }
     }
 
     pub fn move_from_uci(&self, move_uci: &str) -> Move {
@@ -268,6 +211,40 @@ impl Debug for GameState {
     }
 }
 
+fn result_state(
+    half_moves: u8,
+    recent_moves: [Move; 6],
+    position: Position,
+    legal_moves: &Vec<Move>,
+) -> MatchResultState {
+    if half_moves >= 50 {
+        return MatchResultState::Draw;
+    }
+
+    if !recent_moves[0].is_empty()
+        && !recent_moves[1].is_empty()
+        && recent_moves[0] == recent_moves[2]
+        && recent_moves[0] == recent_moves[4]
+        && recent_moves[1] == recent_moves[3]
+        && recent_moves[1] == recent_moves[5]
+    {
+        return MatchResultState::Draw;
+    }
+
+    let current_player_has_moves = has_player_moves(&legal_moves, position.black_turn);
+    if !current_player_has_moves {
+        if position.black_turn && position.black_in_check {
+            return MatchResultState::WhiteVictory;
+        }
+        if !position.black_turn && position.white_in_check {
+            return MatchResultState::BlackVictory;
+        }
+
+        return MatchResultState::Draw;
+    }
+    MatchResultState::Active
+}
+
 fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {
     for m in moves {
         if m.is_black() == is_black {
@@ -275,6 +252,14 @@ fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {
         }
     }
     return false;
+}
+
+fn update_position_with_legal_moves(position: Position) -> (Position, Vec<Move>) {
+    let (white_moves, black_moves, _,_,_,_) =  MOVE_DATA.generate_moves(position);
+    let active_player_moves = if position.black_turn { black_moves } else {white_moves};
+    let legal_moves: Vec<Move> = active_player_moves.into_iter().filter(|m| position.is_legal_move(m)).collect();
+    insert_into_position_table(position, Some(legal_moves.clone()));
+    (position, legal_moves)
 }
 
 impl Default for GameState {

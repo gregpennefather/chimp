@@ -129,36 +129,37 @@ impl Ord for Move {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self.partial_cmp(other) {
             Some(r) => r,
-            None => Ordering::Equal
+            None => Ordering::Equal,
         }
     }
 }
 #[cfg(test)]
 mod test {
-    use crate::{shared::{piece_type::PieceType, constants::MF_CAPTURE}, r#move::Move, engine::move_orderer::order};
+    use crate::{
+        r#move::Move,
+        shared::{constants::MF_CAPTURE, piece_type::PieceType},
+    };
 
     #[test]
     pub fn order_will_prioritize_greater_valued_flags() {
-        let m1 = Move::new(2,4,1, PieceType::Queen, false);
-        let m2 = Move::new(2,4,15, PieceType::Queen, false);
+        let m1 = Move::new(2, 4, 1, PieceType::Queen, false);
+        let m2 = Move::new(2, 4, 15, PieceType::Queen, false);
 
-        let mut vec = vec![m1,m2];
+        let mut vec = vec![m1, m2];
         vec.sort();
-        assert_eq!(vec[0],m2);
-        assert_eq!(vec[1],m1);
-
+        assert_eq!(vec[0], m2);
+        assert_eq!(vec[1], m1);
     }
 
     #[test]
     pub fn order_will_prioritize_greater_valued_pieces() {
-        let m1 = Move::new(2,4,1, PieceType::Pawn, false);
-        let m2 = Move::new(2,4,1, PieceType::Queen, false);
+        let m1 = Move::new(2, 4, 1, PieceType::Pawn, false);
+        let m2 = Move::new(2, 4, 1, PieceType::Queen, false);
 
-        let mut vec = vec![m1,m2];
+        let mut vec = vec![m1, m2];
         vec.sort();
-        assert_eq!(vec[0],m2);
-        assert_eq!(vec[1],m1);
-
+        assert_eq!(vec[0], m2);
+        assert_eq!(vec[1], m1);
     }
 
     #[test]
@@ -171,5 +172,4 @@ mod test {
         assert_eq!(moves[0], capture);
         assert_eq!(moves[1], quiet);
     }
-
 }

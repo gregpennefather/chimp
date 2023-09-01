@@ -8,8 +8,6 @@ use crate::{
     POSITION_TRANSPOSITION_TABLE,
 };
 
-use self::move_orderer::order;
-
 pub mod move_orderer;
 pub mod perft;
 pub mod san;
@@ -187,8 +185,8 @@ pub fn ab_search(
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Move, i32), String> {
-    if depth == 0 || game_state.result_state() != MatchResultState::Active {
-        return match game_state.result_state() {
+    if depth == 0 || game_state.result_state != MatchResultState::Active {
+        return match game_state.result_state {
             MatchResultState::Draw => Ok((Move::default(), 0)),
             MatchResultState::WhiteVictory => Ok((Move::default(), i32::MAX - 1)),
             MatchResultState::BlackVictory => Ok((Move::default(), i32::MIN + 1)),
@@ -212,12 +210,6 @@ pub fn ab_search(
         ));
     }
 
-    let legal_moves = if priority_moves.len() > 0 {
-        order(game_state.get_legal_moves(), priority_moves)
-    } else {
-        game_state.get_legal_moves()
-    };
-
     let mut chosen_move = Move::default();
     let mut chosen_move_eval = if !game_state.position.black_turn {
         i32::MIN
@@ -225,7 +217,12 @@ pub fn ab_search(
         i32::MAX
     };
 
-    for &test_move in &legal_moves {
+    let ordered_moves = if priority_moves.is_empty() { game_state.moves.clone() } else {
+        let mut moves = game_state.moves.clone();
+        moves.sort_by(|a,b| move_orderer::priority_cmp(a,b,&priority_moves));
+        moves
+    };
+    for &test_move in &ordered_moves {
         let new_state = game_state.make(test_move);
         let (_m, result_eval) = match ab_search(new_state, vec![], depth - 1, timeout, alpha, beta) {
             Ok(r) => r,
@@ -262,7 +259,7 @@ pub fn ab_search(
     }
 
     if chosen_move.is_empty() {
-        println!("legal_moves: {legal_moves:?}");
+        println!("legal_moves: {ordered_moves:?}");
         panic!(
             "empty chosen move! depth:{depth}:value{} => {}",
             chosen_move_eval,

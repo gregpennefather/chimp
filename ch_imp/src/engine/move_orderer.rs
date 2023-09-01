@@ -1,38 +1,26 @@
-use log::trace;
+use std::cmp::Ordering;
 
 use crate::r#move::Move;
 
-pub fn order(moves: Vec<Move>, priority_moves: Vec<Move>) -> Vec<Move> {
-    trace!("moves:{moves:?}");
-    trace!("priority_moves:{priority_moves:?}");
-
-    let mut working = moves.clone();
-    let mut output = Vec::new();
-    for m in moves {
-        let search_result = priority_moves.binary_search(&m);
-        match search_result {
-            Ok(index) => {
-                output.push(m);
-                working.remove(index);
-            },
-            _ => {}
-        }
+pub fn priority_cmp(a: &Move, b: &Move, priority_moves: &Vec<Move>) -> Ordering {
+    if priority_moves.contains(&a) {
+        return Ordering::Less;
     }
-
-    output.extend(working);
-
-    output
+    if priority_moves.contains(&b) {
+        return Ordering::Greater;
+    }
+    return Ordering::Equal;
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{shared::piece_type::PieceType, r#move::Move, engine::move_orderer::order};
+    use crate::{engine::move_orderer::priority_cmp, r#move::Move, shared::piece_type::PieceType};
 
     #[test]
     pub fn order_priority_move_to_top() {
-        let priority_move = Move::new(2,4,1, PieceType::Queen, false);
-        let moves = vec![Move::new(0,1,0,PieceType::Pawn, false), priority_move];
-        let r = order(moves, vec![priority_move]);
-        assert_eq!(r[0], priority_move);
+        let priority_move = Move::new(2, 4, 1, PieceType::Queen, false);
+        let mut moves = vec![Move::new(0, 1, 0, PieceType::Pawn, false), priority_move];
+        moves.sort_by(|a, b| priority_cmp(a, b, &vec![priority_move]));
+        assert_eq!(moves[0], priority_move);
     }
 }

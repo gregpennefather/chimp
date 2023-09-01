@@ -219,9 +219,15 @@ impl Position {
 
         output.zorb_key = ZORB_SET.hash(output);
 
-        let (output, moves) = set_position_moves_and_meta(output);
+        let (output, pl_moves) = set_position_moves_and_meta(output);
 
-        (output, moves)
+        let legal_moves: Vec<Move> = pl_moves
+            .clone()
+            .into_iter()
+            .filter(|m| output.is_legal_move(m))
+            .collect();
+
+        (output, legal_moves)
     }
 
     pub fn from_fen(fen: String) -> Self {
@@ -243,12 +249,12 @@ impl Position {
 
     pub fn is_legal_move(&self, m: &Move) -> bool {
         let (new_zorb, move_segments) = self.zorb_key_after_move(*m);
-        let position = match lookup_position_table(new_zorb) {
+        let (position, legal_moves) = match lookup_position_table(new_zorb) {
             Some(gs) => gs,
             None => {
                 let (new_position, moves) = self.apply_segments(move_segments, new_zorb);
-                insert_into_position_table(new_position, moves.clone());
-                new_position
+                insert_into_position_table(new_position, None);
+                (new_position, None)
             }
         };
         position.legal()
