@@ -1,13 +1,13 @@
 use std::{
     mem,
-    time::{Instant, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
-    engine::{perft::perft, san::build_san, ChimpEngine},
+    engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
     evaluation::{base_eval::base_eval, early_eval},
-    match_state::game_state::{GameState, MatchResultState, self},
+    match_state::game_state::{self, GameState, MatchResultState},
     r#move::Move,
 };
 use log::{info, LevelFilter};
@@ -97,16 +97,72 @@ fn main() {
     // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
     // println!("{:?}", game_state.result_state());
 
-    compare_evals("r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/R6R b - - 1 28".into(), "r6r/1pk1p3/1nb2p2/p5pp/2pPP3/2P2B1P/PP1B1KP1/4RR2 b - - 1 28".into());
+    //debug_evals("r1b2k1r/pQp2pp1/2nq1n2/2bpp2p/8/2NBPN2/PPPP1PPP/R1B2K1R b - - 0 13".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
 
-    // park_table();
+    debug_deepening("r1bqkb1r/pppppppp/5n2/8/1n6/2N1PQ2/PPPP1PPP/R1B1KBNR w KQkq - 5 4".into(), 2000);
+
+    // debug_search(
+    //     "r3k3/pp3qp1/1n2p2r/1NQp1pRp/P4P2/8/1PP2P1P/R1B2K1B w q - 1 21".into(),
+    //     4,
+    // );
+
+    //println!("{r:?}");
+
+    park_table();
 }
 
-fn compare_evals(fen_1: String, fen_2: String) {
+fn debug_evals(fen_1: String, fen_2: String) {
+    let stdout = ConsoleAppender::builder().build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
     let p1 = Position::from_fen(fen_1);
     let p2 = Position::from_fen(fen_2);
 
     println!("{} vs {}", p1.eval, p2.eval)
+}
+
+fn debug_deepening(fen_1: String, ms: u64) {
+    let stdout = ConsoleAppender::builder().build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let timer = Instant::now();
+    let game_state = GameState::new(fen_1);
+    let timeout = Instant::now()
+        .checked_add(Duration::from_millis(ms))
+        .unwrap();
+    iterative_deepening(game_state, timeout);
+    let dur = timer.elapsed();
+    println!("dur: {dur:?}");
+}
+
+fn debug_search(fen_1: String, depth: u8) {
+    let stdout = ConsoleAppender::builder().build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let timer = Instant::now();
+
+    let game_state = GameState::new(fen_1);
+    let mut i = 1;
+    while i <= depth {
+        let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
+
+        let r = ab_search(game_state.clone(), i, timeout, i32::MIN, i32::MAX).unwrap();
+        let dur = timer.elapsed();
+        println!("{i}:{:?} {:?}", r, dur);
+        i+=1;
+    }
 }
 
 fn park_table() {
@@ -125,7 +181,12 @@ fn park_table() {
     let config = Config::builder()
         .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").appender("chimp").build(LevelFilter::Info))
+        .build(
+            Root::builder()
+                .appender("stdout")
+                .appender("chimp")
+                .build(LevelFilter::Info),
+        )
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
@@ -135,7 +196,7 @@ fn park_table() {
     let mut move_ucis = Vec::new();
     info!("Park Table:");
     for _i in 0..200 {
-        let m = engine.go();
+        let m = engine.go(0, 0, 3000, 3000);
         move_ucis.push(m.uci());
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
