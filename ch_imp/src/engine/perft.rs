@@ -1,9 +1,11 @@
 use std::time::Instant;
 
+use log::info;
+
 use crate::{match_state::game_state::GameState, r#move::Move, POSITION_TRANSPOSITION_TABLE};
 
 pub fn perft(name: String, fen: String, counts: Vec<usize>) {
-    println!("--- {name} ---");
+    info!("--- {name} ---");
     let origin_game_state = GameState::new(fen);
     let mut top_level_states = Vec::new();
 
@@ -19,7 +21,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
         }
     }
     let duration = start.elapsed();
-    println!("0: {}/{} - {duration:?}", top_level_states.len(), counts[0]);
+    info!("0: {}/{} - {duration:?}", top_level_states.len(), counts[0]);
     if top_level_states.len() != counts[0] {
         print_move_counts(&top_level_states);
         return;
@@ -48,13 +50,13 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
         }
 
         let duration = start.elapsed();
-        println!("{depth}: {}/{} - {duration:?}", depth_count, counts[depth]);
+        info!("{depth}: {}/{} - {duration:?}", depth_count, counts[depth]);
         if depth_count != counts[depth] {
             print_move_counts(&top_level_states);
             return;
         }
     }
-    println!(
+    info!(
         "Table size: {}",
         POSITION_TRANSPOSITION_TABLE.read().unwrap().len()
     )
@@ -62,6 +64,6 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
 
 fn print_move_counts(top_level_states: &Vec<(Move, usize, Vec<GameState>)>) {
     for top_level_state in top_level_states {
-        println!("{}: {}", top_level_state.0.uci(), top_level_state.1);
+        info!("{}: {}", top_level_state.0.uci(), top_level_state.1);
     }
 }

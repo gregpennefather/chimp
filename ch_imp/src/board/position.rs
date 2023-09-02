@@ -9,7 +9,7 @@ use crate::{
         board_utils::{get_coords_from_index, get_file, index_from_coords},
         constants::MF_EP_CAPTURE,
         piece_type::{get_piece_char, get_piece_type_from_char, PieceType},
-        transposition_table::{insert_into_position_table, lookup_position_table},
+        transposition_table::{insert_into_position_table, lookup_position_table, insert_into_pl_moves_table},
     },
     MOVE_DATA,
 };
@@ -794,7 +794,8 @@ fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) 
     } else {
         white_moves.clone()
     };
-    active_colour_moves.sort_by(|a, b| b.flags().cmp(&a.flags()));
+    active_colour_moves.sort();
+    insert_into_pl_moves_table(position.zorb_key, active_colour_moves.clone());
 
     position.white_threatboard = white_threatboard;
     position.black_threatboard = black_threatboard;
@@ -856,20 +857,6 @@ fn flip_piece(
         colour_bitboard.flip(index),
         all_bitboard.flip(index),
     )
-}
-
-fn to_move_array(mut vec: Vec<Move>) -> OrderedMoveList {
-    let mut move_array = default_ordered_move_list();
-    vec.sort_by(|a, b| b.flags().cmp(&a.flags()));
-    let mut len = vec.len();
-    if vec.len() >= 64 {
-        println!("Too many moves! {}", vec.len());
-        len = 64;
-    }
-    for i in 0..len {
-        move_array[i] = vec[i];
-    }
-    move_array
 }
 
 #[cfg(test)]

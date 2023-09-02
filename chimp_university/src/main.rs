@@ -15,7 +15,7 @@ use log4rs::{
 };
 fn main() {
     //perfts();
-    // let magic_table = MagicTable::new();
+    //let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
     // //generate_blocker_patterns(rook_mask_generation(0));
 
@@ -193,7 +193,7 @@ fn park_table() {
     let mut move_ucis = Vec::new();
     info!("Park Table:");
     for _i in 0..200 {
-        let m = engine.go(0, 0, 3000, 3000);
+        let m = engine.go(0, 0, 1500, 1500);
         move_ucis.push(m.uci());
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
@@ -217,10 +217,33 @@ fn get_moves_string(moves: &Vec<String>) -> String {
 }
 
 fn perfts() {
+    let stdout = ConsoleAppender::builder().build();
+    let chimp_logs = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+        .build(format!(
+            "log/perfts_{:?}.log",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ))
+        .unwrap();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(
+            Root::builder()
+                .appender("stdout")
+                .appender("chimp")
+                .build(LevelFilter::Info),
+        )
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
     perft(
         "Perft".into(),
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(),
-        vec![20, 400, 8902, 197281, 4865609],
+        vec![20, 400, 8902, 197281],
     );
 
     perft(

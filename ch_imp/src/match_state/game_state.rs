@@ -10,7 +10,7 @@ use crate::{
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
         piece_type::{get_piece_type_from_char, PieceType},
-        transposition_table::{insert_into_position_table, lookup_position_table},
+        transposition_table::{insert_into_position_table, lookup_position_table, lookup_pl_moves_table},
     }, MOVE_DATA,
 };
 use core::fmt::Debug;
@@ -81,7 +81,13 @@ impl GameState {
             // }
             Some((position, lm_option)) => match lm_option {
                 Some(legal_moves) => (position, legal_moves),
-                None => update_position_with_legal_moves(position),
+                None => {
+                    if position.legal() {
+                        update_position_with_legal_moves(position)
+                    } else {
+                        (position, vec![])
+                    }
+                },
             },
             None => {
                 let (new_position, pl_moves) =
@@ -255,8 +261,7 @@ fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {
 }
 
 fn update_position_with_legal_moves(position: Position) -> (Position, Vec<Move>) {
-    let (white_moves, black_moves, _,_,_,_) =  MOVE_DATA.generate_moves(position);
-    let active_player_moves = if position.black_turn { black_moves } else {white_moves};
+    let active_player_moves = lookup_pl_moves_table(position.zorb_key).unwrap();
     let legal_moves: Vec<Move> = active_player_moves.into_iter().filter(|m| position.is_legal_move(m)).collect();
     insert_into_position_table(position, Some(legal_moves.clone()));
     (position, legal_moves)
