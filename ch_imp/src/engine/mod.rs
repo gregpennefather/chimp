@@ -5,7 +5,7 @@ use log::{debug, error, info, trace};
 use crate::{
     match_state::game_state::{GameState, MatchResultState},
     r#move::Move,
-    POSITION_TRANSPOSITION_TABLE,
+    POSITION_TRANSPOSITION_TABLE, shared::transposition_table::clear_tables,
 };
 
 pub mod move_orderer;
@@ -21,6 +21,7 @@ pub struct ChimpEngine {
 
 impl ChimpEngine {
     pub fn new() -> Self {
+        clear_tables();
         let current_game_state = GameState::default();
         let moves = Vec::new();
         Self {
@@ -89,15 +90,15 @@ impl ChimpEngine {
     pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> Move {
         let ms = if self.current_game_state.position.black_turn {
             if (btime < binc) {
-                binc
+                (binc / 3 * 2)
             } else {
-                binc + i32::min(15000, btime / 3)
+                binc + i32::min(15000, btime / 5)
             }
         } else {
             if (wtime < winc) {
-                winc
+                (winc / 3 * 2)
             } else {
-                winc + i32::min(15000, wtime / 3)
+                winc + i32::min(15000, wtime / 5)
             }
         };
         info!(

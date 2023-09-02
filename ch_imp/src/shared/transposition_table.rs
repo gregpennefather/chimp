@@ -33,3 +33,8 @@ pub fn lookup_pl_moves_table(zorb_key: u64) -> Option<Vec<Move>> {
         .get(&zorb_key)
         .cloned()
 }
+
+pub fn clear_tables() {
+    POSITION_TRANSPOSITION_TABLE.write().unwrap().clear();
+    PSUDOLEGAL_MOVES_TABLE.write().unwrap().clear();
+}

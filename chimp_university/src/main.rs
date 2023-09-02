@@ -1,9 +1,7 @@
-use std::{
-    time::{Duration, Instant, SystemTime},
-};
+use std::time::{Duration, Instant, SystemTime};
 
 use ch_imp::{
-    board::{position::Position},
+    board::position::Position,
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
     match_state::game_state::{GameState, MatchResultState},
 };
@@ -105,7 +103,10 @@ fn main() {
 
     //println!("{r:?}");
 
-    park_table();
+    //timed_depth_test("rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1".into());
+    target_depth_test();
+
+    //park_table();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {
@@ -155,10 +156,99 @@ fn debug_search(fen_1: String, depth: u8) {
     while i <= depth {
         let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
 
-        let r = ab_search(game_state.clone(), vec![], i, timeout, 0, i32::MIN, i32::MAX).unwrap();
+        let r = ab_search(
+            game_state.clone(),
+            vec![],
+            i,
+            timeout,
+            0,
+            i32::MIN,
+            i32::MAX,
+        )
+        .unwrap();
         let dur = timer.elapsed();
         println!("{i}:{:?} {:?}", r, dur);
-        i+=1;
+        i += 1;
+    }
+}
+
+fn timed_depth_test(fen: String) {
+    let stdout = ConsoleAppender::builder().build();
+    let chimp_logs = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+        .build(format!(
+            "log/timed_depth/{:?}.log",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ))
+        .unwrap();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(
+            Root::builder()
+                .appender("stdout")
+                .appender("chimp")
+                .build(LevelFilter::Info),
+        )
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let game_state = GameState::new(fen);
+    let timeout = Instant::now()
+        .checked_add(Duration::from_secs(120))
+        .unwrap();
+    iterative_deepening(game_state, timeout);
+}
+
+fn target_depth_test() {
+    let stdout = ConsoleAppender::builder().build();
+    let chimp_logs = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+        .build(format!(
+            "log/target_depth/{:?}.log",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ))
+        .unwrap();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(
+            Root::builder()
+                .appender("stdout")
+                .appender("chimp")
+                .build(LevelFilter::Info),
+        )
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let game_state = GameState::default();
+    let depth = 8;
+    let mut i = 0;
+    let timer = Instant::now();
+    while i <= depth {
+        let timeout = Instant::now().checked_add(Duration::from_secs(300)).unwrap();
+
+        let r = ab_search(
+            game_state.clone(),
+            vec![],
+            i,
+            timeout,
+            0,
+            i32::MIN,
+            i32::MAX,
+        )
+        .unwrap();
+        let dur = timer.elapsed();
+        println!("{i}:{:?} {:?}", r, dur);
+        i += 1;
     }
 }
 
@@ -192,8 +282,8 @@ fn park_table() {
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     info!("Park Table:");
-    for _i in 0..20 {
-        let m = engine.go(0, 0, 1500, 1500);
+    for _i in 0..200 {
+        let m = engine.go(0, 0, 3000, 3000);
         move_ucis.push(m.uci());
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
