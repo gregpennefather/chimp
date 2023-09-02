@@ -103,10 +103,10 @@ fn main() {
 
     //println!("{r:?}");
 
-    timed_depth_test();
-    target_depth_test();
+    // timed_depth_test();
+    // target_depth_test();
 
-    //park_table();
+    park_table();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {
@@ -283,10 +283,43 @@ fn park_table() {
     let mut engine: ChimpEngine = ChimpEngine::new();
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
+    let mut white_ms = 60000;
+    let mut black_ms = 60000;
+    let inc_ms = 1000;
     info!("Park Table:");
     for _i in 0..200 {
-        let m = engine.go(0, 0, 3000, 3000);
+        let timer = Instant::now();
+        let m = if _i == 0 || _i == 1 {
+            engine.go(10000, 10000, -1, -1)
+        } else {
+            engine.go(white_ms, black_ms, inc_ms, inc_ms)
+        };
+        if _i > 1 {
+            if engine.black_turn() {
+                black_ms += inc_ms;
+            } else {
+                white_ms += inc_ms;
+            }
+        }
+        if m.is_empty() {
+            info!("No legal moves found! FF");
+            break;
+        }
         move_ucis.push(m.uci());
+        let delay = timer.elapsed().as_millis() as i32;
+        if engine.black_turn() {
+            black_ms -= delay;
+            if black_ms < 0 {
+                info!("Black out of time!");
+                break;
+            }
+        } else {
+            white_ms -= delay;
+            if white_ms < 0 {
+                info!("White out of time!");
+                break;
+            }
+        }
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
         if engine.current_game_state.result_state != MatchResultState::Active {

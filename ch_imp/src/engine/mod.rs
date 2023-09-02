@@ -39,6 +39,10 @@ impl ChimpEngine {
         }
     }
 
+    pub fn black_turn(&self) -> bool {
+        self.current_game_state.position.black_turn
+    }
+
     pub fn position(&mut self, mut split_string: SplitAsciiWhitespace<'_>) {
         let first_word = split_string.next();
         match first_word {
@@ -88,21 +92,24 @@ impl ChimpEngine {
     }
 
     pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> Move {
-        let ms = if self.current_game_state.position.black_turn {
-            if (btime < binc) {
-                (binc / 3 * 2)
+        let ms = if winc == -1 || binc == -1 {
+            info!("go movetime 10000");
+            wtime
+        } else if self.current_game_state.position.black_turn {
+            if btime < binc {
+                binc / 3 * 2
             } else {
                 binc + i32::min(15000, btime / 5)
             }
         } else {
-            if (wtime < winc) {
-                (winc / 3 * 2)
+            if wtime < winc {
+                winc / 3 * 2
             } else {
                 winc + i32::min(15000, wtime / 5)
             }
         };
         info!(
-            "{}: go {} {ms:?}",
+            "{}: go {} {wtime} {btime} {winc} {binc} => {ms:?}",
             self.moves.len(),
             if self.current_game_state.position.black_turn {
                 "black"
@@ -183,6 +190,11 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
     if output_r.2 == i32::MAX || output_r.2 == i32::MIN {
         info!("Mate in {}: {:?}", m_history.len(), m_history)
     }
+
+    if m_history.len() == 0 {
+        return Move::default();
+    }
+
     info!(
         "go {:?} (depth: {}) path:{:?}\n",
         m_history[0],

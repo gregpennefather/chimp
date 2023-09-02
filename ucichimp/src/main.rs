@@ -60,7 +60,12 @@ fn run() -> bool {
                 }
                 "go" => {
                     let (wtime, btime, winc, binc) = get_go_params(split_string);
-                    println!("bestmove {}", engine.go(wtime, btime, winc, binc).uci());
+                    let bestmove = engine.go(wtime, btime, winc, binc);
+                    if bestmove.is_empty() {
+                        println!("ff")
+                    } else {
+                        println!("bestmove {}", bestmove.uci());
+                    }
                 }
                 "quit" => break,
                 _ => {
@@ -79,10 +84,10 @@ fn run() -> bool {
 fn get_go_params(mut split_string: std::str::SplitAsciiWhitespace<'_>) -> (i32, i32, i32, i32) {
     let first_word = split_string.next().unwrap();
 
-    if (first_word.eq("movetime")) {
+    if first_word.eq("movetime") {
         let r = split_string.next().unwrap();
         let v = r.parse::<i32>().unwrap();
-        return (0, 0, v, v);
+        return (v, v, -1, -1);
     }
 
     let r = split_string.next().unwrap();

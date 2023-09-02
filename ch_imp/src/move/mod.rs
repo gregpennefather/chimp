@@ -98,7 +98,7 @@ impl Move {
         )
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.0 == 0
     }
 }
@@ -132,6 +132,27 @@ impl PartialOrd for Move {
             return Some(flags_result);
         }
 
+        // Check Pawn captures first
+        if self.piece_type() == PieceType::Pawn
+            && (self.flags() == MF_CAPTURE || self.flags() == MF_EP_CAPTURE)
+        {
+            return Some(Ordering::Less);
+        }
+        if other.piece_type() == PieceType::Pawn
+            && (other.flags() == MF_CAPTURE || other.flags() == MF_EP_CAPTURE)
+        {
+            return Some(Ordering::Less);
+        }
+
+        // Check king moves last
+        if self.piece_type() == PieceType::King {
+            if other.piece_type() == PieceType::King {
+                return Some(Ordering::Equal);
+            }
+            return Some(Ordering::Less);
+        }
+
+        // Else check high value pieces first
         Some(other.1.cmp(&self.1))
     }
 }
