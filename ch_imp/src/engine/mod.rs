@@ -12,6 +12,8 @@ pub mod move_orderer;
 pub mod perft;
 pub mod san;
 
+const MAX_EXTENSIONS: u8 = 2;
+
 pub struct ChimpEngine {
     pub current_game_state: GameState,
     moves: Vec<Move>,
@@ -86,9 +88,17 @@ impl ChimpEngine {
 
     pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> Move {
         let ms = if self.current_game_state.position.black_turn {
-            binc + i32::min(15000, btime / 10)
+            if (btime < binc) {
+                binc
+            } else {
+                binc + i32::min(15000, btime / 3)
+            }
         } else {
-            winc + i32::min(15000, wtime / 10)
+            if (wtime < winc) {
+                winc
+            } else {
+                winc + i32::min(15000, wtime / 3)
+            }
         };
         info!(
             "{}: go {} {ms:?}",
@@ -143,10 +153,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
         //     alpha = output_r.1;
         // }
         depth += 1;
-        info!(
-            "depth: {depth} -> val : {:?} alpha: {alpha}, beta: {beta}",
-            output_r
-        );
+        info!("depth: {depth}");
 
         let priority_moves = output_r.0.iter().map(|&f| f.0).collect();
 
@@ -155,12 +162,12 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
             priority_moves,
             depth,
             timeout,
+            0,
             alpha,
             beta,
         )
         .unwrap();
 
-        info!("depth: {depth} complete {:?}", t_time.elapsed());
         if Instant::now() > timeout {
             if (!game_state.position.black_turn && r.2 > output_r.2)
                 || (game_state.position.black_turn && r.2 < output_r.2)
@@ -171,12 +178,19 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
         } else {
             output_r = r;
         }
+        info!(
+            "depth: {depth} complete {:?} => val : {:?}",
+            t_time.elapsed(),
+            output_r
+        );
         cur_time = Instant::now();
     }
     let m_history = output_r.0;
     info!(
         "go {:?} (depth: {}) path:{:?}\n",
-        m_history[0], depth-1, m_history
+        m_history[0],
+        depth - 1,
+        m_history
     );
     m_history[0].0
 }
@@ -186,6 +200,7 @@ pub fn ab_search(
     priority_moves: Vec<Move>,
     depth: u8,
     timeout: Instant,
+    total_extensions: u8,
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
@@ -229,14 +244,26 @@ pub fn ab_search(
     };
     for &test_move in &ordered_moves {
         let new_state = game_state.make(test_move);
-        let (path, node_eval, result_eval) =
-            match ab_search(new_state, vec![], depth - 1, timeout, alpha, beta) {
-                Ok(r) => r,
-                Err(e) => {
-                    error!("{e}");
-                    panic!("{e}")
-                }
-            };
+        let extensions = if depth == 1 {
+            get_extensions(&new_state, test_move, total_extensions)
+        } else {
+            0
+        };
+        let (path, node_eval, result_eval) = match ab_search(
+            new_state,
+            vec![],
+            depth - 1 + extensions,
+            timeout,
+            total_extensions + extensions,
+            alpha,
+            beta,
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("{e}");
+                panic!("{e}")
+            }
+        };
 
         let now = Instant::now();
         if now > timeout {
@@ -300,4 +327,18 @@ pub fn ab_search(
         game_state.position.eval,
         chosen_move_eval,
     ))
+}
+
+fn get_extensions(new_state: &GameState, test_move: Move, total_extensions: u8) -> u8 {
+    if total_extensions >= MAX_EXTENSIONS {
+        return 0;
+    }
+    if new_state.position.black_in_check || new_state.position.white_in_check {
+        return 1;
+    }
+
+    if test_move.is_capture() {
+        return 1;
+    }
+    return 0;
 }

@@ -98,10 +98,10 @@ fn main() {
 
     //debug_deepening("r1bqkb1r/pppppppp/5n2/5Q2/1n6/2N1P3/PPPP1PPP/R1B1KBNR b KQkq - 6 4".into(), 2000);
 
-    // debug_search(
-    //     "r3k3/pp3qp1/1n2p2r/1NQp1pRp/P4P2/8/1PP2P1P/R1B2K1B w q - 1 21".into(),
-    //     4,
-    // );
+    //  debug_search(
+    //      "r1bq1k1r/pppp1ppp/2n2n2/4p1N1/8/2P1PQ2/P1PP1PPP/1RB1KB1R b K - 2 7".into(),
+    //      2,
+    //  );
 
     //println!("{r:?}");
 
@@ -155,7 +155,7 @@ fn debug_search(fen_1: String, depth: u8) {
     while i <= depth {
         let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
 
-        let r = ab_search(game_state.clone(), vec![], i, timeout, i32::MIN, i32::MAX).unwrap();
+        let r = ab_search(game_state.clone(), vec![], i, timeout, 0, i32::MIN, i32::MAX).unwrap();
         let dur = timer.elapsed();
         println!("{i}:{:?} {:?}", r, dur);
         i+=1;
@@ -167,7 +167,7 @@ fn park_table() {
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.5_{:?}.log",
+            "log/chimp_v0.0.0.6_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -192,8 +192,8 @@ fn park_table() {
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     info!("Park Table:");
-    for _i in 0..20 {
-        let m = engine.go(0, 0, 1500, 1500);
+    for _i in 0..30 {
+        let m = engine.go(0, 0, 5000, 5000);
         move_ucis.push(m.uci());
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
