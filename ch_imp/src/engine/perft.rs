@@ -15,9 +15,9 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
             continue;
         }
 
-        let new_state = origin_game_state.make(m);
-        if new_state.legal() {
-            top_level_states.push((m, 0, vec![new_state]));
+        match origin_game_state.make(m) {
+            Some(new_state) => top_level_states.push((m, 0, vec![new_state])),
+            None => continue,
         }
     }
     let duration = start.elapsed();
@@ -38,9 +38,9 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
                     if m.is_black() != game_state.position.black_turn {
                         continue;
                     }
-                    let new_state = game_state.make(m);
-                    if new_state.legal() {
-                        new_edge_states.push(new_state);
+                    match game_state.make(m) {
+                        Some(new_state) => new_edge_states.push(new_state),
+                        None => continue,
                     }
                 }
             }

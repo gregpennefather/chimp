@@ -9,7 +9,7 @@ use crate::{
         board_utils::{get_coords_from_index, get_file, index_from_coords},
         constants::MF_EP_CAPTURE,
         piece_type::{get_piece_char, get_piece_type_from_char, PieceType},
-        transposition_table::{insert_into_position_table, lookup_position_table, insert_into_pl_moves_table},
+        transposition_table::{insert_into_position_table, lookup_position_table},
     },
     MOVE_DATA,
 };
@@ -221,13 +221,7 @@ impl Position {
 
         let (output, pl_moves) = set_position_moves_and_meta(output);
 
-        let legal_moves: Vec<Move> = pl_moves
-            .clone()
-            .into_iter()
-            .filter(|m| output.is_legal_move(m))
-            .collect();
-
-        (output, legal_moves)
+        (output, pl_moves)
     }
 
     pub fn from_fen(fen: String) -> Self {
@@ -245,19 +239,6 @@ impl Position {
             || self.white_king_position == u8::MAX
             || !((self.black_turn && self.white_in_check)
                 || (!self.black_turn && self.black_in_check));
-    }
-
-    pub fn is_legal_move(&self, m: &Move) -> bool {
-        let (new_zorb, move_segments) = self.zorb_key_after_move(*m);
-        let (position, _legal_moves) = match lookup_position_table(new_zorb) {
-            Some(gs) => gs,
-            None => {
-                let (new_position, _moves) = self.apply_segments(move_segments, new_zorb);
-                insert_into_position_table(new_position, None);
-                (new_position, None)
-            }
-        };
-        position.legal()
     }
 
     pub fn to_fen(&self) -> String {
@@ -547,7 +528,7 @@ impl Position {
         &self,
         segments: MoveSegmentArray,
         new_zorb_key: u64,
-    ) -> (Position, Vec<Move>) {
+    ) -> Option<(Position, Vec<Move>)> {
         let mut occupancy = self.occupancy;
         let mut white_bitboard = self.white_bitboard;
         let mut black_bitboard = self.black_bitboard;
@@ -738,7 +719,15 @@ impl Position {
 
         let (output, moves) = set_position_moves_and_meta(output);
 
-        (output, moves)
+        if output.black_king_position == u8::MAX
+            || output.white_king_position == u8::MAX
+            || (output.black_turn && output.white_in_check)
+            || (!output.black_turn && output.black_in_check)
+        {
+            None
+        } else {
+            Some((output, moves))
+        }
     }
 }
 
@@ -795,7 +784,6 @@ fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) 
         white_moves.clone()
     };
     active_colour_moves.sort();
-    insert_into_pl_moves_table(position.zorb_key, active_colour_moves.clone());
 
     position.white_threatboard = white_threatboard;
     position.black_threatboard = black_threatboard;
@@ -1060,5 +1048,4 @@ mod test {
         assert_eq!(segments[3], MoveSegment::default());
         assert_eq!(segments[4], MoveSegment::default());
     }
-
 }

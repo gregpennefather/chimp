@@ -10,7 +10,7 @@ use crate::{
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
         piece_type::{get_piece_type_from_char, PieceType},
-        transposition_table::{insert_into_position_table, lookup_position_table, lookup_pl_moves_table},
+        transposition_table::{insert_into_position_table, lookup_position_table},
     },
 };
 use core::fmt::Debug;
@@ -42,17 +42,16 @@ impl GameState {
         let turn_segment = fen_segments.nth(0).unwrap().to_string();
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
-        let (position, legal_moves) =
+        let (position, pl_moves) =
             Position::build(position_segment, turn_segment, castling_segment, ep_segment);
-        insert_into_position_table(position, Some(legal_moves.clone()));
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
         let recent_moves = [Move::default(); 6];
-        let result_state = result_state(half_moves, recent_moves, position, &legal_moves);
+        let result_state = result_state(half_moves, recent_moves, position, &pl_moves);
         Self {
             position,
-            moves: legal_moves,
+            moves: pl_moves,
             half_moves,
             full_moves,
             result_state,
@@ -64,7 +63,7 @@ impl GameState {
         self.position.legal()
     }
 
-    pub fn make(&self, m: Move) -> Self {
+    pub fn make(&self, m: Move) -> Option<Self> {
         let (new_zorb, move_segments) = self.position.zorb_key_after_move(m);
 
         if m.is_black() != self.position.black_turn {
@@ -73,34 +72,25 @@ impl GameState {
         }
 
         let lookup_result = lookup_position_table(new_zorb);
-        let (new_position, legal_moves) = match lookup_result {
+        let (new_position, pl_moves) = match lookup_result {
             // Some(new_position) => {
             //     let calc_position =  self.position.apply_segments(move_segments);
             //     assert_eq!(new_position, calc_position, "{self:?}:{m:?}");
             //     new_position
             // }
-            Some((position, lm_option)) => match lm_option {
-                Some(legal_moves) => (position, legal_moves),
-                None => {
-                    if position.legal() {
-                        update_position_with_legal_moves(position)
-                    } else {
-                        (position, vec![])
-                    }
-                },
+            Some((position, pl_moves)) => (position, pl_moves),
+            None => match self.position.apply_segments(move_segments, new_zorb) {
+                Some((new_position, pl_moves)) => {
+                    insert_into_position_table(new_position, pl_moves.clone());
+                    (new_position, pl_moves)
+                }
+                None => return None,
             },
-            None => {
-                let (new_position, pl_moves) =
-                    self.position.apply_segments(move_segments, new_zorb);
-                let legal_moves: Vec<Move> = pl_moves
-                    .clone()
-                    .into_iter()
-                    .filter(|m| new_position.is_legal_move(m))
-                    .collect();
-                insert_into_position_table(new_position, Some(legal_moves.clone()));
-                (new_position, legal_moves)
-            }
         };
+
+        if !self.position.legal() {
+            return None;
+        }
 
         let mut half_moves = self.half_moves;
         let mut full_moves = self.full_moves;
@@ -124,16 +114,16 @@ impl GameState {
             self.recent_moves[4],
         ];
 
-        let result_state = result_state(half_moves, recent_moves, new_position, &legal_moves);
+        let result_state = result_state(half_moves, recent_moves, new_position, &pl_moves); // TODO: Might need to add in some extra logic here
 
-        Self {
+        Some(Self {
             position: new_position,
-            moves: legal_moves,
+            moves: pl_moves,
             half_moves,
             full_moves,
             recent_moves,
             result_state,
-        }
+        })
     }
 
     pub fn to_fen(&self) -> String {
@@ -260,13 +250,6 @@ fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {
     return false;
 }
 
-fn update_position_with_legal_moves(position: Position) -> (Position, Vec<Move>) {
-    let active_player_moves = lookup_pl_moves_table(position.zorb_key).unwrap();
-    let legal_moves: Vec<Move> = active_player_moves.into_iter().filter(|m| position.is_legal_move(m)).collect();
-    insert_into_position_table(position, Some(legal_moves.clone()));
-    (position, legal_moves)
-}
-
 impl Default for GameState {
     fn default() -> Self {
         Self::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into())
@@ -327,13 +310,15 @@ mod test {
     #[test]
     pub fn make_pawn_e4_opening() {
         let mut game_state = GameState::default();
-        game_state = game_state.make(Move::new(
-            11,
-            27,
-            MF_DOUBLE_PAWN_PUSH,
-            PieceType::Pawn,
-            true,
-        ));
+        game_state = game_state
+            .make(Move::new(
+                11,
+                27,
+                MF_DOUBLE_PAWN_PUSH,
+                PieceType::Pawn,
+                true,
+            ))
+            .unwrap();
         assert_eq!(
             game_state.to_fen(),
             "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
@@ -345,7 +330,9 @@ mod test {
         let mut game_state = GameState::new(
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 2".into(),
         );
-        game_state = game_state.make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true));
+        game_state = game_state
+            .make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true))
+            .unwrap();
         assert_eq!(
             game_state.to_fen(),
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b - - 1 2"
@@ -357,13 +344,15 @@ mod test {
         let starting_state =
             GameState::new("rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2".into());
 
-        let next_state = starting_state.make(Move::new(
-            index_from_coords("f1"),
-            index_from_coords("c4"),
-            0b0,
-            PieceType::Bishop,
-            false,
-        ));
+        let next_state = starting_state
+            .make(Move::new(
+                index_from_coords("f1"),
+                index_from_coords("c4"),
+                0b0,
+                PieceType::Bishop,
+                false,
+            ))
+            .unwrap();
 
         let expected_game =
             GameState::new("rnbqkb1r/pppppppp/5n2/8/2B1P3/8/PPPP1PPP/RNBQK1NR b KQkq - 2 2".into());
@@ -373,46 +362,54 @@ mod test {
     #[test]
     pub fn make_multiple_moves_case_0() {
         let mut game_state: GameState = GameState::default();
-        game_state = game_state.make(Move::new(
-            index_from_coords("e2"),
-            index_from_coords("e4"),
-            MF_DOUBLE_PAWN_PUSH,
-            PieceType::Pawn,
-            false,
-        ));
+        game_state = game_state
+            .make(Move::new(
+                index_from_coords("e2"),
+                index_from_coords("e4"),
+                MF_DOUBLE_PAWN_PUSH,
+                PieceType::Pawn,
+                false,
+            ))
+            .unwrap();
 
         let expected_game_state_1 =
             GameState::new("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
         assert_eq!(game_state, expected_game_state_1);
 
-        game_state = game_state.make(Move::new(
-            index_from_coords("g8"),
-            index_from_coords("f6"),
-            0b0,
-            PieceType::Knight,
-            true,
-        ));
+        game_state = game_state
+            .make(Move::new(
+                index_from_coords("g8"),
+                index_from_coords("f6"),
+                0b0,
+                PieceType::Knight,
+                true,
+            ))
+            .unwrap();
 
-        let expected_game_state_1_2 = expected_game_state_1.make(Move::new(
-            index_from_coords("g8"),
-            index_from_coords("f6"),
-            0b0,
-            PieceType::Knight,
-            true,
-        ));
+        let expected_game_state_1_2 = expected_game_state_1
+            .make(Move::new(
+                index_from_coords("g8"),
+                index_from_coords("f6"),
+                0b0,
+                PieceType::Knight,
+                true,
+            ))
+            .unwrap();
 
         let expected_game_state_2 =
             GameState::new("rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2".into());
         assert_eq!(game_state, expected_game_state_2);
         assert_eq!(expected_game_state_1_2, expected_game_state_2);
 
-        game_state = game_state.make(Move::new(
-            index_from_coords("f1"),
-            index_from_coords("c4"),
-            0b0,
-            PieceType::Bishop,
-            false,
-        ));
+        game_state = game_state
+            .make(Move::new(
+                index_from_coords("f1"),
+                index_from_coords("c4"),
+                0b0,
+                PieceType::Bishop,
+                false,
+            ))
+            .unwrap();
 
         let expected_game_state_3 =
             GameState::new("rnbqkb1r/pppppppp/5n2/8/2B1P3/8/PPPP1PPP/RNBQK1NR b KQkq - 2 2".into());
@@ -423,24 +420,28 @@ mod test {
     pub fn make_multiple_moves() {
         let game_state =
             GameState::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
-        let output_state_1 = game_state.make(Move::new(
-            index_from_coords("a2"),
-            index_from_coords("a4"),
-            MF_DOUBLE_PAWN_PUSH,
-            PieceType::Pawn,
-            false,
-        ));
+        let output_state_1 = game_state
+            .make(Move::new(
+                index_from_coords("a2"),
+                index_from_coords("a4"),
+                MF_DOUBLE_PAWN_PUSH,
+                PieceType::Pawn,
+                false,
+            ))
+            .unwrap();
         let expected_game_state_1 =
             GameState::new("rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1".into());
         assert_eq!(output_state_1, expected_game_state_1);
 
-        let output_state_2 = output_state_1.make(Move::new(
-            index_from_coords("b7"),
-            index_from_coords("b5"),
-            MF_DOUBLE_PAWN_PUSH,
-            PieceType::Pawn,
-            true,
-        ));
+        let output_state_2 = output_state_1
+            .make(Move::new(
+                index_from_coords("b7"),
+                index_from_coords("b5"),
+                MF_DOUBLE_PAWN_PUSH,
+                PieceType::Pawn,
+                true,
+            ))
+            .unwrap();
         let expected_state_2 =
             GameState::new("rnbqkbnr/p1pppppp/8/1p6/P7/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 2".into());
 
@@ -453,13 +454,15 @@ mod test {
             "r2k3r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b Q - 3 2".into(),
         );
 
-        let state_after_move = state.make(Move::new(
-            index_from_coords("d8"),
-            index_from_coords("e8"),
-            0b0,
-            PieceType::King,
-            true,
-        ));
+        let state_after_move = state
+            .make(Move::new(
+                index_from_coords("d8"),
+                index_from_coords("e8"),
+                0b0,
+                PieceType::King,
+                true,
+            ))
+            .unwrap();
 
         let expected_state = GameState::new(
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w Q - 4 3".into(),

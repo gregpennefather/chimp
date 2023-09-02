@@ -14,7 +14,7 @@ pub fn build_san(moves: Vec<Move>) -> String {
 
     for m in moves {
         r += &format!(" {}", game_state.to_san(m));
-        game_state = game_state.make(m);
+        game_state = game_state.make(m).unwrap();
     }
 
     r

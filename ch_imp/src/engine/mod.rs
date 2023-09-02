@@ -123,7 +123,7 @@ impl ChimpEngine {
 
     fn add_move(&mut self, move_uci: &str) {
         let m = self.current_game_state.move_from_uci(move_uci);
-        self.current_game_state = self.current_game_state.make(m);
+        self.current_game_state = self.current_game_state.make(m).unwrap();
         self.moves.push(m);
     }
 }
@@ -177,7 +177,12 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
         );
         cur_time = Instant::now();
     }
+
     let m_history = output_r.0;
+    // If the chosen_move_eval is equal to a max it means this branch will end in a mate
+    if output_r.2 == i32::MAX || output_r.2 == i32::MIN {
+        info!("Mate in {}: {:?}", m_history.len(), m_history)
+    }
     info!(
         "go {:?} (depth: {}) path:{:?}\n",
         m_history[0],
@@ -235,7 +240,10 @@ pub fn ab_search(
         moves
     };
     for &test_move in &ordered_moves {
-        let new_state = game_state.make(test_move);
+        let new_state = match game_state.make(test_move) {
+            Some(new_state) => new_state,
+            None => continue
+        };
         let extensions = if depth == 1 {
             get_extensions(&new_state, test_move, total_extensions)
         } else {
@@ -295,15 +303,13 @@ pub fn ab_search(
         }
     }
 
+    // If we couldn't choose a move it means that none of the PL moves are actually legal so abandon this branch
     if chosen_move.is_empty() {
-        println!("legal_moves: {ordered_moves:?}");
-        panic!(
-            "empty chosen move! depth:{depth}:value{} => {}",
-            chosen_move_eval,
-            game_state.to_fen()
-        );
+        debug!("No legal moves found at {}", game_state.to_fen());
+        return Ok(if game_state.position.black_turn  {(vec![], i32::MAX - 1, i32::MAX - 1)} else {(vec![], i32::MIN + 1, i32::MIN + 1)})
     }
 
+    // If the chosen_move_eval is equal to a max it means this branch will end in a mate
     if chosen_move_eval == i32::MAX || chosen_move_eval == i32::MIN {
         debug!(
             "chosen_move_eval {chosen_move_eval} at {depth} for black:{} => {chosen_move:?}",

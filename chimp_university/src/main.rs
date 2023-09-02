@@ -103,7 +103,7 @@ fn main() {
 
     //println!("{r:?}");
 
-    //timed_depth_test("rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1".into());
+    timed_depth_test();
     target_depth_test();
 
     //park_table();
@@ -172,7 +172,7 @@ fn debug_search(fen_1: String, depth: u8) {
     }
 }
 
-fn timed_depth_test(fen: String) {
+fn timed_depth_test() {
     let stdout = ConsoleAppender::builder().build();
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
@@ -197,10 +197,11 @@ fn timed_depth_test(fen: String) {
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
-    let game_state = GameState::new(fen);
+    let game_state = GameState::default();
     let timeout = Instant::now()
         .checked_add(Duration::from_secs(120))
         .unwrap();
+    info!("Timed depth test: 120s");
     iterative_deepening(game_state, timeout);
 }
 
@@ -231,6 +232,7 @@ fn target_depth_test() {
 
     let game_state = GameState::default();
     let depth = 8;
+    info!("Target depth test: 8");
     let mut i = 0;
     let timer = Instant::now();
     while i <= depth {
@@ -247,7 +249,7 @@ fn target_depth_test() {
         )
         .unwrap();
         let dur = timer.elapsed();
-        println!("{i}:{:?} {:?}", r, dur);
+        info!("{i}:{:?} {:?}", r, dur);
         i += 1;
     }
 }
