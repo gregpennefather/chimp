@@ -153,9 +153,9 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
         //     alpha = output_r.1;
         // }
         depth += 1;
-        info!("depth: {depth}");
 
         let priority_moves = output_r.0.iter().map(|&f| f.0).collect();
+        info!("depth: {depth} move-priority:{priority_moves:?}");
 
         let r = ab_search(
             game_state.clone(),
@@ -168,16 +168,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
         )
         .unwrap();
 
-        if Instant::now() > timeout {
-            if (!game_state.position.black_turn && r.2 > output_r.2)
-                || (game_state.position.black_turn && r.2 < output_r.2)
-            {
-                info!("Premature exit that may be better thrown away: {r:?}");
-                // output_r = r;
-            }
-        } else {
-            output_r = r;
-        }
+        output_r = r;
         info!(
             "depth: {depth} complete {:?} => val : {:?}",
             t_time.elapsed(),

@@ -96,7 +96,7 @@ fn main() {
 
     //debug_evals("rnbqkb1r/ppp2pp1/3p1n2/4pQ1p/8/4P3/PPPPNPPP/RNB1KBR1 b Qkq - 1 5".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
 
-    //debug_deepening("r1bqkb1r/pppppppp/5n2/5Q2/1n6/2N1P3/PPPP1PPP/R1B1KBNR b KQkq - 6 4".into(), 2000);
+    //debug_deepening("r1b1kb1r/ppp1pppp/2nq1n2/3p2N1/8/2N1P3/PPPP1PPP/R1BQKB1R w KQkq - 2 5".into(), 2000);
 
     //  debug_search(
     //      "r1bq1k1r/pppp1ppp/2n2n2/4p1N1/8/2P1PQ2/P1PP1PPP/1RB1KB1R b K - 2 7".into(),
@@ -192,8 +192,8 @@ fn park_table() {
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     info!("Park Table:");
-    for _i in 0..30 {
-        let m = engine.go(0, 0, 5000, 5000);
+    for _i in 0..20 {
+        let m = engine.go(0, 0, 1500, 1500);
         move_ucis.push(m.uci());
         moves.push(m);
         engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
