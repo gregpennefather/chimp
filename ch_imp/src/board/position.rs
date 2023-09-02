@@ -249,10 +249,10 @@ impl Position {
 
     pub fn is_legal_move(&self, m: &Move) -> bool {
         let (new_zorb, move_segments) = self.zorb_key_after_move(*m);
-        let (position, legal_moves) = match lookup_position_table(new_zorb) {
+        let (position, _legal_moves) = match lookup_position_table(new_zorb) {
             Some(gs) => gs,
             None => {
-                let (new_position, moves) = self.apply_segments(move_segments, new_zorb);
+                let (new_position, _moves) = self.apply_segments(move_segments, new_zorb);
                 insert_into_position_table(new_position, None);
                 (new_position, None)
             }

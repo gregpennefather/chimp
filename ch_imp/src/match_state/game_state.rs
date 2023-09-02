@@ -11,7 +11,7 @@ use crate::{
         },
         piece_type::{get_piece_type_from_char, PieceType},
         transposition_table::{insert_into_position_table, lookup_position_table, lookup_pl_moves_table},
-    }, MOVE_DATA,
+    },
 };
 use core::fmt::Debug;
 

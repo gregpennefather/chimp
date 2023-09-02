@@ -121,7 +121,8 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
     let mut depth = 0;
 
     let mut output_r = (
-        Move::default(),
+        Vec::<(Move, i32)>::new(),
+        0,
         if game_state.position.black_turn {
             i32::MAX
         } else {
@@ -147,7 +148,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
             output_r
         );
 
-        let priority_moves = vec![output_r.0];
+        let priority_moves = output_r.0.iter().map(|&f| f.0).collect();
 
         let r = ab_search(
             game_state.clone(),
@@ -157,24 +158,27 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
             alpha,
             beta,
         )
-        .unwrap(); // Possible optimization with alpha + beta
+        .unwrap();
 
         info!("depth: {depth} complete {:?}", t_time.elapsed());
         if Instant::now() > timeout {
-            if (!game_state.position.black_turn && r.1 > output_r.1)
-                || (game_state.position.black_turn && r.1 < output_r.1)
+            if (!game_state.position.black_turn && r.2 > output_r.2)
+                || (game_state.position.black_turn && r.2 < output_r.2)
             {
-                info!("Premature exit - {:?} vs {r:?}", output_r);
-                output_r = r;
+                info!("Premature exit that may be better thrown away: {r:?}");
+                // output_r = r;
             }
         } else {
             output_r = r;
         }
         cur_time = Instant::now();
     }
-    let m = output_r.0;
-    info!("go {m:?} (depth: {depth})\n");
-    m
+    let m_history = output_r.0;
+    info!(
+        "go {:?} (depth: {}) path:{:?}\n",
+        m_history[0], depth-1, m_history
+    );
+    m_history[0].0
 }
 
 pub fn ab_search(
@@ -184,13 +188,13 @@ pub fn ab_search(
     timeout: Instant,
     mut alpha: i32, // maximize
     mut beta: i32,
-) -> Result<(Move, i32), String> {
+) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
     if depth == 0 || game_state.result_state != MatchResultState::Active {
         return match game_state.result_state {
-            MatchResultState::Draw => Ok((Move::default(), 0)),
-            MatchResultState::WhiteVictory => Ok((Move::default(), i32::MAX - 1)),
-            MatchResultState::BlackVictory => Ok((Move::default(), i32::MIN + 1)),
-            _ => Ok((Move::default(), game_state.position.eval)),
+            MatchResultState::Draw => Ok((vec![], 0, 0)),
+            MatchResultState::WhiteVictory => Ok((vec![], i32::MAX - 1, i32::MAX - 1)),
+            MatchResultState::BlackVictory => Ok((vec![], i32::MIN + 1, i32::MIN + 1)),
+            _ => Ok((vec![], game_state.position.eval, game_state.position.eval)),
         };
     }
 
@@ -200,14 +204,11 @@ pub fn ab_search(
             "game_state: {} timeout at depth {depth}",
             game_state.to_fen()
         );
-        return Ok((
-            Move::default(),
-            if game_state.position.black_turn {
-                i32::MIN + 1
-            } else {
-                i32::MAX - 1
-            },
-        ));
+        return Ok(if game_state.position.black_turn {
+            (vec![], i32::MIN + 1, i32::MIN + 1)
+        } else {
+            (vec![], i32::MAX - 1, i32::MAX - 1)
+        });
     }
 
     let mut chosen_move = Move::default();
@@ -216,30 +217,45 @@ pub fn ab_search(
     } else {
         i32::MAX
     };
+    let mut next_node_eval = 0;
+    let mut move_history = Vec::new();
 
-    let ordered_moves = if priority_moves.is_empty() { game_state.moves.clone() } else {
+    let ordered_moves = if priority_moves.is_empty() {
+        game_state.moves.clone()
+    } else {
         let mut moves = game_state.moves.clone();
-        moves.sort_by(|a,b| move_orderer::priority_cmp(a,b,&priority_moves));
+        moves.sort_by(|a: &Move, b| move_orderer::priority_cmp(a, b, &priority_moves));
         moves
     };
     for &test_move in &ordered_moves {
         let new_state = game_state.make(test_move);
-        let (_m, result_eval) = match ab_search(new_state, vec![], depth - 1, timeout, alpha, beta) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("{e}");
-                panic!("{e}")
-            }
-        };
-        if !game_state.position.black_turn {
-            if result_eval > 1000 {
-                debug!("{depth}:killer white move: {test_move:?}:{result_eval:?}");
-            }
+        let (path, node_eval, result_eval) =
+            match ab_search(new_state, vec![], depth - 1, timeout, alpha, beta) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("{e}");
+                    panic!("{e}")
+                }
+            };
 
+        let now = Instant::now();
+        if now > timeout {
+            debug!(
+                "game_state: {} timeout at depth {depth}",
+                game_state.to_fen()
+            );
+            if !chosen_move.is_empty() {
+                break;
+            }
+        }
+
+        if !game_state.position.black_turn {
             if result_eval > chosen_move_eval {
                 trace!("{depth}:chosen move change: {test_move:?}{result_eval:?} > {chosen_move:?}:{chosen_move_eval:?}");
                 chosen_move = test_move;
                 chosen_move_eval = result_eval;
+                next_node_eval = node_eval;
+                move_history = path;
             }
             alpha = i32::max(alpha, chosen_move_eval);
             if beta <= alpha {
@@ -250,6 +266,8 @@ pub fn ab_search(
                 trace!("{depth}:chosen move change: {test_move:?}{result_eval:?} < {chosen_move:?}:{chosen_move_eval:?}");
                 chosen_move = test_move;
                 chosen_move_eval = result_eval;
+                next_node_eval = node_eval;
+                move_history = path;
             }
             beta = i32::min(beta, chosen_move_eval);
             if beta <= alpha {
@@ -274,5 +292,12 @@ pub fn ab_search(
         );
     }
 
-    Ok((chosen_move, chosen_move_eval))
+    let mut final_move_history = vec![(chosen_move, next_node_eval)];
+    final_move_history.extend(move_history);
+
+    Ok((
+        final_move_history,
+        game_state.position.eval,
+        chosen_move_eval,
+    ))
 }

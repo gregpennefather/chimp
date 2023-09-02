@@ -6,7 +6,7 @@ use crate::shared::{
         MF_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
         MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
     },
-    piece_type::PieceType,
+    piece_type::{get_piece_char, PieceType},
 };
 use core::fmt::Debug;
 use std::cmp::Ordering;
@@ -105,11 +105,22 @@ impl Move {
 
 impl Debug for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut m_info = String::default();
+        m_info += &format!("{}", get_piece_char(self.piece_type(), self.is_black()));
+        m_info += match self.flags() {
+            MF_EP_CAPTURE | MF_CAPTURE => "+",
+            MF_KING_CASTLING => "o-o",
+            MF_QUEEN_CASTLING => "o-o-o",
+            MF_KNIGHT_PROMOTION | MF_KNIGHT_CAPTURE_PROMOTION => "n",
+            MF_BISHOP_PROMOTION | MF_BISHOP_CAPTURE_PROMOTION => "b",
+            MF_ROOK_PROMOTION | MF_ROOK_CAPTURE_PROMOTION => "r",
+            MF_QUEEN_PROMOTION | MF_QUEEN_CAPTURE_PROMOTION => "q",
+            MF_DOUBLE_PAWN_PUSH => "dpp",
+            _ => "",
+        };
+
         f.debug_tuple("Move")
-            .field(&self.uci())
-            .field(&self.piece_type())
-            .field(&self.flags())
-            .field(&self.is_black())
+            .field(&format!("{}-{}", self.uci(), m_info))
             .finish()
     }
 }

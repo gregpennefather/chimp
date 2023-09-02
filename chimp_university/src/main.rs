@@ -94,9 +94,9 @@ fn main() {
     // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
     // println!("{:?}", game_state.result_state());
 
-    //debug_evals("r1b2k1r/pQp2pp1/2nq1n2/2bpp2p/8/2NBPN2/PPPP1PPP/R1B2K1R b - - 0 13".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
+    //debug_evals("rnbqkb1r/ppp2pp1/3p1n2/4pQ1p/8/4P3/PPPPNPPP/RNB1KBR1 b Qkq - 1 5".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
 
-    //debug_deepening("r1bqkb1r/pppppppp/5n2/8/1n6/2N1PQ2/PPPP1PPP/R1B1KBNR w KQkq - 5 4".into(), 2000);
+    //debug_deepening("r1bqkb1r/pppppppp/5n2/5Q2/1n6/2N1P3/PPPP1PPP/R1B1KBNR b KQkq - 6 4".into(), 2000);
 
     // debug_search(
     //     "r3k3/pp3qp1/1n2p2r/1NQp1pRp/P4P2/8/1PP2P1P/R1B2K1B w q - 1 21".into(),
@@ -112,7 +112,7 @@ fn debug_evals(fen_1: String, fen_2: String) {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Trace))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
@@ -192,7 +192,7 @@ fn park_table() {
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     info!("Park Table:");
-    for _i in 0..200 {
+    for _i in 0..20 {
         let m = engine.go(0, 0, 1500, 1500);
         move_ucis.push(m.uci());
         moves.push(m);
