@@ -11,6 +11,9 @@ pub const WHITE_KING_CASTLING_CHECK: u64 = 0b1110;
 pub const WHITE_PAWN_PROMOTION_RANK: u64 = 0b11111111 << 56;
 pub const BLACK_PAWN_PROMOTION_RANK: u64 = 0b11111111;
 
+// 0 = A1->H8, 1 = H1->A8
+pub const PRE_COMPUTED_DIAGONAL_BITBOARDS: [u64; 2] = [72624976668147840, 9241421688590303745];
+
 pub struct MoveData {
     pub magic_bitboard_table: MagicTable,
     pub white_pawn_moves: [u64; 64],

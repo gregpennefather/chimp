@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use ch_imp::{
-    board::position::Position,
+    board::{position::Position, bitboard::Bitboard},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
-    match_state::game_state::{GameState, MatchResultState},
+    match_state::game_state::{GameState, MatchResultState}, shared::board_utils::get_index_from_file_and_rank,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -12,6 +12,14 @@ use log4rs::{
     encode::pattern::PatternEncoder,
 };
 fn main() {
+
+    let mut bb = 0;
+    for i in 0..8 {
+        bb = bb.flip(get_index_from_file_and_rank(7-i,i));
+    }
+    println!("{}", bb.to_board_format());
+    println!("{}", bb);
+
     //perfts();
     //let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
@@ -106,7 +114,7 @@ fn main() {
     // timed_depth_test();
     // target_depth_test();
 
-    park_table();
+    // park_table();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {

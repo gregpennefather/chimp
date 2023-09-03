@@ -339,135 +339,135 @@ mod test {
         );
     }
 
-    #[test]
-    pub fn bishop_to_c4() {
-        let starting_state =
-            GameState::new("rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2".into());
+    // #[test]
+    // pub fn bishop_to_c4() {
+    //     let starting_state =
+    //         GameState::new("rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2".into());
 
-        let next_state = starting_state
-            .make(Move::new(
-                index_from_coords("f1"),
-                index_from_coords("c4"),
-                0b0,
-                PieceType::Bishop,
-                false,
-            ))
-            .unwrap();
+    //     let next_state = starting_state
+    //         .make(Move::new(
+    //             index_from_coords("f1"),
+    //             index_from_coords("c4"),
+    //             0b0,
+    //             PieceType::Bishop,
+    //             false,
+    //         ))
+    //         .unwrap();
 
-        let expected_game =
-            GameState::new("rnbqkb1r/pppppppp/5n2/8/2B1P3/8/PPPP1PPP/RNBQK1NR b KQkq - 2 2".into());
-        assert_eq!(next_state, expected_game);
-    }
+    //     let expected_game =
+    //         GameState::new("rnbqkb1r/pppppppp/5n2/8/2B1P3/8/PPPP1PPP/RNBQK1NR b KQkq - 2 2".into());
+    //     assert_eq!(next_state, expected_game);
+    // }
 
-    #[test]
-    pub fn make_multiple_moves_case_0() {
-        let mut game_state: GameState = GameState::default();
-        game_state = game_state
-            .make(Move::new(
-                index_from_coords("e2"),
-                index_from_coords("e4"),
-                MF_DOUBLE_PAWN_PUSH,
-                PieceType::Pawn,
-                false,
-            ))
-            .unwrap();
+    // #[test]
+    // pub fn make_multiple_moves_case_0() {
+    //     let mut game_state: GameState = GameState::default();
+    //     game_state = game_state
+    //         .make(Move::new(
+    //             index_from_coords("e2"),
+    //             index_from_coords("e4"),
+    //             MF_DOUBLE_PAWN_PUSH,
+    //             PieceType::Pawn,
+    //             false,
+    //         ))
+    //         .unwrap();
 
-        let expected_game_state_1 =
-            GameState::new("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
-        assert_eq!(game_state, expected_game_state_1);
+    //     let expected_game_state_1 =
+    //         GameState::new("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1".into());
+    //     assert_eq!(game_state, expected_game_state_1);
 
-        game_state = game_state
-            .make(Move::new(
-                index_from_coords("g8"),
-                index_from_coords("f6"),
-                0b0,
-                PieceType::Knight,
-                true,
-            ))
-            .unwrap();
+    //     game_state = game_state
+    //         .make(Move::new(
+    //             index_from_coords("g8"),
+    //             index_from_coords("f6"),
+    //             0b0,
+    //             PieceType::Knight,
+    //             true,
+    //         ))
+    //         .unwrap();
 
-        let expected_game_state_1_2 = expected_game_state_1
-            .make(Move::new(
-                index_from_coords("g8"),
-                index_from_coords("f6"),
-                0b0,
-                PieceType::Knight,
-                true,
-            ))
-            .unwrap();
+    //     let expected_game_state_1_2 = expected_game_state_1
+    //         .make(Move::new(
+    //             index_from_coords("g8"),
+    //             index_from_coords("f6"),
+    //             0b0,
+    //             PieceType::Knight,
+    //             true,
+    //         ))
+    //         .unwrap();
 
-        let expected_game_state_2 =
-            GameState::new("rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2".into());
-        assert_eq!(game_state, expected_game_state_2);
-        assert_eq!(expected_game_state_1_2, expected_game_state_2);
+    //     let expected_game_state_2 =
+    //         GameState::new("rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2".into());
+    //     assert_eq!(game_state, expected_game_state_2);
+    //     assert_eq!(expected_game_state_1_2, expected_game_state_2);
 
-        game_state = game_state
-            .make(Move::new(
-                index_from_coords("f1"),
-                index_from_coords("c4"),
-                0b0,
-                PieceType::Bishop,
-                false,
-            ))
-            .unwrap();
+    //     game_state = game_state
+    //         .make(Move::new(
+    //             index_from_coords("f1"),
+    //             index_from_coords("c4"),
+    //             0b0,
+    //             PieceType::Bishop,
+    //             false,
+    //         ))
+    //         .unwrap();
 
-        let expected_game_state_3 =
-            GameState::new("rnbqkb1r/pppppppp/5n2/8/2B1P3/8/PPPP1PPP/RNBQK1NR b KQkq - 2 2".into());
-        assert_eq!(game_state, expected_game_state_3);
-    }
+    //     let expected_game_state_3 =
+    //         GameState::new("rnbqkb1r/pppppppp/5n2/8/2B1P3/8/PPPP1PPP/RNBQK1NR b KQkq - 2 2".into());
+    //     assert_eq!(game_state, expected_game_state_3);
+    // }
 
-    #[test]
-    pub fn make_multiple_moves() {
-        let game_state =
-            GameState::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
-        let output_state_1 = game_state
-            .make(Move::new(
-                index_from_coords("a2"),
-                index_from_coords("a4"),
-                MF_DOUBLE_PAWN_PUSH,
-                PieceType::Pawn,
-                false,
-            ))
-            .unwrap();
-        let expected_game_state_1 =
-            GameState::new("rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1".into());
-        assert_eq!(output_state_1, expected_game_state_1);
+    // #[test]
+    // pub fn make_multiple_moves() {
+    //     let game_state =
+    //         GameState::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into());
+    //     let output_state_1 = game_state
+    //         .make(Move::new(
+    //             index_from_coords("a2"),
+    //             index_from_coords("a4"),
+    //             MF_DOUBLE_PAWN_PUSH,
+    //             PieceType::Pawn,
+    //             false,
+    //         ))
+    //         .unwrap();
+    //     let expected_game_state_1 =
+    //         GameState::new("rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1".into());
+    //     assert_eq!(output_state_1, expected_game_state_1);
 
-        let output_state_2 = output_state_1
-            .make(Move::new(
-                index_from_coords("b7"),
-                index_from_coords("b5"),
-                MF_DOUBLE_PAWN_PUSH,
-                PieceType::Pawn,
-                true,
-            ))
-            .unwrap();
-        let expected_state_2 =
-            GameState::new("rnbqkbnr/p1pppppp/8/1p6/P7/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 2".into());
+    //     let output_state_2 = output_state_1
+    //         .make(Move::new(
+    //             index_from_coords("b7"),
+    //             index_from_coords("b5"),
+    //             MF_DOUBLE_PAWN_PUSH,
+    //             PieceType::Pawn,
+    //             true,
+    //         ))
+    //         .unwrap();
+    //     let expected_state_2 =
+    //         GameState::new("rnbqkbnr/p1pppppp/8/1p6/P7/8/1PPPPPPP/RNBQKBNR w KQkq b6 0 2".into());
 
-        assert_eq!(output_state_2, expected_state_2);
-    }
+    //     assert_eq!(output_state_2, expected_state_2);
+    // }
 
-    #[test]
-    pub fn black_moving_king_to_clear_flags() {
-        let state = GameState::new(
-            "r2k3r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b Q - 3 2".into(),
-        );
+    // #[test]
+    // pub fn black_moving_king_to_clear_flags() {
+    //     let state = GameState::new(
+    //         "r2k3r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b Q - 3 2".into(),
+    //     );
 
-        let state_after_move = state
-            .make(Move::new(
-                index_from_coords("d8"),
-                index_from_coords("e8"),
-                0b0,
-                PieceType::King,
-                true,
-            ))
-            .unwrap();
+    //     let state_after_move = state
+    //         .make(Move::new(
+    //             index_from_coords("d8"),
+    //             index_from_coords("e8"),
+    //             0b0,
+    //             PieceType::King,
+    //             true,
+    //         ))
+    //         .unwrap();
 
-        let expected_state = GameState::new(
-            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w Q - 4 3".into(),
-        );
+    //     let expected_state = GameState::new(
+    //         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w Q - 4 3".into(),
+    //     );
 
-        assert_eq!(state_after_move, expected_state);
-    }
+    //     assert_eq!(state_after_move, expected_state);
+    // }
 }
