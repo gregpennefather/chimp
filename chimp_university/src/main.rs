@@ -289,7 +289,7 @@ fn park_table() {
     info!("Park Table:");
     for _i in 0..200 {
         let timer = Instant::now();
-        let m = if _i == 0 || _i == 1 {
+        let (m, ponder) = if _i == 0 || _i == 1 {
             engine.go(10000, 10000, -1, -1)
         } else {
             engine.go(white_ms, black_ms, inc_ms, inc_ms)

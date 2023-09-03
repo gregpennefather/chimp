@@ -5,7 +5,8 @@ use log::{debug, error, info, trace};
 use crate::{
     match_state::game_state::{GameState, MatchResultState},
     r#move::Move,
-    POSITION_TRANSPOSITION_TABLE, shared::transposition_table::clear_tables,
+    shared::transposition_table::clear_tables,
+    POSITION_TRANSPOSITION_TABLE,
 };
 
 pub mod move_orderer;
@@ -91,7 +92,7 @@ impl ChimpEngine {
         // }
     }
 
-    pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> Move {
+    pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> (Move, Option<Move>) {
         let ms = if winc == -1 || binc == -1 {
             info!("go movetime 10000");
             wtime
@@ -135,7 +136,7 @@ impl ChimpEngine {
     }
 }
 
-pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
+pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Option<Move>) {
     let mut depth = 0;
 
     let mut output_r = (
@@ -192,7 +193,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
     }
 
     if m_history.len() == 0 {
-        return Move::default();
+        return (Move::default(), None);
     }
 
     info!(
@@ -201,7 +202,11 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> Move {
         depth - 1,
         m_history
     );
-    m_history[0].0
+    if m_history.len() > 1 {
+        (m_history[0].0, Some(m_history[1].0))
+    } else {
+        (m_history[0].0, None)
+    }
 }
 
 pub fn ab_search(
@@ -254,7 +259,7 @@ pub fn ab_search(
     for &test_move in &ordered_moves {
         let new_state = match game_state.make(test_move) {
             Some(new_state) => new_state,
-            None => continue
+            None => continue,
         };
         let extensions = if depth == 1 {
             get_extensions(&new_state, test_move, total_extensions)
@@ -317,8 +322,12 @@ pub fn ab_search(
 
     // If we couldn't choose a move it means that none of the PL moves are actually legal so abandon this branch
     if chosen_move.is_empty() {
-        debug!("No legal moves found at {}", game_state.to_fen());
-        return Ok(if game_state.position.black_turn  {(vec![], i32::MAX - 1, i32::MAX - 1)} else {(vec![], i32::MIN + 1, i32::MIN + 1)})
+        trace!("No legal moves found at {}", game_state.to_fen());
+        return Ok(if game_state.position.black_turn {
+            (vec![], i32::MAX - 1, i32::MAX - 1)
+        } else {
+            (vec![], i32::MIN + 1, i32::MIN + 1)
+        });
     }
 
     // If the chosen_move_eval is equal to a max it means this branch will end in a mate

@@ -60,15 +60,25 @@ fn run() -> bool {
                 }
                 "go" => {
                     let (wtime, btime, winc, binc) = get_go_params(split_string);
-                    let bestmove = engine.go(wtime, btime, winc, binc);
+                    let (bestmove, ponder) = engine.go(wtime, btime, winc, binc);
                     if bestmove.is_empty() {
                         println!("ff")
                     } else {
-                        println!("bestmove {}", bestmove.uci());
+                        let message = format!(
+                            "bestmove {}{}",
+                            bestmove.uci(),
+                            match ponder {
+                                Some(r) => format!(" ponder {}", r.uci()),
+                                None => "".into(),
+                            }
+                        );
+                        info!("{}", message);
+                        println!("{}", message);
                     }
                 }
                 "quit" => break,
                 _ => {
+                    info!("Unknown command {}", input);
                     println!("Unknown command {}", input);
                     break;
                 }
@@ -88,6 +98,10 @@ fn get_go_params(mut split_string: std::str::SplitAsciiWhitespace<'_>) -> (i32, 
         let r = split_string.next().unwrap();
         let v = r.parse::<i32>().unwrap();
         return (v, v, -1, -1);
+    }
+
+    if first_word.eq("ponder") {
+        split_string.next().unwrap();
     }
 
     let r = split_string.next().unwrap();
