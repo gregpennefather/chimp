@@ -53,3 +53,32 @@ pub fn get_coords_from_index(index: u8) -> String {
     let file = get_file(index);
     format!("{}{rank}", char_from_file(file))
 }
+
+pub fn get_direction_to_normalized(from: u8, to: u8) -> i8 {
+    let mut rank_delta:i8 = (from as i8 / 8) - (to as i8 / 8);
+    let mut file_delta:i8 = (from as i8 % 8) - (to as i8 % 8);
+
+    if rank_delta != 0 {
+        rank_delta /= rank_delta;
+    }
+    if file_delta != 0 {
+        file_delta /= file_delta;
+    }
+
+    println!("fd:{file_delta},rd:{rank_delta}");
+
+    return (8*rank_delta) + file_delta;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn get_direction_to_normalized_e8_to_e4() {
+        assert_eq!(
+            get_direction_to_normalized(index_from_coords("e8"), index_from_coords("e4")),
+            8
+        )
+    }
+}
