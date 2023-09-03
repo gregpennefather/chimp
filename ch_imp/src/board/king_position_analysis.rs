@@ -32,10 +32,10 @@ pub struct ThreatSource {
 }
 
 pub struct KingPositionAnalysis {
-    check: bool,
-    double_check: bool, // In double check only a king move can escape check so we can generate less moves
-    threat_source: Option<ThreatSource>,
-    pins: Vec<ThreatRaycastCollision>,
+    pub check: bool,
+    pub double_check: bool, // In double check only a king move can escape check so we can generate less moves
+    pub threat_source: Option<ThreatSource>,
+    pub pins: Vec<ThreatRaycastCollision>,
 }
 
 pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {

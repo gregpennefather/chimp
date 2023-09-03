@@ -1,5 +1,8 @@
 use crate::{
-    board::{bitboard::Bitboard, position::Position},
+    board::{
+        bitboard::Bitboard, king_position_analysis::analyze_active_king_position,
+        position::Position,
+    },
     shared::{
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
@@ -28,13 +31,82 @@ pub struct GeneratedMoves {
 }
 
 impl MoveData {
-    pub fn generate_moves(&self, position: Position) -> (Vec<Move>, Vec<Move>, u64, u64, u64, u64) {
-        let mut white_moves = Vec::new();
-        let mut black_moves = Vec::new();
-        let mut white_threatboard = 0;
-        let mut black_threatboard = 0;
-        let mut white_mobility = 0;
-        let mut black_mobility = 0;
+    pub fn generate_moves(&self, position: Position) -> Vec<Move> {
+
+        let mut friendly_occupancy = if position.black_turn {
+            position.black_bitboard
+        } else {
+            position.white_bitboard
+        };
+        let opponent_occupancy = if !position.black_turn {
+            position.black_bitboard
+        } else {
+            position.white_bitboard
+        };
+
+        let king_analysis = analyze_active_king_position(position);
+
+
+        let king_pos = if position.black_turn {
+            position.black_king_position
+        } else {
+            position.white_king_position
+        };
+
+        let mut moves = self.generate_king_moves(
+            king_pos,
+            opponent_occupancy,
+            position.occupancy,
+            position.black_turn,
+            king_analysis.check
+        );
+
+        // In the event of double king check we can only avoid check by moving the king
+        if king_analysis.double_check {
+            return moves;
+        }
+
+        while friendly_occupancy != 0 {
+            let piece_position = friendly_occupancy.trailing_zeros();
+            moves.extend(self.generate_position_moves(position, piece_position, position.black_turn, position.ep_index));
+            friendly_occupancy ^= 1 << piece_position;
+        }
+
+        moves
+    }
+
+    }
+
+    pub fn generate_moves_old(&self, position: Position) -> (Vec<Move>, Vec<Move>, u64, u64, u64, u64) {
+        let mut moves = Vec::new();
+        let friendly_occupancy = if position.black_turn {
+            position.black_bitboard
+        } else {
+            position.white_bitboard
+        };
+        let opponent_occupancy = if !position.black_turn {
+            position.black_bitboard
+        } else {
+            position.white_bitboard
+        };
+
+        let king_analysis = analyze_active_king_position(position);
+
+        // In the event of double king check we can only avoid check by moving the king
+        if king_analysis.double_check {
+            let king_pos = if position.black_turn {
+                position.black_king_position
+            } else {
+                position.white_king_position
+            };
+            return self.generate_king_moves(
+                king_pos,
+                opponent_occupancy,
+                position.occupancy,
+                position.black_turn,
+                true
+            );
+        }
 
         for index in 0..64 {
             if position.occupancy.occupied(index) {
@@ -46,7 +118,7 @@ impl MoveData {
                     black_threatboard |= generated_moves.threat_board;
                     black_mobility |= generated_moves.mobility_board;
                 } else {
-                    white_moves.extend(generated_moves.moves);
+                    moves.extend(generated_moves.moves);
                     white_threatboard |= generated_moves.threat_board;
                     white_mobility |= generated_moves.mobility_board;
                 }
@@ -65,7 +137,7 @@ impl MoveData {
                 black_threatboard,
             ) {
                 Some(generated_move) => {
-                    white_moves.extend(generated_move.moves);
+                    moves.extend(generated_move.moves);
                     white_mobility |= generated_move.mobility_board;
                 }
                 None => {}
@@ -83,7 +155,7 @@ impl MoveData {
                 black_threatboard,
             ) {
                 Some(generated_move) => {
-                    white_moves.extend(generated_move.moves);
+                    moves.extend(generated_move.moves);
                     white_mobility |= generated_move.mobility_board;
                 }
                 None => {}
@@ -129,7 +201,7 @@ impl MoveData {
         }
 
         (
-            white_moves,
+            moves,
             black_moves,
             white_threatboard,
             black_threatboard,
@@ -153,7 +225,10 @@ impl MoveData {
         };
 
         match piece_type {
-            piece_type::PieceType::None => panic!("Unknown piece {piece_type:?} at position {index} : {}", position.to_fen()),
+            piece_type::PieceType::None => panic!(
+                "Unknown piece {piece_type:?} at position {index} : {}",
+                position.to_fen()
+            ),
             piece_type::PieceType::Pawn => {
                 self.generate_pawn_moves(position, index, is_black, ep_index, opponent_occupancy)
             }
@@ -182,12 +257,31 @@ impl MoveData {
                 is_black,
             ),
             piece_type::PieceType::King => {
-                self.generate_king_moves(index, opponent_occupancy, position.occupancy, is_black)
+                self.generate_king_moves_old(index, opponent_occupancy, position.occupancy, is_black)
             }
         }
     }
 
     fn generate_king_moves(
+        &self,
+        index: u8,
+        opponent_occupancy: u64,
+        occupancy: u64,
+        in_check: bool,
+        is_black: bool,
+    ) -> Vec<Move> {
+        // moveboard_to_moves(
+        //     index,
+        //     piece_type::PieceType::King,
+        //     self.king_moves[index as usize],
+        //     opponent_occupancy,
+        //     occupancy,
+        //     is_black,
+        // )
+        Vec::new()
+    }
+
+    fn generate_king_moves_old(
         &self,
         index: u8,
         opponent_occupancy: u64,

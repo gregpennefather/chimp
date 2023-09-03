@@ -1,3 +1,3 @@
 pub mod position;
 pub mod bitboard;
-mod king_position_analysis;
+pub mod king_position_analysis;

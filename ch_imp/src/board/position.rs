@@ -775,7 +775,7 @@ fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) 
         black_threatboard,
         white_mobility_board,
         black_mobility_board,
-    ) = MOVE_DATA.generate_moves(position);
+    ) = MOVE_DATA.generate_moves_old(position);
 
     // Sort moves
     let mut active_colour_moves = if position.black_turn {
