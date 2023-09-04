@@ -55,8 +55,8 @@ pub fn get_coords_from_index(index: u8) -> String {
 }
 
 pub fn get_direction_to_normalized(from: u8, to: u8) -> i8 {
-    let mut rank_delta:i8 = (from as i8 / 8) - (to as i8 / 8);
-    let mut file_delta:i8 = (from as i8 % 8) - (to as i8 % 8);
+    let mut rank_delta:i8 = (to as i8 / 8) - (from as i8 / 8);
+    let mut file_delta:i8 = (to as i8 % 8) - (from as i8 % 8);
 
     if rank_delta != 0 {
         rank_delta /= rank_delta;

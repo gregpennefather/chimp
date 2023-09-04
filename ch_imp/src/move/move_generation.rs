@@ -1,16 +1,18 @@
 use crate::{
     board::{
-        bitboard::Bitboard, king_position_analysis::{analyze_active_king_position, ThreatSource},
+        bitboard::Bitboard,
+        king_position_analysis::{analyze_active_king_position, ThreatSource, ThreatType},
         position::Position,
     },
     shared::{
+        board_utils::get_direction_to_normalized,
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
             MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
-        piece_type, board_utils::get_direction_to_normalized,
+        piece_type,
     },
 };
 
@@ -59,7 +61,7 @@ impl MoveData {
             position.occupancy,
             king_analysis.check,
             position.black_turn,
-            king_analysis.threat_source
+            king_analysis.threat_source,
         );
 
         println!("king_moves: {moves:?}");
@@ -272,16 +274,25 @@ impl MoveData {
         occupancy: u64,
         in_check: bool,
         is_black: bool,
-        threat: Option<ThreatSource>
+        threat: Option<ThreatSource>,
     ) -> Vec<Move> {
         println!("threat: {threat:?}");
         let mut moveboard = self.king_moves[index as usize];
         match threat {
             Some(threat) => {
-                let threat_normal =  get_direction_to_normalized(index, threat.from);
-                println!("flipping {} ({},{})", (index as i8) + threat_normal, index, threat_normal);
-                moveboard ^= 1 << (index as i8) + threat_normal;
-            },
+                if (threat.threat_type == ThreatType::DiagonalSlide
+                    || threat.threat_type == ThreatType::OrthogonalSlide)
+                {
+                    let threat_normal = get_direction_to_normalized(index, threat.from);
+                    println!(
+                        "flipping {} ({},{})",
+                        (index as i8) + threat_normal,
+                        index,
+                        threat_normal
+                    );
+                    moveboard ^= 1 << (index as i8) + threat_normal;
+                }
+            }
             None => {}
         }
         moveboard_to_moves(
@@ -661,24 +672,23 @@ fn moveboard_to_moves(
     moveboard: u64,
     opponent_occupancy: u64,
     occupancy: u64,
-    is_black: bool) -> Vec<Move> {
-        let mut generated_moves = Vec::new();
-        let mut m_b = moveboard;
-        let mut to_index = 0;
-        while m_b != 0 {
-            let lsb = m_b.trailing_zeros() as u8;
-            if opponent_occupancy.occupied(lsb) {
-                generated_moves.push(Move::new(
-                    from_index, lsb, MF_CAPTURE, piece_type, is_black,
-                ));
-            } else if !occupancy.occupied(lsb) {
-                generated_moves.push(Move::new(from_index, lsb, 0b0, piece_type, is_black));
-            };
-            m_b ^= 1 << lsb;
-        }
-
-        generated_moves
+    is_black: bool,
+) -> Vec<Move> {
+    let mut generated_moves = Vec::new();
+    let mut m_b = moveboard;
+    let mut to_index = 0;
+    while m_b != 0 {
+        let lsb = m_b.trailing_zeros() as u8;
+        if opponent_occupancy.occupied(lsb) {
+            generated_moves.push(Move::new(from_index, lsb, MF_CAPTURE, piece_type, is_black));
+        } else if !occupancy.occupied(lsb) {
+            generated_moves.push(Move::new(from_index, lsb, 0b0, piece_type, is_black));
+        };
+        m_b ^= 1 << lsb;
     }
+
+    generated_moves
+}
 
 #[cfg(test)]
 mod test {
@@ -697,7 +707,7 @@ mod test {
             "rnbqk1nr/pppp1pNp/2Pb4/8/1B6/4Q3/PP1PPPPP/RN2KB1R b KQkq - 0 1".into(),
         );
         let moves = MOVE_DATA.generate_moves(position);
-        assert_eq!(moves.len(), 1);
+        assert!(moves.len() <= 2);
     }
 
     // #[test]

@@ -1,6 +1,6 @@
 use crate::{
     r#move::move_data::PRE_COMPUTED_DIAGONAL_BITBOARDS,
-    shared::board_utils::{get_file, get_rank, get_index_from_file_and_rank},
+    shared::board_utils::{get_file, get_index_from_file_and_rank, get_rank},
     MOVE_DATA,
 };
 
@@ -15,6 +15,7 @@ pub enum ThreatType {
     DiagonalSlide,
     OrthogonalSlide,
     Knight,
+    Pawn,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -28,9 +29,8 @@ pub struct ThreatRaycastCollision {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ThreatSource {
     pub from: u8,
-    threat_type: ThreatType,
+    pub threat_type: ThreatType,
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct KingPositionAnalysis {
@@ -62,6 +62,26 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
         p.white_bitboard
     };
 
+    let knights: u64 = p.knight_bitboard & opponent_occupancy;
+    if knights.count_ones() > 0 {
+        let (c, dc, ts) = in_check_from_knights(king_pos, knights, check);
+
+        double_check |= dc;
+        check |= c;
+        if ts != None {
+            threat_source = ts;
+        }
+
+        if double_check {
+            return KingPositionAnalysis {
+                check: true,
+                double_check: true,
+                threat_source,
+                pins,
+            };
+        }
+    }
+
     let diagonal_threats = (p.bishop_bitboard | p.queen_bitboard) & opponent_occupancy;
     if diagonal_threats.count_ones() > 0 {
         let (c, dc, ts, p) = in_sliding_check(
@@ -72,7 +92,6 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
             friendly_occupancy,
             check,
         );
-
 
         double_check |= dc;
         check |= c;
@@ -120,11 +139,9 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
         }
     }
 
-
-    let knights: u64 = p.knight_bitboard & opponent_occupancy;
-    if knights.count_ones() > 0 {
-        let (c, dc, ts)  = in_check_from_knights(king_pos, knights, check);
-
+    let pawn_threats: u64 = p.pawn_bitboard & opponent_occupancy;
+    if pawn_threats.count_ones() > 0 {
+        let (c, dc, ts) = is_pawn_check(king_pos, p.black_turn, pawn_threats, check);
 
         double_check |= dc;
         check |= c;
@@ -148,6 +165,38 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
         threat_source,
         pins,
     }
+}
+
+fn is_pawn_check(
+    king_pos: u8,
+    black_turn: bool,
+    pawn_threats: u64,
+    mut check: bool,
+) -> (bool, bool, Option<ThreatSource>) {
+    let actual_threat_positions = pawn_threats & if black_turn {
+        if king_pos > 15 {
+            (1 << king_pos - 9) | (1 << king_pos - 7)
+        } else {
+            return (check, false, None);
+        }
+    } else {
+        if king_pos < 48 {
+            (1 << king_pos + 9) | (1 << king_pos + 7)
+        } else {
+            return (check, false, None);
+        }
+    };
+
+    if actual_threat_positions.count_ones() != 1  {
+        return (check, false, None)
+    }
+
+    let double_check = check;
+    check = true;
+    let lsb = actual_threat_positions.trailing_zeros() as u8;
+    let threat = ThreatSource{ from: lsb, threat_type: ThreatType::Pawn};
+
+    (check, double_check, Some(threat))
 }
 
 fn in_check_from_knights(
@@ -573,6 +622,19 @@ mod test {
     }
 
     #[test]
+    fn is_pawn_check_single_threat() {
+        let king_pos = index_from_coords("e3");
+        let threats = 1 << index_from_coords("d4");
+        let result = is_pawn_check(king_pos, false, threats, false);
+
+        assert!(result.0, "Pawn check should be true");
+        assert!(!result.1, "Should not be double check");
+        assert_eq!(result.2, Some(ThreatSource{ from: index_from_coords("d4"), threat_type: ThreatType::Pawn}));
+
+
+    }
+
+    #[test]
     fn analyze_active_king_position_scenario_0() {
         // Double knight attack
         let position = Position::from_fen("6k1/8/3n4/8/2K5/4n3/8/8 w - - 0 1".into());
@@ -666,7 +728,25 @@ mod test {
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, true);
-        assert_eq!(result.threat_source, None);
         assert_eq!(result.pins.len(), 0);
+    }
+
+    #[test]
+    fn analyze_active_king_position_scenario_5() {
+        // Pawn threat
+        let position = Position::from_fen("k7/8/8/8/8/3p4/2K5/8 w - - 0 1".into());
+
+        let result: KingPositionAnalysis = analyze_active_king_position(position);
+
+        assert_eq!(result.check, true);
+        assert_eq!(result.double_check, false);
+        assert_eq!(result.pins.len(), 0);
+        assert_eq!(
+            result.threat_source,
+            Some(ThreatSource {
+                from: index_from_coords("d3"),
+                threat_type: ThreatType::Pawn
+            })
+        )
     }
 }
