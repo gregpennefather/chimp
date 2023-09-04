@@ -40,29 +40,25 @@ pub struct KingPositionAnalysis {
     pub pins: Vec<ThreatRaycastCollision>,
 }
 
-pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
+pub fn analyze_king_position(
+    king_pos: u8,
+    black_turn: bool,
+    occupancy: u64,
+    friendly_occupancy: u64,
+    opponent_occupancy: u64,
+    pawn_bitboard: u64,
+    knight_bitboard: u64,
+    bishop_bitboard: u64,
+    rook_bitboard: u64,
+    queen_bitboard: u64,
+) -> KingPositionAnalysis {
     let mut check = false;
     let mut double_check = false;
     let mut threat_source = None;
 
     let mut pins = Vec::new();
-    let king_pos = if p.black_turn {
-        p.black_king_position
-    } else {
-        p.white_king_position
-    };
-    let friendly_occupancy = if p.black_turn {
-        p.black_bitboard
-    } else {
-        p.white_bitboard
-    };
-    let opponent_occupancy = if !p.black_turn {
-        p.black_bitboard
-    } else {
-        p.white_bitboard
-    };
 
-    let knights: u64 = p.knight_bitboard & opponent_occupancy;
+    let knights: u64 = knight_bitboard & opponent_occupancy;
     if knights.count_ones() > 0 {
         let (c, dc, ts) = in_check_from_knights(king_pos, knights, check);
 
@@ -82,13 +78,13 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
         }
     }
 
-    let diagonal_threats = (p.bishop_bitboard | p.queen_bitboard) & opponent_occupancy;
+    let diagonal_threats = (bishop_bitboard | queen_bitboard) & opponent_occupancy;
     if diagonal_threats.count_ones() > 0 {
         let (c, dc, ts, p) = in_sliding_check(
             king_pos,
             true,
             diagonal_threats,
-            p.occupancy,
+            occupancy,
             friendly_occupancy,
             check,
         );
@@ -110,14 +106,14 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
         }
     }
 
-    let orthogonal_threats = (p.rook_bitboard | p.queen_bitboard) & opponent_occupancy;
+    let orthogonal_threats = (rook_bitboard | queen_bitboard) & opponent_occupancy;
 
     if orthogonal_threats.count_ones() > 0 {
         let (c, dc, ts, p) = in_sliding_check(
             king_pos,
             false,
             orthogonal_threats,
-            p.occupancy,
+            occupancy,
             friendly_occupancy,
             check,
         );
@@ -139,9 +135,9 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
         }
     }
 
-    let pawn_threats: u64 = p.pawn_bitboard & opponent_occupancy;
+    let pawn_threats: u64 = pawn_bitboard & opponent_occupancy;
     if pawn_threats.count_ones() > 0 {
-        let (c, dc, ts) = is_pawn_check(king_pos, p.black_turn, pawn_threats, check);
+        let (c, dc, ts) = is_pawn_check(king_pos, black_turn, pawn_threats, check);
 
         double_check |= dc;
         check |= c;
@@ -167,34 +163,50 @@ pub fn analyze_active_king_position(p: Position) -> KingPositionAnalysis {
     }
 }
 
+pub fn analyze_king_position_shallow(
+    king_pos: u8,
+    black_turn: bool,
+    opponent_occupancy: u64,
+    pawn_bitboard: u64,
+    knight_bitboard: u64,
+    bishop_bitboard: u64,
+    rook_bitboard: u64,
+    queen_bitboard: u64) -> KingPositionAnalysis {
+        KingPositionAnalysis { check:  false, double_check: false, threat_source: None, pins: Vec::new() }
+    }
+
 fn is_pawn_check(
     king_pos: u8,
     black_turn: bool,
     pawn_threats: u64,
     mut check: bool,
 ) -> (bool, bool, Option<ThreatSource>) {
-    let actual_threat_positions = pawn_threats & if black_turn {
-        if king_pos > 15 {
-            (1 << king_pos - 9) | (1 << king_pos - 7)
+    let actual_threat_positions = pawn_threats
+        & if black_turn {
+            if king_pos > 15 {
+                (1 << king_pos - 9) | (1 << king_pos - 7)
+            } else {
+                return (check, false, None);
+            }
         } else {
-            return (check, false, None);
-        }
-    } else {
-        if king_pos < 48 {
-            (1 << king_pos + 9) | (1 << king_pos + 7)
-        } else {
-            return (check, false, None);
-        }
-    };
+            if king_pos < 48 {
+                (1 << king_pos + 9) | (1 << king_pos + 7)
+            } else {
+                return (check, false, None);
+            }
+        };
 
-    if actual_threat_positions.count_ones() != 1  {
-        return (check, false, None)
+    if actual_threat_positions.count_ones() != 1 {
+        return (check, false, None);
     }
 
     let double_check = check;
     check = true;
     let lsb = actual_threat_positions.trailing_zeros() as u8;
-    let threat = ThreatSource{ from: lsb, threat_type: ThreatType::Pawn};
+    let threat = ThreatSource {
+        from: lsb,
+        threat_type: ThreatType::Pawn,
+    };
 
     (check, double_check, Some(threat))
 }
@@ -345,7 +357,7 @@ fn valid_slide(pos: i8, file_delta: i8, rank_delta: i8, start_file: u8, start_ra
 
 #[cfg(test)]
 mod test {
-    use crate::shared::board_utils::index_from_coords;
+    use crate::{shared::board_utils::index_from_coords, board::board_rep::BoardRep};
 
     use super::*;
 
@@ -629,17 +641,32 @@ mod test {
 
         assert!(result.0, "Pawn check should be true");
         assert!(!result.1, "Should not be double check");
-        assert_eq!(result.2, Some(ThreatSource{ from: index_from_coords("d4"), threat_type: ThreatType::Pawn}));
-
-
+        assert_eq!(
+            result.2,
+            Some(ThreatSource {
+                from: index_from_coords("d4"),
+                threat_type: ThreatType::Pawn
+            })
+        );
     }
 
     #[test]
     fn analyze_active_king_position_scenario_0() {
         // Double knight attack
-        let position = Position::from_fen("6k1/8/3n4/8/2K5/4n3/8/8 w - - 0 1".into());
+        let board = BoardRep::from_fen("6k1/8/3n4/8/2K5/4n3/8/8 w - - 0 1".into());
 
-        let result = analyze_active_king_position(position);
+        let result = analyze_king_position(
+            board.white_king_position,
+            board.black_turn,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, true);
@@ -648,9 +675,20 @@ mod test {
     #[test]
     fn analyze_active_king_position_scenario_1() {
         // Single knight attack, includes threat
-        let position = Position::from_fen("6k1/8/8/8/8/8/6K1/4n3 w - - 0 1".into());
+        let board = BoardRep::from_fen("6k1/8/8/8/8/8/6K1/4n3 w - - 0 1".into());
 
-        let result = analyze_active_king_position(position);
+        let result = analyze_king_position(
+            board.white_king_position,
+            board.black_turn,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
@@ -666,11 +704,23 @@ mod test {
     #[test]
     fn analyze_active_king_position_scenario_2() {
         // Single check from h3 bishop
-        let position = Position::from_fen(
+        let board = BoardRep::from_fen(
             "1rbq1knr/pppp1p1p/2n4B/3N3Q/2P4N/P2B4/1P3PPP/R4RK1 b - - 6 16".into(),
         );
 
-        let result = analyze_active_king_position(position);
+        let result = analyze_king_position(
+            board.black_king_position,
+            board.black_turn,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
@@ -687,11 +737,21 @@ mod test {
     #[test]
     fn analyze_active_king_position_scenario_3() {
         // Single check from e1 & pins on f3 & h2
-        let position = Position::from_fen(
+        let board = BoardRep::from_fen(
             "r3kb2/pp3ppp/2n2n1r/1Bpp4/4b3/2N1PP2/PPPP3P/R1BQq2K w q - 0 11".into(),
         );
-
-        let result = analyze_active_king_position(position);
+        let result = analyze_king_position(
+            board.white_king_position,
+            board.black_turn,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
@@ -720,11 +780,21 @@ mod test {
     #[test]
     fn analyze_active_king_position_scenario_4() {
         // Double check queen and knight
-        let position = Position::from_fen(
+        let board = BoardRep::from_fen(
             "rnbqk1nr/pppp1pNp/2Pb4/8/1B6/4Q3/PP1PPPPP/RN2KB1R b KQkq - 0 1".into(),
         );
-
-        let result = analyze_active_king_position(position);
+        let result = analyze_king_position(
+            board.black_king_position,
+            board.black_turn,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, true);
@@ -734,9 +804,19 @@ mod test {
     #[test]
     fn analyze_active_king_position_scenario_5() {
         // Pawn threat
-        let position = Position::from_fen("k7/8/8/8/8/3p4/2K5/8 w - - 0 1".into());
-
-        let result: KingPositionAnalysis = analyze_active_king_position(position);
+        let board = BoardRep::from_fen("k7/8/8/8/8/3p4/2K5/8 w - - 0 1".into());
+        let result = analyze_king_position(
+            board.white_king_position,
+            board.black_turn,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);

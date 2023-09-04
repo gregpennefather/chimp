@@ -18,7 +18,7 @@ impl PositionTranspositionTable {
 
 impl MoveTableLookup for PositionTranspositionTable {
     fn set (&mut self, position: Position) {
-        let set_result = self.0.insert(position.zorb_key, position);
+        let set_result = self.0.insert(position.board.zorb_key, position);
         match set_result {
             Some(old_result) => println!("Replacing old result {:?} => {:?}", old_result, position),
             None => {},

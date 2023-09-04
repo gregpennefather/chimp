@@ -41,7 +41,7 @@ impl ChimpEngine {
     }
 
     pub fn black_turn(&self) -> bool {
-        self.current_game_state.position.black_turn
+        self.current_game_state.position.board.black_turn
     }
 
     pub fn position(&mut self, mut split_string: SplitAsciiWhitespace<'_>) {
@@ -96,7 +96,7 @@ impl ChimpEngine {
         let ms = if winc == -1 || binc == -1 {
             info!("go movetime 10000");
             wtime
-        } else if self.current_game_state.position.black_turn {
+        } else if self.current_game_state.position.board.black_turn {
             if btime < binc {
                 binc / 3 * 2
             } else {
@@ -112,7 +112,7 @@ impl ChimpEngine {
         info!(
             "{}: go {} {wtime} {btime} {winc} {binc} => {ms:?}",
             self.moves.len(),
-            if self.current_game_state.position.black_turn {
+            if self.current_game_state.position.board.black_turn {
                 "black"
             } else {
                 "white"
@@ -142,7 +142,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
     let mut output_r = (
         Vec::<(Move, i32)>::new(),
         0,
-        if game_state.position.black_turn {
+        if game_state.position.board.black_turn {
             i32::MAX
         } else {
             i32::MIN
@@ -233,7 +233,7 @@ pub fn ab_search(
             "game_state: {} timeout at depth {depth}",
             game_state.to_fen()
         );
-        return Ok(if game_state.position.black_turn {
+        return Ok(if game_state.position.board.black_turn {
             (vec![], i32::MIN + 1, i32::MIN + 1)
         } else {
             (vec![], i32::MAX - 1, i32::MAX - 1)
@@ -241,7 +241,7 @@ pub fn ab_search(
     }
 
     let mut chosen_move = Move::default();
-    let mut chosen_move_eval = if !game_state.position.black_turn {
+    let mut chosen_move_eval = if !game_state.position.board.black_turn {
         i32::MIN
     } else {
         i32::MAX
@@ -250,13 +250,16 @@ pub fn ab_search(
     let mut move_history = Vec::new();
 
     let ordered_moves = if priority_moves.is_empty() {
-        game_state.moves.clone()
+        game_state.position.moves
     } else {
-        let mut moves = game_state.moves.clone();
+        let mut moves = game_state.position.moves;
         moves.sort_by(|a: &Move, b| move_orderer::priority_cmp(a, b, &priority_moves));
         moves
     };
     for &test_move in &ordered_moves {
+        if test_move.is_empty() {
+            break;
+        }
         let new_state = match game_state.make(test_move) {
             Some(new_state) => new_state,
             None => continue,
@@ -293,7 +296,7 @@ pub fn ab_search(
             }
         }
 
-        if !game_state.position.black_turn {
+        if !game_state.position.board.black_turn {
             if result_eval > chosen_move_eval {
                 trace!("{depth}:chosen move change: {test_move:?}{result_eval:?} > {chosen_move:?}:{chosen_move_eval:?}");
                 chosen_move = test_move;
@@ -323,7 +326,7 @@ pub fn ab_search(
     // If we couldn't choose a move it means that none of the PL moves are actually legal so abandon this branch
     if chosen_move.is_empty() {
         trace!("No legal moves found at {}", game_state.to_fen());
-        return Ok(if game_state.position.black_turn {
+        return Ok(if game_state.position.board.black_turn {
             (vec![], i32::MAX - 1, i32::MAX - 1)
         } else {
             (vec![], i32::MIN + 1, i32::MIN + 1)
@@ -334,7 +337,7 @@ pub fn ab_search(
     if chosen_move_eval == i32::MAX || chosen_move_eval == i32::MIN {
         debug!(
             "chosen_move_eval {chosen_move_eval} at {depth} for black:{} => {chosen_move:?}",
-            game_state.position.black_turn
+            game_state.position.board.black_turn
         );
     }
 

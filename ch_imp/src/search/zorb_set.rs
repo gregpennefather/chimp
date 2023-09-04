@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use crate::{
-    board::{position::{MoveSegmentArray, Position}, bitboard::Bitboard},
+    board::{position::{MoveSegmentArray, Position}, bitboard::Bitboard, board_rep::BoardRep},
     r#move::move_segment::{MoveSegment, MoveSegmentType},
     shared::{board_utils::get_file, piece_type::PieceType},
 };
@@ -62,17 +62,17 @@ impl ZorbSet {
         }
     }
 
-    pub fn hash(&self, position: Position) -> u64 {
+    pub fn hash(&self, board: BoardRep) -> u64 {
         let mut r = 0;
-        if position.black_turn {
+        if board.black_turn {
             r ^= self.black_turn;
         }
         for position_index in 0..64 {
-            if !position.occupancy.occupied(position_index as u8) {
+            if !board.occupancy.occupied(position_index as u8) {
                 continue;
             }
-            let piece_type = position.get_piece_type_at_index(position_index as u8);
-            let is_black = position.black_bitboard.occupied(position_index as u8);
+            let piece_type = board.get_piece_type_at_index(position_index as u8);
+            let is_black = board.black_occupancy.occupied(position_index as u8);
 
             r ^= match (piece_type, is_black) {
                 (PieceType::Pawn, false) => self.table[position_index][WHITE_PAWN_ID],
@@ -90,20 +90,20 @@ impl ZorbSet {
                 _ => panic!("Unknown piece {:?} at {} is black {}", piece_type, position_index, is_black),
             }
         }
-        if position.white_king_side_castling {
+        if board.white_king_side_castling {
             r ^= self.wkc;
         }
-        if position.white_queen_side_castling {
+        if board.white_queen_side_castling {
             r ^= self.wqc;
         }
-        if position.black_king_side_castling {
+        if board.black_king_side_castling {
             r ^= self.bkc;
         }
-        if position.black_queen_side_castling {
+        if board.black_queen_side_castling {
             r ^= self.bqc;
         }
-        if position.ep_index != u8::MAX {
-            r ^= self.ep_table[get_file(position.ep_index) as usize]
+        if board.ep_index != u8::MAX {
+            r ^= self.ep_table[get_file(board.ep_index) as usize]
         }
         r
     }
@@ -173,23 +173,22 @@ mod test {
 
     #[test]
     pub fn hash_should_differ_based_on_ep_position() {
-        let zorb_set = ZorbSet::new();
-        let position = Position::default();
-        let position_ep_0 =
-            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq h3".into());
-        let position_ep_5 =
-            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq c3".into());
+        let board_rep = BoardRep::default();
+        let board_rep_ep_0 =
+        BoardRep::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq h3".into());
+        let board_rep_ep_5 =
+        BoardRep::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq c3".into());
 
         assert_ne!(
-            position.zorb_key, position_ep_0.zorb_key,
+            board_rep.zorb_key, board_rep_ep_0.zorb_key,
             "No ep and ep=0 should not match"
         );
         assert_ne!(
-            position_ep_5.zorb_key, position_ep_0.zorb_key,
+            board_rep_ep_5.zorb_key, board_rep_ep_0.zorb_key,
             "Ep=5 and ep=0 should not match"
         );
         assert_ne!(
-            position.zorb_key, position_ep_5.zorb_key,
+            board_rep.zorb_key, board_rep_ep_5.zorb_key,
             "No ep and ep=5 should not match"
         );
     }
@@ -197,10 +196,10 @@ mod test {
     #[test]
     pub fn shift_by_move_segment() {
         let zorb_set = ZorbSet::new();
-        let origin_position = Position::from_fen(
+        let origin_board_rep = BoardRep::from_fen(
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b KQkq -".into(),
         );
-        let origin_hash = zorb_set.hash(origin_position);
+        let origin_hash = zorb_set.hash(origin_board_rep);
 
         // Pickup
         let mut result_hash = zorb_set.shift(
@@ -225,10 +224,10 @@ mod test {
         // Switch active player
         result_hash = zorb_set.colour_shift(result_hash);
 
-        let expected_position = Position::from_fen(
+        let expected_board_rep = BoardRep::from_fen(
             "rnbq1rk1/ppp2pb1/3p1npp/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 w KQkq -".into(),
         );
-        let expected_hash = zorb_set.hash(expected_position);
+        let expected_hash = zorb_set.hash(expected_board_rep);
 
         assert_eq!(result_hash, expected_hash);
     }
@@ -236,8 +235,8 @@ mod test {
     #[test]
     pub fn shift_by_move_segment_opening_and_retreating_knights() {
         let zorb_set = ZorbSet::new();
-        let origin_position = Position::default();
-        let origin_hash = zorb_set.hash(origin_position);
+        let origin_board_rep = BoardRep::default();
+        let origin_hash = zorb_set.hash(origin_board_rep);
 
         // Pickup Knight
         let mut result_hash = zorb_set.shift(
@@ -328,7 +327,7 @@ mod test {
         // Switch active player
         result_hash = zorb_set.colour_shift(result_hash);
 
-        let expected_hash = zorb_set.hash(origin_position);
+        let expected_hash = zorb_set.hash(origin_board_rep);
 
         assert_eq!(result_hash, expected_hash);
     }

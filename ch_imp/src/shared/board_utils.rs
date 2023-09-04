@@ -65,8 +65,6 @@ pub fn get_direction_to_normalized(from: u8, to: u8) -> i8 {
         file_delta /= file_delta;
     }
 
-    println!("fd:{file_delta},rd:{rank_delta}");
-
     return (8*rank_delta) + file_delta;
 }
 

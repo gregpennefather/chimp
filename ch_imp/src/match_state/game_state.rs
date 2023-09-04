@@ -27,7 +27,6 @@ pub enum MatchResultState {
 #[derive(Clone, PartialEq)]
 pub struct GameState {
     pub position: Position,
-    pub(crate) moves: Vec<Move>,
     pub half_moves: u8,
     pub full_moves: u32,
     pub result_state: MatchResultState,
@@ -42,16 +41,15 @@ impl GameState {
         let turn_segment = fen_segments.nth(0).unwrap().to_string();
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
-        let (position, pl_moves) =
-            Position::build(position_segment, turn_segment, castling_segment, ep_segment);
+        let position =
+            Position::new(position_segment, turn_segment, castling_segment, ep_segment);
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
         let recent_moves = [Move::default(); 6];
-        let result_state = result_state(half_moves, recent_moves, position, &pl_moves);
+        let result_state = result_state(half_moves, recent_moves, position);
         Self {
             position,
-            moves: pl_moves,
             half_moves,
             full_moves,
             result_state,
@@ -60,35 +58,33 @@ impl GameState {
     }
 
     pub fn legal(&self) -> bool {
-        self.position.legal()
+        self.position.legal
     }
 
     pub fn make(&self, m: Move) -> Option<Self> {
-        let (new_zorb, move_segments) = self.position.zorb_key_after_move(m);
+        let (new_zorb, move_segments) = self.position.board.zorb_key_after_move(m);
 
-        if m.is_black() != self.position.black_turn {
+        if m.is_black() != self.position.board.black_turn {
             println!("m:{}", m.uci());
             println!("segments:{move_segments:?}");
         }
 
         let lookup_result = lookup_position_table(new_zorb);
-        let (new_position, pl_moves) = match lookup_result {
+        let new_position = match lookup_result {
             // Some(new_position) => {
             //     let calc_position =  self.position.apply_segments(move_segments);
             //     assert_eq!(new_position, calc_position, "{self:?}:{m:?}");
             //     new_position
             // }
-            Some((position, pl_moves)) => (position, pl_moves),
-            None => match self.position.apply_segments(move_segments, new_zorb) {
-                Some((new_position, pl_moves)) => {
-                    insert_into_position_table(new_position, pl_moves.clone());
-                    (new_position, pl_moves)
-                }
-                None => return None,
-            },
+            Some(position) => position,
+            None => {
+                let new_position = self.position.apply_segments(move_segments, new_zorb);
+                insert_into_position_table(new_position);
+                new_position
+            }
         };
 
-        if !self.position.legal() {
+        if !self.position.legal {
             return None;
         }
 
@@ -101,7 +97,7 @@ impl GameState {
             half_moves += 1;
         }
 
-        if self.position.black_turn {
+        if self.position.board.black_turn {
             full_moves += 1;
         }
 
@@ -114,11 +110,10 @@ impl GameState {
             self.recent_moves[4],
         ];
 
-        let result_state = result_state(half_moves, recent_moves, new_position, &pl_moves); // TODO: Might need to add in some extra logic here
+        let result_state = result_state(half_moves, recent_moves, new_position); // TODO: Might need to add in some extra logic here
 
         Some(Self {
             position: new_position,
-            moves: pl_moves,
             half_moves,
             full_moves,
             recent_moves,
@@ -127,7 +122,7 @@ impl GameState {
     }
 
     pub fn to_fen(&self) -> String {
-        let mut result = self.position.to_fen();
+        let mut result = self.position.board.to_fen();
 
         result = format!("{result} {}", self.half_moves);
         result = format!("{result} {}", self.full_moves);
@@ -145,15 +140,15 @@ impl GameState {
             PieceType::None
         };
 
-        let opponent_occupancy = if self.position.black_turn {
-            self.position.white_bitboard
+        let opponent_occupancy = if self.position.board.black_turn {
+            self.position.board.white_occupancy
         } else {
-            self.position.black_bitboard
+            self.position.board.black_occupancy
         };
 
         let mut flags = 0;
 
-        let piece_type = self.position.get_piece_type_at_index(from);
+        let piece_type = self.position.board.get_piece_type_at_index(from);
 
         let is_capture = if opponent_occupancy.occupied(to) {
             flags = MF_CAPTURE;
@@ -166,7 +161,7 @@ impl GameState {
             PieceType::Pawn => {
                 if from.abs_diff(to) == 16 {
                     flags = MF_DOUBLE_PAWN_PUSH;
-                } else if self.position.ep_index == to {
+                } else if self.position.board.ep_index == to {
                     flags = MF_EP_CAPTURE
                 } else if promotion != PieceType::None {
                     flags = match (is_capture, promotion) {
@@ -193,7 +188,7 @@ impl GameState {
             _ => {}
         }
 
-        Move::new(from, to, flags, piece_type, self.position.black_turn)
+        Move::new(from, to, flags, piece_type, self.position.board.black_turn)
     }
 }
 
@@ -202,7 +197,7 @@ impl Debug for GameState {
         f.debug_tuple("GameState")
             .field(&self.to_fen())
             .field(&self.position.eval)
-            .field(&self.position.zorb_key)
+            .field(&self.position.board.zorb_key)
             .finish()
     }
 }
@@ -210,8 +205,7 @@ impl Debug for GameState {
 fn result_state(
     half_moves: u8,
     recent_moves: [Move; 6],
-    position: Position,
-    legal_moves: &Vec<Move>,
+    position: Position
 ) -> MatchResultState {
     if half_moves >= 50 {
         return MatchResultState::Draw;
@@ -227,12 +221,11 @@ fn result_state(
         return MatchResultState::Draw;
     }
 
-    let current_player_has_moves = has_player_moves(&legal_moves, position.black_turn);
-    if !current_player_has_moves {
-        if position.black_turn && position.black_in_check {
+    if position.moves.len() == 0 {
+        if position.board.black_turn && position.black_in_check {
             return MatchResultState::WhiteVictory;
         }
-        if !position.black_turn && position.white_in_check {
+        if !position.board.black_turn && position.white_in_check {
             return MatchResultState::BlackVictory;
         }
 

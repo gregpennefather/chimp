@@ -13,14 +13,14 @@ use log4rs::{
 };
 fn main() {
 
-    let mut bb = 0;
-    for i in 0..8 {
-        bb = bb.flip(get_index_from_file_and_rank(7-i,i));
-    }
-    println!("{}", bb.to_board_format());
-    println!("{}", bb);
+    // let mut bb = 0;
+    // for i in 0..8 {
+    //     bb = bb.flip(get_index_from_file_and_rank(7-i,i));
+    // }
+    // println!("{}", bb.to_board_format());
+    // println!("{}", bb);
 
-    //perfts();
+    perfts();
     //let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
     // //generate_blocker_patterns(rook_mask_generation(0));
@@ -352,7 +352,7 @@ fn get_moves_string(moves: &Vec<String>) -> String {
 fn perfts() {
     let stdout = ConsoleAppender::builder().build();
     let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+        .encoder(Box::new(PatternEncoder::new("")))
         .build(format!(
             "log/perfts_{:?}.log",
             SystemTime::now()

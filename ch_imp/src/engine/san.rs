@@ -40,10 +40,10 @@ impl GameState {
         }
 
         let mut moves_targeting_square = Vec::new();
-        for c_m in &self.moves {
+        for c_m in &self.position.moves {
             let cm_to = c_m.to();
             let cm_from = c_m.from();
-            let cm_piece = self.position.get_piece_type_at_index(cm_from);
+            let cm_piece = self.position.board.get_piece_type_at_index(cm_from);
             if cm_to == m.to() && (cm_piece == piece_type || piece_type == PieceType::Pawn) {
                 moves_targeting_square.push(c_m);
             }

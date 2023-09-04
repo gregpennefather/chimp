@@ -1,4 +1,4 @@
-use crate::{board::position::Position, r#move::Move};
+use crate::{board::{position::Position, board_rep::BoardRep}, r#move::Move};
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
@@ -58,13 +58,10 @@ static KING_SQUARE_FACTOR: i32 = 5;
 
 static MOBILITY_VALUE: i32 = 1;
 
-pub fn calculate(p: Position, white_moves: &Vec<Move>, black_moves: &Vec<Move>) -> i32 {
+pub fn calculate(board: BoardRep) -> i32 {
     let mut eval = 0;
-    eval += piece_aggregate_score(p, p.white_bitboard, MATERIAL_VALUES);
-    eval -= piece_aggregate_score(p, p.black_bitboard, MATERIAL_VALUES);
-
-    eval += white_moves.len() as i32 * MOBILITY_VALUE;
-    eval -= black_moves.len() as i32 * MOBILITY_VALUE;
+    eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
+    eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
     // eval += piece_square_score(p.white_bitboard & p.pawn_bitboard, WHITE_PAWN_SQUARE_SCORE)
     //     * PAWN_SQUARE_FACTOR;
