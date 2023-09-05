@@ -42,7 +42,7 @@ pub struct KingPositionAnalysis {
 
 pub fn analyze_king_position(
     king_pos: u8,
-    black_turn: bool,
+    black_king: bool,
     occupancy: u64,
     friendly_occupancy: u64,
     opponent_occupancy: u64,
@@ -137,7 +137,7 @@ pub fn analyze_king_position(
 
     let pawn_threats: u64 = pawn_bitboard & opponent_occupancy;
     if pawn_threats.count_ones() > 0 {
-        let (c, dc, ts) = is_pawn_check(king_pos, black_turn, pawn_threats, check);
+        let (c, dc, ts) = is_pawn_check(king_pos, black_king, pawn_threats, check);
 
         double_check |= dc;
         check |= c;
@@ -165,39 +165,100 @@ pub fn analyze_king_position(
 
 pub fn analyze_king_position_shallow(
     king_pos: u8,
-    black_turn: bool,
+    black_king: bool,
+    occupancy: u64,
     opponent_occupancy: u64,
     pawn_bitboard: u64,
     knight_bitboard: u64,
     bishop_bitboard: u64,
     rook_bitboard: u64,
-    queen_bitboard: u64) -> KingPositionAnalysis {
-        KingPositionAnalysis { check:  false, double_check: false, threat_source: None, pins: Vec::new() }
+    queen_bitboard: u64,
+) -> KingPositionAnalysis {
+    let knights: u64 = knight_bitboard & opponent_occupancy;
+    if knights.count_ones() > 0 {
+        let (c, dc, ts) = in_check_from_knights(king_pos, knights, true);
+
+        if dc {
+            return KingPositionAnalysis {
+                check: true,
+                double_check: false,
+                threat_source: None,
+                pins: Vec::new(),
+            };
+        }
     }
+
+    let diagonal_threats = (bishop_bitboard | queen_bitboard) & opponent_occupancy;
+    if diagonal_threats.count_ones() > 0 {
+        let (c, dc, ts, p) = in_sliding_check(king_pos, true, diagonal_threats, occupancy, 0, true);
+
+        if dc {
+            return KingPositionAnalysis {
+                check: true,
+                double_check: false,
+                threat_source: None,
+                pins: Vec::new(),
+            };
+        }
+    }
+
+    let orthogonal_threats = (rook_bitboard | queen_bitboard) & opponent_occupancy;
+
+    if orthogonal_threats.count_ones() > 0 {
+        let (c, dc, ts, p) =
+            in_sliding_check(king_pos, false, orthogonal_threats, occupancy, 0, true);
+        if dc {
+            return KingPositionAnalysis {
+                check: true,
+                double_check: false,
+                threat_source: None,
+                pins: Vec::new(),
+            };
+        }
+    }
+
+    let pawn_threats: u64 = pawn_bitboard & opponent_occupancy;
+    if pawn_threats.count_ones() > 0 {
+        let (c, dc, ts) = is_pawn_check(king_pos, black_king, pawn_threats, true);
+        if dc {
+            return KingPositionAnalysis {
+                check: true,
+                double_check: false,
+                threat_source: None,
+                pins: Vec::new(),
+            };
+        }
+    }
+
+    KingPositionAnalysis {
+        check: false,
+        double_check: false,
+        threat_source: None,
+        pins: Vec::new(),
+    }
+}
 
 fn is_pawn_check(
     king_pos: u8,
-    black_turn: bool,
-    pawn_threats: u64,
+    black_king: bool,
+    opponent_pawns: u64,
     mut check: bool,
 ) -> (bool, bool, Option<ThreatSource>) {
-    let actual_threat_positions = pawn_threats
-        & if black_turn {
-            if king_pos > 15 {
-                (1 << king_pos - 9) | (1 << king_pos - 7)
-            } else {
-                return (check, false, None);
-            }
-        } else {
-            if king_pos < 48 {
-                (1 << king_pos + 9) | (1 << king_pos + 7)
-            } else {
-                return (check, false, None);
-            }
-        };
 
-    if actual_threat_positions.count_ones() != 1 {
+    if (black_king && king_pos < 15) || (!black_king && king_pos > 48) {
         return (check, false, None);
+    }
+
+    let king_threat_sources = get_pawn_threat_source(king_pos, black_king);
+
+    let actual_threat_positions = opponent_pawns & king_threat_sources;
+
+    let threat_count = actual_threat_positions.count_ones();
+    if threat_count == 0 {
+        return (check, false, None);
+    }
+    if threat_count > 1 {
+        return (true, true, None);
     }
 
     let double_check = check;
@@ -209,6 +270,20 @@ fn is_pawn_check(
     };
 
     (check, double_check, Some(threat))
+}
+
+fn get_pawn_threat_source(king_pos: u8 , black_king: bool) -> u64 {
+    let king_file = get_file(king_pos);
+
+    let mut r = 0;
+    if king_file != 7 {
+        r |= 1 << (king_pos as i32 + if black_king { -9 } else { 7 });
+    }
+
+    if king_file != 0 {
+        r |= 1 << (king_pos as i32 + if black_king { -7 } else { 9 });
+    }
+    r
 }
 
 fn in_check_from_knights(
@@ -315,6 +390,9 @@ fn walk_slide(
                         None,
                     );
                 } else {
+                    if potential_pin > 63 {
+                        println!("p")
+                    }
                     let pin = ThreatRaycastCollision {
                         from: check_pos as u8,
                         at: potential_pin,
@@ -340,6 +418,9 @@ fn valid_slide(pos: i8, file_delta: i8, rank_delta: i8, start_file: u8, start_ra
         return false;
     }
     let rank = get_rank(pos as u8);
+    if rank_delta == 0 && rank != start_rank {
+        return false;
+    }
     if rank_delta == -1 && rank > start_rank {
         return false;
     } else if rank_delta == 1 && rank < start_rank {
@@ -347,6 +428,9 @@ fn valid_slide(pos: i8, file_delta: i8, rank_delta: i8, start_file: u8, start_ra
     }
 
     let file: u8 = get_file(pos as u8);
+    if file_delta == 0 && file != start_file {
+        return false;
+    }
     if file_delta == -1 && file > start_file {
         return false;
     } else if file_delta == 1 && file < start_file {
@@ -357,7 +441,7 @@ fn valid_slide(pos: i8, file_delta: i8, rank_delta: i8, start_file: u8, start_ra
 
 #[cfg(test)]
 mod test {
-    use crate::{shared::board_utils::index_from_coords, board::board_rep::BoardRep};
+    use crate::{board::board_rep::BoardRep, shared::board_utils::index_from_coords};
 
     use super::*;
 
@@ -397,6 +481,22 @@ mod test {
             result.2,
             Some(ThreatSource {
                 from: index_from_coords("d5"),
+                threat_type: ThreatType::DiagonalSlide
+            })
+        );
+    }
+
+    #[test]
+    fn in_diagonal_check_a4_to_e8() {
+        let diagonal_sliders = 1 << index_from_coords("a4");
+        let king_pos = index_from_coords("e8");
+        let result = in_sliding_check(king_pos, true, 2147483684, diagonal_sliders, 0, false);
+        assert_eq!(result.0, true, "Check should be true");
+        assert_eq!(result.1, false, "Double check should be false");
+        assert_eq!(
+            result.2,
+            Some(ThreatSource {
+                from: index_from_coords("a4"),
                 threat_type: ThreatType::DiagonalSlide
             })
         );
@@ -545,6 +645,27 @@ mod test {
             false,
         );
         assert_eq!(result.0, false, "Check should be true");
+        assert_eq!(result.1, false, "Double check should be false");
+        assert_eq!(result.2, None, "There should no threats");
+        assert_eq!(result.3.len(), 0, "There should be no pins");
+    }
+
+    #[test]
+    fn in_orthogonal_check_scenario_0() {
+        let king_pos = 24;
+        let orthogonal_sliders = 34359738368;
+        let friendlies = 0;
+        let occupancy = 9025719170763264;
+
+        let result = in_sliding_check(
+            king_pos,
+            false,
+            orthogonal_sliders,
+            occupancy,
+            friendlies,
+            true,
+        );
+
         assert_eq!(result.1, false, "Double check should be false");
         assert_eq!(result.2, None, "There should no threats");
         assert_eq!(result.3.len(), 0, "There should be no pins");
@@ -721,7 +842,6 @@ mod test {
             board.queen_bitboard,
         );
 
-
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
         assert_eq!(result.pins.len(), 0);
@@ -828,5 +948,45 @@ mod test {
                 threat_type: ThreatType::Pawn
             })
         )
+    }
+
+    #[test]
+    fn analyze_king_position_shallow_scenario_1() {
+        let board = BoardRep::from_fen(
+            "rnbqkb1r/ppp1pppp/3p3n/8/Q7/2P5/PP1PPPPP/RNB1KBNR w KQkq - 0 1".into(),
+        );
+
+        let result = analyze_king_position_shallow(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        assert!(result.check);
+    }
+
+    #[test]
+    fn analyze_king_position_shallow_scenario_2() {
+        let board = BoardRep::from_fen("8/2p5/1K1p4/1P5r/1R3p1k/8/4P1P1/8 w - - 0 1".into());
+
+        let result = analyze_king_position_shallow(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        assert!(result.check);
     }
 }

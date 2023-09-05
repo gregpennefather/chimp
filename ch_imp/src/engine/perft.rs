@@ -6,6 +6,7 @@ use crate::{match_state::game_state::GameState, r#move::Move, POSITION_TRANSPOSI
 
 pub fn perft(name: String, fen: String, counts: Vec<usize>) {
     info!("--- {name} ---");
+    println!("--- {name} ---");
     let origin_game_state = GameState::new(fen);
     let mut top_level_states = Vec::new();
 
@@ -25,6 +26,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
     }
     let duration = start.elapsed();
     info!("0: {}/{} - {duration:?}", top_level_states.len(), counts[0]);
+    println!("0: {}/{} - {duration:?}", top_level_states.len(), counts[0]);
     if top_level_states.len() != counts[0] {
         print_move_counts(&top_level_states);
         return;
@@ -57,6 +59,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
 
         let duration = start.elapsed();
         info!("{depth}: {}/{} - {duration:?}", depth_count, counts[depth]);
+        println!("{depth}: {}/{} - {duration:?}", depth_count, counts[depth]);
         if depth_count != counts[depth] {
             print_move_counts(&top_level_states);
             return;
@@ -71,5 +74,6 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
 fn print_move_counts(top_level_states: &Vec<(Move, usize, Vec<GameState>)>) {
     for top_level_state in top_level_states {
         info!("{}: {}", top_level_state.0.uci(), top_level_state.1);
+        println!("{}: {}", top_level_state.0.uci(), top_level_state.1);
     }
 }

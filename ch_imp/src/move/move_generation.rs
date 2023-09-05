@@ -21,13 +21,13 @@ use crate::{
 
 use super::{
     move_data::{
-        BLACK_PAWN_PROMOTION_RANK, KING_CASTLING_CLEARANCE, QUEEN_CASTLING_CLEARANCE,
-        WHITE_PAWN_PROMOTION_RANK, KING_CASTLING_CHECK, QUEEN_CASTLING_CHECK,
+        BLACK_PAWN_PROMOTION_RANK, KING_CASTLING_CHECK, KING_CASTLING_CLEARANCE,
+        QUEEN_CASTLING_CHECK, QUEEN_CASTLING_CLEARANCE, WHITE_PAWN_PROMOTION_RANK,
     },
     Move,
 };
 
-type MoveList = [Move; 64];
+type MoveList = [Move; 128];
 
 pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> MoveList {
     let mut friendly_occupancy = if board.black_turn {
@@ -152,17 +152,28 @@ fn generate_threat_board(is_black: bool, mut piece_occupancy: u64, board: BoardR
 
 fn get_pawn_threatboard(piece_position: u8, is_black: bool) -> u64 {
     if is_black {
-        if piece_position > 15 {
-            (1 << piece_position - 9) | (1 << piece_position - 7)
+        let mut r = if piece_position > 8 {
+            1 << piece_position - 9
         } else {
             0
-        }
+        };
+        if piece_position > 7 {
+            r |= 1 << piece_position - 7
+        };
+
+        return r;
     } else {
-        if piece_position < 48 {
-            (1 << piece_position + 9) | (1 << piece_position + 7)
+        let mut r = if piece_position < 54 {
+            1 << piece_position + 9
         } else {
             0
+        };
+
+        if piece_position < 55 {
+            r |= 1 << piece_position + 7
         }
+
+        return r;
     }
 }
 
@@ -336,9 +347,6 @@ fn generate_pawn_moves(
     // double pawn push is possible or not before determining what the normal move to_index is
     let (to_index, to_index_dpp, promotion_rank) = if is_black {
         let to_index_dpp = moveboard.trailing_zeros() as u8;
-        if to_index_dpp >= 64 {
-            println!("{}", board.to_fen());
-        }
         moveboard ^= 1 << to_index_dpp;
         let to_index = moveboard.trailing_zeros() as u8;
         if to_index == 64 {
@@ -368,6 +376,7 @@ fn generate_pawn_moves(
                 piece_type::PieceType::Pawn,
                 is_black,
             ));
+
             // Can we move a second square in a Double Pawn Push?
             if to_index_dpp != 64 {
                 if !board.occupancy.occupied(to_index_dpp) {
@@ -551,12 +560,12 @@ fn moveboard_to_moves(
 fn to_move_list(vec: Vec<Move>) -> MoveList {
     let mut v = vec.clone();
     v.sort();
-    if v.len() > 64 {
-        info!("Throwing away {} moves", v.len() - 64)
+    if v.len() > 128 {
+        info!("Throwing away {} moves", v.len() - 128)
     }
-    let mut r: MoveList = [Move::default(); 64];
+    let mut r: MoveList = [Move::default(); 128];
     for i in 0..v.len() {
-        if i >= 64 {
+        if i >= 128 {
             break;
         }
         r[i] = v[i];
@@ -607,7 +616,7 @@ mod test {
             board.rook_bitboard,
             board.queen_bitboard,
         );
-        let moves: [Move; 64] = generate_moves(&king_analysis, board);
+        let moves: [Move; 128] = generate_moves(&king_analysis, board);
         assert!(moves.into_iter().position(|m| m.is_empty()).unwrap() <= 2);
     }
 

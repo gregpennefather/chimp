@@ -84,7 +84,7 @@ impl GameState {
             }
         };
 
-        if !self.position.legal {
+        if !new_position.legal {
             return None;
         }
 
@@ -330,6 +330,16 @@ mod test {
             game_state.to_fen(),
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b - - 1 2"
         );
+    }
+
+    #[test]
+    pub fn king_move_into_check() {
+        let game_state = GameState::new("rnbqkbnr/pppp1ppp/8/3Np3/8/8/PPPPPPPP/R1BQKBNR b KQkq - 1 2".into());
+
+        let m = game_state.move_from_uci("e8e7");
+
+        let new_state = game_state.make(m);
+        assert_eq!(new_state, None);
     }
 
     // #[test]

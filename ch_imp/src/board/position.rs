@@ -22,7 +22,7 @@ pub struct Position {
     pub black_in_check: bool,
     pub legal: bool,
     pub eval: i32,
-    pub moves: [Move; 64],
+    pub moves: [Move; 128],
 }
 
 impl Position {
@@ -59,10 +59,21 @@ impl Position {
     }
 
     fn build(board: BoardRep) -> Self {
+        if board.black_king_position == 255 || board.white_king_position == 255 {
+            return Self {
+                board,
+                white_in_check: false,
+                black_in_check: false,
+                legal: false,
+                eval: 0,
+                moves: [Move::default();128],
+            };
+        }
         let white_king_analysis = if board.black_turn {
             analyze_king_position_shallow(
                 board.white_king_position,
-                board.black_turn,
+                false,
+                board.occupancy,
                 board.black_occupancy,
                 board.pawn_bitboard,
                 board.knight_bitboard,
@@ -73,7 +84,7 @@ impl Position {
         } else {
             analyze_king_position(
                 board.white_king_position,
-                board.black_turn,
+                false,
                 board.occupancy,
                 board.white_occupancy,
                 board.black_occupancy,
@@ -87,7 +98,7 @@ impl Position {
         let black_king_analysis = if board.black_turn {
             analyze_king_position(
                 board.black_king_position,
-                board.black_turn,
+                true,
                 board.occupancy,
                 board.black_occupancy,
                 board.white_occupancy,
@@ -100,7 +111,8 @@ impl Position {
         } else {
             analyze_king_position_shallow(
                 board.black_king_position,
-                board.black_turn,
+                true,
+                board.occupancy,
                 board.white_occupancy,
                 board.pawn_bitboard,
                 board.knight_bitboard,
@@ -109,17 +121,21 @@ impl Position {
                 board.queen_bitboard,
             )
         };
+        let mut eval = 0;
+        let mut moves = [Move::default(); 128];
 
-        let moves = if board.black_turn {
-            generate_moves(&black_king_analysis, board)
-        } else {
-            generate_moves(&white_king_analysis, board)
-        };
+        let legal = !((board.black_turn && white_king_analysis.check)
+            || (!board.black_turn && black_king_analysis.check));
 
-        let legal = true; // TODO;
+        if legal {
+            moves = if board.black_turn {
+                generate_moves(&black_king_analysis, board)
+            } else {
+                generate_moves(&white_king_analysis, board)
+            };
 
-        let eval = evaluation::calculate(board);
-
+            eval = evaluation::calculate(board);
+        }
         Self {
             board,
             white_in_check: white_king_analysis.check,

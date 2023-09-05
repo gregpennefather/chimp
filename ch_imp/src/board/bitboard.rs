@@ -11,9 +11,7 @@ pub trait Bitboard {
 
 impl Bitboard for u64 {
     fn occupied(&self, index: u8) -> bool {
-        if index > 63 {
-            println!("{}", index);
-        }
+        assert!(index <= 63);
         self >> index & 0b1 > 0
     }
 

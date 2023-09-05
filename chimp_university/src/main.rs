@@ -3,7 +3,7 @@ use std::time::{Duration, Instant, SystemTime};
 use ch_imp::{
     board::{position::Position, bitboard::Bitboard},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
-    match_state::game_state::{GameState, MatchResultState}, shared::board_utils::get_index_from_file_and_rank,
+    match_state::game_state::{GameState, MatchResultState, self}, shared::board_utils::get_index_from_file_and_rank,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -20,7 +20,24 @@ fn main() {
     // println!("{}", bb.to_board_format());
     // println!("{}", bb);
 
-    perfts();
+    //perft("t".into(), "rnb1qk1r/pp1Pbppp/2pQ4/8/2B5/8/PPP1NnPP/RNB1K2R w KQ - 3 9".into(),vec![66]);
+
+    //println!("{}",Position::from_fen("rnbq1bnr/ppppkppp/8/3Np3/8/8/PPPPPPPP/R1BQKBNR w KQ - 0 1".into()).board.zorb_key);
+
+    // let game_state = GameState::new("8/2p5/3p4/KP1rR3/5p1k/8/4P1P1/8 b - - 3 2".into());
+    // for m in game_state.position.moves {
+    //     if m.is_empty() {
+    //         break;
+    //     }
+    //     println!("{:?}:{:?}",m,game_state.make(m));
+    // }
+    // println!("{}", game_state.position.legal);
+    // let new_state = game_state.make(game_state.move_from_uci("f4f3"));
+
+    // assert_eq!(new_state, None);
+
+
+    //perfts();
     //let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
     // //generate_blocker_patterns(rook_mask_generation(0));
@@ -111,8 +128,8 @@ fn main() {
 
     //println!("{r:?}");
 
-    // timed_depth_test();
-    // target_depth_test();
+    //timed_depth_test();
+    target_depth_test();
 
     // park_table();
 }
@@ -350,7 +367,6 @@ fn get_moves_string(moves: &Vec<String>) -> String {
 }
 
 fn perfts() {
-    let stdout = ConsoleAppender::builder().build();
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("")))
         .build(format!(
@@ -364,10 +380,8 @@ fn perfts() {
 
     let config = Config::builder()
         .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .build(
             Root::builder()
-                .appender("stdout")
                 .appender("chimp")
                 .build(LevelFilter::Info),
         )
