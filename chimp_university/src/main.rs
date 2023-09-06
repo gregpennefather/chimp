@@ -20,7 +20,7 @@ fn main() {
     // println!("{}", bb.to_board_format());
     // println!("{}", bb);
 
-    //perft("t".into(), "rnb1qk1r/pp1Pbppp/2pQ4/8/2B5/8/PPP1NnPP/RNB1K2R w KQ - 3 9".into(),vec![66]);
+    //perft("t".into(), "rn1qk2r/pp2bppp/2Q5/8/2B5/8/PPP1NnPP/RNBQK2R b KQ - 0 9".into(),vec![5]);
 
     //println!("{}",Position::from_fen("rnbq1bnr/ppppkppp/8/3Np3/8/8/PPPPPPPP/R1BQKBNR w KQ - 0 1".into()).board.zorb_key);
 

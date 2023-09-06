@@ -7,7 +7,7 @@ use crate::{
         king_position_analysis::{KingPositionAnalysis, ThreatSource, ThreatType},
     },
     shared::{
-        board_utils::{get_direction_to_normalized, get_rank},
+        board_utils::{get_direction_to_normalized, get_rank, get_file},
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
@@ -180,25 +180,26 @@ fn generate_threat_board(is_black: bool, mut piece_occupancy: u64, board: BoardR
 }
 
 fn get_pawn_threatboard(piece_position: u8, is_black: bool) -> u64 {
+    let file = get_file(piece_position);
     if is_black {
-        let mut r = if piece_position > 8 {
+        let mut r = if piece_position > 8 && file != 7 {
             1 << piece_position - 9
         } else {
             0
         };
-        if piece_position > 7 {
+        if piece_position > 7 && file != 0{
             r |= 1 << piece_position - 7
         };
 
         return r;
     } else {
-        let mut r = if piece_position < 54 {
+        let mut r = if piece_position < 54 && file != 0 {
             1 << piece_position + 9
         } else {
             0
         };
 
-        if piece_position < 55 {
+        if piece_position < 55 && file != 7 {
             r |= 1 << piece_position + 7
         }
 
@@ -276,44 +277,17 @@ fn generate_queen_moves(
     is_black: bool,
     king_threat: Option<ThreatSource>,
 ) -> Vec<Move> {
-    let moveboard = match king_threat {
-        Some(threat) => {
-            if MOVE_DATA
-                .magic_bitboard_table
-                .get_rook_attacks(index as usize, board.occupancy)
-                .occupied(threat.from)
-                || MOVE_DATA
-                    .magic_bitboard_table
-                    .get_bishop_attacks(index as usize, board.occupancy.into())
-                    .occupied(threat.from)
-            {
-                return vec![Move::new(
-                    index,
-                    threat.from,
-                    MF_CAPTURE,
-                    piece_type::PieceType::Queen,
-                    is_black,
-                )];
-            } else {
-                let moveboard = MOVE_DATA
-                    .magic_bitboard_table
-                    .get_bishop_attacks(index as usize, board.occupancy.into())
-                    | MOVE_DATA
-                        .magic_bitboard_table
-                        .get_rook_attacks(index as usize, board.occupancy.into());
+    let mut moveboard = MOVE_DATA
+        .magic_bitboard_table
+        .get_bishop_attacks(index as usize, board.occupancy.into())
+        | MOVE_DATA
+            .magic_bitboard_table
+            .get_rook_attacks(index as usize, board.occupancy.into());
 
-                moveboard & threat.threat_path_mask
-            }
-        }
-        None => {
-            MOVE_DATA
-                .magic_bitboard_table
-                .get_bishop_attacks(index as usize, board.occupancy.into())
-                | MOVE_DATA
-                    .magic_bitboard_table
-                    .get_rook_attacks(index as usize, board.occupancy.into())
-        }
-    };
+    if king_threat != None {
+        let threat = king_threat.unwrap();
+        moveboard &= threat.threat_path_mask | (1 << threat.from);
+    }
 
     moveboard_to_moves(
         index,
@@ -333,32 +307,15 @@ fn generate_rook_moves(
     is_black: bool,
     king_threat: Option<ThreatSource>,
 ) -> Vec<Move> {
-    let moveboard = match king_threat {
-        Some(threat) => {
-            if MOVE_DATA
-                .magic_bitboard_table
-                .get_rook_attacks(index as usize, board.occupancy)
-                .occupied(threat.from)
-            {
-                return vec![Move::new(
-                    index,
-                    threat.from,
-                    MF_CAPTURE,
-                    piece_type::PieceType::Rook,
-                    is_black,
-                )];
-            } else {
-                let moveboard = MOVE_DATA
-                    .magic_bitboard_table
-                    .get_rook_attacks(index as usize, board.occupancy.into());
+    let mut moveboard = MOVE_DATA
+        .magic_bitboard_table
+        .get_rook_attacks(index as usize, board.occupancy.into());
 
-                moveboard & threat.threat_path_mask
-            }
-        }
-        None => MOVE_DATA
-            .magic_bitboard_table
-            .get_rook_attacks(index as usize, board.occupancy.into()),
-    };
+    if king_threat != None {
+        let threat = king_threat.unwrap();
+        moveboard &= threat.threat_path_mask | (1 << threat.from);
+    }
+
     moveboard_to_moves(
         index,
         piece_type::PieceType::Rook,
@@ -376,32 +333,14 @@ fn generate_bishop_moves(
     is_black: bool,
     king_threat: Option<ThreatSource>,
 ) -> Vec<Move> {
-    let moveboard = match king_threat {
-        Some(threat) => {
-            if MOVE_DATA
-                .magic_bitboard_table
-                .get_bishop_attacks(index as usize, board.occupancy)
-                .occupied(threat.from)
-            {
-                return vec![Move::new(
-                    index,
-                    threat.from,
-                    MF_CAPTURE,
-                    piece_type::PieceType::Bishop,
-                    is_black,
-                )];
-            } else {
-                let moveboard = MOVE_DATA
-                    .magic_bitboard_table
-                    .get_bishop_attacks(index as usize, board.occupancy.into());
+    let mut moveboard = MOVE_DATA
+        .magic_bitboard_table
+        .get_bishop_attacks(index as usize, board.occupancy.into());
 
-                moveboard & threat.threat_path_mask
-            }
-        }
-        None => MOVE_DATA
-            .magic_bitboard_table
-            .get_bishop_attacks(index as usize, board.occupancy.into()),
-    };
+    if king_threat != None {
+        let threat = king_threat.unwrap();
+        moveboard &= threat.threat_path_mask | (1 << threat.from);
+    }
 
     moveboard_to_moves(
         index,
@@ -420,22 +359,13 @@ fn generate_knight_moves(
     is_black: bool,
     king_threat: Option<ThreatSource>,
 ) -> Vec<Move> {
-    let moveboard = match king_threat {
-        Some(threat) => {
-            if MOVE_DATA.knight_moves[index as usize].occupied(threat.from) {
-                return vec![Move::new(
-                    index,
-                    threat.from,
-                    MF_CAPTURE,
-                    piece_type::PieceType::Knight,
-                    is_black,
-                )];
-            } else {
-                MOVE_DATA.knight_moves[index as usize] & threat.threat_path_mask
-            }
-        }
-        None => MOVE_DATA.knight_moves[index as usize],
-    };
+    let mut moveboard = MOVE_DATA.knight_moves[index as usize];
+
+    if king_threat != None {
+        let threat = king_threat.unwrap();
+        moveboard &= threat.threat_path_mask | (1 << threat.from);
+    }
+
     moveboard_to_moves(
         index,
         piece_type::PieceType::Knight,
@@ -454,7 +384,6 @@ fn generate_pawn_moves(
     opponent_occupancy: u64,
     king_threat: Option<ThreatSource>,
 ) -> Vec<Move> {
-
     if king_threat != None {
         return generate_pawn_moves_when_threatened(
             index,
@@ -555,6 +484,7 @@ fn generate_pawn_moves_when_threatened(
     threat: ThreatSource,
     occupancy: u64,
 ) -> Vec<Move> {
+    let mut moves = Vec::new();
     let offset_file: i8 = if is_black { -1 } else { 1 };
     let rank = get_rank(index);
 
@@ -562,43 +492,40 @@ fn generate_pawn_moves_when_threatened(
         let to: u8 = (index as i8 + (8 * offset_file)) as u8;
         if (1 << to) & threat.threat_path_mask != 0 {
             if get_rank(to) != 0 && get_rank(to) != 7 {
-                return vec![Move::new(
+                moves.push(Move::new(
                     index,
                     to,
                     0b0,
                     piece_type::PieceType::Pawn,
                     is_black,
-                )];
+                ));
             } else {
-                return generate_pawn_promotion_moves(index, to, false, is_black);
+                moves.extend(generate_pawn_promotion_moves(index, to, false, is_black));
             }
         }
-
 
         if !occupancy.occupied(to) && ((is_black && rank == 6) || (!is_black && rank == 1)) {
             let dpp = (to as i8 + (8 * offset_file)) as u8;
             if (1 << dpp) & threat.threat_path_mask != 0 {
-                return vec![Move::new(
+                moves.push(Move::new(
                     index,
                     dpp,
                     MF_DOUBLE_PAWN_PUSH,
                     piece_type::PieceType::Pawn,
                     is_black,
-                )];
+                ));
             }
         }
     }
 
     let capture_a = (index as i8 + (offset_file * 8)) as u8 + 1;
-    if threat.from == capture_a {
+    if threat.from == capture_a || (capture_a == ep_index && threat.threat_type == ThreatType::Pawn) {
         let capture_a_rank = get_rank(capture_a);
         if (rank as i8 + offset_file) as u8 == capture_a_rank {
             if capture_a_rank == 0 || capture_a_rank == 7 {
-                return generate_pawn_promotion_moves(
-                    index, capture_a, true, is_black,
-                );
+                moves.extend(generate_pawn_promotion_moves(index, capture_a, true, is_black));
             } else {
-                return vec![Move::new(
+                moves.push(Move::new(
                     index,
                     capture_a,
                     if capture_a == ep_index {
@@ -608,20 +535,18 @@ fn generate_pawn_moves_when_threatened(
                     },
                     piece_type::PieceType::Pawn,
                     is_black,
-                )];
+                ));
             }
         }
     }
     let capture_b = (index as i8 + (offset_file * 8)) as u8 - 1;
-    if threat.from == capture_b {
+    if threat.from == capture_b || (capture_b == ep_index && threat.threat_type == ThreatType::Pawn) {
         let capture_b_rank = get_rank(capture_b);
         if (rank as i8 + offset_file) as u8 == capture_b_rank {
             if capture_b_rank == 0 || capture_b_rank == 7 {
-                return generate_pawn_promotion_moves(
-                    index, capture_b, true, is_black,
-                );
+                moves.extend(generate_pawn_promotion_moves(index, capture_b, true, is_black));
             } else {
-                return vec![Move::new(
+                moves.push(Move::new(
                     index,
                     capture_b,
                     if capture_b == ep_index {
@@ -631,11 +556,11 @@ fn generate_pawn_moves_when_threatened(
                     },
                     piece_type::PieceType::Pawn,
                     is_black,
-                )];
+                ));
             }
         }
     }
-    vec![]
+    moves
 }
 
 fn generate_pawn_promotion_moves(
@@ -741,7 +666,10 @@ fn moveboard_to_moves(
 #[cfg(test)]
 mod test {
 
-    use crate::{board::king_position_analysis::analyze_king_position, shared::board_utils::index_from_coords};
+    use crate::{
+        board::king_position_analysis::analyze_king_position,
+        shared::board_utils::index_from_coords,
+    };
 
     use super::*;
 
@@ -938,6 +866,29 @@ mod test {
     }
 
     #[test]
+    pub fn move_generation_block_or_capture_with_bishop() {
+        let board = BoardRep::from_fen(
+            "r3k2Q/p1ppqpb1/bn2pn2/3PN1p1/1p2P3/2N5/PPPBBPPP/R3K2R b KQq - 0 2".into(),
+        );
+        let king_position_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        let moves = generate_moves(&king_position_analysis, board);
+        println!("{:?}", moves);
+        assert_eq!(moves.len(), 5); // Should be 4 once we can stop retreating kings (king moving back along the line they're being checked from)
+    }
+
+    #[test]
     pub fn pawn_move_gen_threatened_block_with_double_pawn_push() {
         let board = BoardRep::from_fen(
             "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1".into(),
@@ -964,6 +915,100 @@ mod test {
         );
         println!("{:?}", moves);
         assert_eq!(moves.len(), 1);
+    }
+
+    #[test]
+    pub fn pawn_move_gen_threatened_take_ep() {
+        let board = BoardRep::from_fen(
+            "8/8/8/1Ppp3r/1KR2p1k/8/4P1P1/8 w - c6 0 3".into(),
+        );
+        let king_position_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        let moves = generate_pawn_moves_when_threatened(
+            index_from_coords("b5"),
+            false,
+            board.ep_index,
+            king_position_analysis.threat_source.unwrap(),
+            board.occupancy,
+        );
+        println!("{:?}", moves);
+        assert_eq!(moves.len(), 1);
+    }
+
+    #[test]
+    pub fn pawn_move_gen_threatened_take_threat() {
+        let board = BoardRep::from_fen(
+            "8/2p5/3p4/KPR3kr/5p2/8/4P1P1/8 b - - 3 2".into(),
+        );
+        let king_position_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        let moves = generate_pawn_moves_when_threatened(
+            index_from_coords("d6"),
+            true,
+            board.ep_index,
+            king_position_analysis.threat_source.unwrap(),
+            board.occupancy,
+        );
+        println!("{:?}", moves);
+        assert_eq!(moves.len(), 2);
+    }
+
+    #[test]
+    pub fn move_generation_scenario_pawn_wrap_around_king_threat() {
+        let board = BoardRep::from_fen(
+            "r4rk1/p1ppqpb1/bn2pnp1/P2PN3/1p2P3/2N2Q1p/1PPBBPPP/R3K2R b KQ - 0 2".into(),
+        );
+
+        let king_position_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        let moves = generate_moves(&king_position_analysis, board);
+        assert!(moves.contains(&Move::new(
+            index_from_coords("g8"),
+            index_from_coords("h7"),
+            0b0,
+            piece_type::PieceType::King,
+            true
+        )));
+    }
+
+    #[test]
+    pub fn get_pawn_threatboard_no_wrap_around() {
+        let r = get_pawn_threatboard(index_from_coords("a5"), false);
+        println!("{}", r.to_board_format());
+        assert_eq!(r, 1<<index_from_coords("b6"));
     }
 
     // #[test]
