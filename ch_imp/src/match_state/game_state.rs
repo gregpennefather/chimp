@@ -41,8 +41,7 @@ impl GameState {
         let turn_segment = fen_segments.nth(0).unwrap().to_string();
         let castling_segment = fen_segments.nth(0).unwrap().to_string();
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
-        let position =
-            Position::new(position_segment, turn_segment, castling_segment, ep_segment);
+        let position = Position::new(position_segment, turn_segment, castling_segment, ep_segment);
 
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
@@ -202,11 +201,7 @@ impl Debug for GameState {
     }
 }
 
-fn result_state(
-    half_moves: u8,
-    recent_moves: [Move; 6],
-    position: &Position
-) -> MatchResultState {
+fn result_state(half_moves: u8, recent_moves: [Move; 6], position: &Position) -> MatchResultState {
     if half_moves >= 50 {
         return MatchResultState::Draw;
     }
@@ -250,7 +245,14 @@ impl Default for GameState {
 }
 #[cfg(test)]
 mod test {
-    use crate::shared::constants::{MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING};
+    use crate::{
+        board::{
+            board_rep::BoardRep,
+            king_position_analysis::{self, analyze_king_position},
+        },
+        r#move::move_generation::generate_moves,
+        shared::constants::{MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING},
+    };
 
     use super::*;
 
@@ -334,13 +336,15 @@ mod test {
 
     #[test]
     pub fn king_move_into_check() {
-        let game_state = GameState::new("rnbqkbnr/pppp1ppp/8/3Np3/8/8/PPPPPPPP/R1BQKBNR b KQkq - 1 2".into());
+        let game_state =
+            GameState::new("rnbqkbnr/pppp1ppp/8/3Np3/8/8/PPPPPPPP/R1BQKBNR b KQkq - 1 2".into());
 
         let m = game_state.move_from_uci("e8e7");
 
         let new_state = game_state.make(m);
         assert_eq!(new_state, None);
     }
+
 
     // #[test]
     // pub fn bishop_to_c4() {

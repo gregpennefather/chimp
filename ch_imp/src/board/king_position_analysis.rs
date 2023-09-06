@@ -1,10 +1,9 @@
 use crate::{
-    r#move::move_data::PRE_COMPUTED_DIAGONAL_BITBOARDS,
-    shared::board_utils::{get_file, get_index_from_file_and_rank, get_rank},
+    shared::board_utils::{get_file, get_rank},
     MOVE_DATA,
 };
 
-use super::{bitboard::Bitboard, position::Position};
+use super::bitboard::Bitboard;
 
 const DIAGONAL_DELTAS: [(i8, i8); 4] = [(1, 1), (-1, 1), (-1, -1), (1, -1)];
 const ORTHOGONAL_DELTAS: [(i8, i8); 4] = [(1, 0), (0, 1), (0, -1), (-1, 0)];
@@ -30,6 +29,7 @@ pub struct ThreatRaycastCollision {
 pub struct ThreatSource {
     pub from: u8,
     pub threat_type: ThreatType,
+    pub threat_path_mask: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -244,7 +244,6 @@ fn is_pawn_check(
     opponent_pawns: u64,
     mut check: bool,
 ) -> (bool, bool, Option<ThreatSource>) {
-
     if (black_king && king_pos < 15) || (!black_king && king_pos > 48) {
         return (check, false, None);
     }
@@ -267,12 +266,13 @@ fn is_pawn_check(
     let threat = ThreatSource {
         from: lsb,
         threat_type: ThreatType::Pawn,
+        threat_path_mask: 0
     };
 
     (check, double_check, Some(threat))
 }
 
-fn get_pawn_threat_source(king_pos: u8 , black_king: bool) -> u64 {
+fn get_pawn_threat_source(king_pos: u8, black_king: bool) -> u64 {
     let king_file = get_file(king_pos);
 
     let mut r = 0;
@@ -303,6 +303,7 @@ fn in_check_from_knights(
             threat = Some(ThreatSource {
                 from: knight_pos as u8,
                 threat_type: ThreatType::Knight,
+                threat_path_mask: 0
             })
         }
         knights ^= 1 << knight_pos;
@@ -329,8 +330,14 @@ fn in_sliding_check(
     let mut pins = Vec::new();
 
     let deltas = if diagonal {
+        if threats & MOVE_DATA.diagonal_threat_boards[king_pos as usize] == 0 {
+            return (check, false, None, Vec::new());
+        }
         DIAGONAL_DELTAS
     } else {
+        if threats & MOVE_DATA.orthogonal_threat_board[king_pos as usize] == 0 {
+            return (check, false, None, Vec::new());
+        }
         ORTHOGONAL_DELTAS
     };
 
@@ -376,6 +383,7 @@ fn walk_slide(
     } else {
         ThreatType::DiagonalSlide
     };
+    let mut slide_path = 0;
     while valid_slide(check_pos, file_delta, rank_delta, start_file, start_rank) {
         let collision = occupancy.occupied(check_pos as u8);
         if collision {
@@ -386,6 +394,7 @@ fn walk_slide(
                         Some(ThreatSource {
                             from: check_pos as u8,
                             threat_type,
+                            threat_path_mask: slide_path
                         }),
                         None,
                     );
@@ -407,6 +416,8 @@ fn walk_slide(
             }
             potential_pin = check_pos as u8;
         }
+
+        slide_path |= 1 << check_pos;
         check_pos += (8 * rank_delta) - file_delta;
     }
 
@@ -456,7 +467,8 @@ mod test {
             result.2,
             Some(ThreatSource {
                 from: 9,
-                threat_type: ThreatType::Knight
+                threat_type: ThreatType::Knight,
+                threat_path_mask: 0
             })
         );
     }
@@ -477,11 +489,13 @@ mod test {
         let result = in_sliding_check(king_pos, true, diagonal_sliders, diagonal_sliders, 0, false);
         assert_eq!(result.0, true, "Check should be true");
         assert_eq!(result.1, false, "Double check should be false");
+        let expected_mask = 1 << index_from_coords("e6");
         assert_eq!(
             result.2,
             Some(ThreatSource {
                 from: index_from_coords("d5"),
-                threat_type: ThreatType::DiagonalSlide
+                threat_type: ThreatType::DiagonalSlide,
+                threat_path_mask: expected_mask
             })
         );
     }
@@ -493,11 +507,15 @@ mod test {
         let result = in_sliding_check(king_pos, true, 2147483684, diagonal_sliders, 0, false);
         assert_eq!(result.0, true, "Check should be true");
         assert_eq!(result.1, false, "Double check should be false");
+        let expected_mask = (1 << index_from_coords("b5"))
+            | (1 << index_from_coords("c6"))
+            | (1 << index_from_coords("d7"));
         assert_eq!(
             result.2,
             Some(ThreatSource {
                 from: index_from_coords("a4"),
-                threat_type: ThreatType::DiagonalSlide
+                threat_type: ThreatType::DiagonalSlide,
+                threat_path_mask: expected_mask
             })
         );
     }
@@ -581,11 +599,15 @@ mod test {
         );
         assert_eq!(result.0, true, "Check should be true");
         assert_eq!(result.1, false, "Double check should be false");
+        let expected_mask = (1 << index_from_coords("b4"))
+            | (1 << index_from_coords("c3"))
+            | (1 << index_from_coords("d2"));
         assert_eq!(
             result.2,
             Some(ThreatSource {
                 from: index_from_coords("a5"),
-                threat_type: ThreatType::DiagonalSlide
+                threat_type: ThreatType::DiagonalSlide,
+                threat_path_mask: expected_mask
             }),
             "Threat should a threat from a5"
         );
@@ -618,11 +640,16 @@ mod test {
         );
         assert_eq!(result.0, true, "Check should be true");
         assert_eq!(result.1, false, "Double check should be false");
+        let expected_mask = (1 << index_from_coords("e4"))
+            | (1 << index_from_coords("e5"))
+            | (1 << index_from_coords("e6"))
+            | (1 << index_from_coords("e7"));
         assert_eq!(
             result.2,
             Some(ThreatSource {
                 from: index_from_coords("e3"),
-                threat_type: ThreatType::OrthogonalSlide
+                threat_type: ThreatType::OrthogonalSlide,
+                threat_path_mask: expected_mask
             }),
             "Threat should a threat from e3"
         );
@@ -683,11 +710,13 @@ mod test {
 
         assert_eq!(check, true);
         assert_eq!(double_check, false);
+        let expected_mask = 1 << index_from_coords("g7");
         assert_eq!(
             threat_source,
             Some(ThreatSource {
                 from: index_from_coords("h6"),
-                threat_type: ThreatType::DiagonalSlide
+                threat_type: ThreatType::DiagonalSlide,
+                threat_path_mask: expected_mask
             })
         );
         assert_eq!(new_pins.len(), 0);
@@ -744,11 +773,13 @@ mod test {
 
         let result = walk_slide(position, 0, -1, threats, occupancy, friendlies);
 
+        let expected_mask = 1 << index_from_coords("e4");
         assert_eq!(
             result.0,
             Some(ThreatSource {
                 from: index_from_coords("e3"),
-                threat_type: ThreatType::OrthogonalSlide
+                threat_type: ThreatType::OrthogonalSlide,
+                threat_path_mask: expected_mask
             })
         );
         assert_eq!(result.1, None, "There are no pins")
@@ -766,7 +797,8 @@ mod test {
             result.2,
             Some(ThreatSource {
                 from: index_from_coords("d4"),
-                threat_type: ThreatType::Pawn
+                threat_type: ThreatType::Pawn,
+                threat_path_mask: 0
             })
         );
     }
@@ -817,7 +849,8 @@ mod test {
             result.threat_source,
             Some(ThreatSource {
                 from: 3,
-                threat_type: ThreatType::Knight
+                threat_type: ThreatType::Knight,
+                threat_path_mask: 0
             })
         );
     }
@@ -845,11 +878,13 @@ mod test {
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
         assert_eq!(result.pins.len(), 0);
+        let expected_mask = 1 << index_from_coords("g7");
         assert_eq!(
             result.threat_source,
             Some(ThreatSource {
                 from: index_from_coords("h6"),
-                threat_type: ThreatType::DiagonalSlide
+                threat_type: ThreatType::DiagonalSlide,
+                threat_path_mask: expected_mask
             })
         );
     }
@@ -875,11 +910,13 @@ mod test {
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
+        let expected_mask = (1 << index_from_coords("f1")) | (1 << index_from_coords("g1"));
         assert_eq!(
             result.threat_source,
             Some(ThreatSource {
                 from: index_from_coords("e1"),
-                threat_type: ThreatType::OrthogonalSlide
+                threat_type: ThreatType::OrthogonalSlide,
+                threat_path_mask: expected_mask
             })
         );
         assert_eq!(result.pins.len(), 2);
@@ -945,7 +982,41 @@ mod test {
             result.threat_source,
             Some(ThreatSource {
                 from: index_from_coords("d3"),
-                threat_type: ThreatType::Pawn
+                threat_type: ThreatType::Pawn,
+                threat_path_mask: 0
+            })
+        )
+    }
+
+    #[test]
+    fn analyze_active_king_position_scenario_6() {
+        // Queen threat on d4
+        let board = BoardRep::from_fen(
+            "r3kb2/pp3ppp/2n2n1r/1Bpp4/3qb3/2N2P2/PPPPP1PP/R1B3K1 w q - 0 11".into(),
+        );
+        let result = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+        );
+
+        assert_eq!(result.check, true);
+        assert_eq!(result.double_check, false);
+        assert_eq!(result.pins.len(), 0);
+        let expected_mask: u64 = (1<<index_from_coords("e3")) |(1<<index_from_coords("f2"));
+        assert_eq!(
+            result.threat_source,
+            Some(ThreatSource {
+                from: index_from_coords("d4"),
+                threat_type: ThreatType::DiagonalSlide,
+                threat_path_mask: expected_mask
             })
         )
     }
@@ -989,4 +1060,6 @@ mod test {
 
         assert!(result.check);
     }
+
+
 }

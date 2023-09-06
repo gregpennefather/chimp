@@ -1,6 +1,5 @@
 use super::move_magic_bitboards::MagicTable;
 
-
 pub const KING_CASTLING_CLEARANCE: u64 = 0b110;
 pub const KING_CASTLING_CHECK: u64 = 0b1110;
 pub const QUEEN_CASTLING_CLEARANCE: u64 = 0b1110000;
@@ -8,8 +7,101 @@ pub const QUEEN_CASTLING_CHECK: u64 = 0b111000;
 pub const WHITE_PAWN_PROMOTION_RANK: u64 = 0b11111111 << 56;
 pub const BLACK_PAWN_PROMOTION_RANK: u64 = 0b11111111;
 
-// 0 = A1->H8, 1 = H1->A8
-pub const PRE_COMPUTED_DIAGONAL_BITBOARDS: [u64; 2] = [72624976668147840, 9241421688590303745];
+pub fn horizontal_mask_generation() -> [u64; 64] {
+    let mut result = [0; 64];
+    for square in 0..64 {
+        let rank = square / 8;
+        let file = square % 8;
+
+        let mut r = rank + 1;
+        while r <= 7 {
+            result[square] |= 1 << (file + r * 8);
+            r += 1;
+        }
+        if rank > 0 {
+            r = rank - 1;
+            loop {
+                result[square] |= 1 << (file + r * 8);
+                if r == 0 {
+                    break;
+                }
+                r -= 1;
+            }
+        }
+
+        let mut f = file + 1;
+        while f <= 7 {
+            result[square] |= 1 << (f + rank * 8);
+            f += 1;
+        }
+
+        if file > 0 {
+            f = file - 1;
+            while f >= 0 {
+                result[square] |= 1 << (f + rank * 8);
+                if f == 0 {
+                    break;
+                }
+                f -= 1;
+            }
+        }
+    }
+    result
+}
+
+pub fn diagonal_mask_generation() -> [u64; 64] {
+    let mut result = [0; 64];
+    for square in 0..64 {
+        let rank = square / 8;
+        let file = square % 8;
+
+        let mut r = rank + 1;
+        let mut f = file + 1;
+        while r <= 7 && f <= 7 {
+            result[square] |= 1 << (f + (r * 8));
+            r += 1;
+            f += 1;
+        }
+
+        if file > 0 {
+            r = rank + 1;
+            f = file - 1;
+            while r <= 7 {
+                result[square] |= 1 << (f + (r * 8));
+                r += 1;
+                if f == 0 {
+                    break;
+                }
+                f -= 1;
+            }
+        }
+        if rank > 0 {
+            r = rank - 1;
+            f = file + 1;
+            while f <= 7 {
+                result[square] |= 1 << (f + (r * 8));
+                if r == 0 {
+                    break;
+                }
+                r -= 1;
+                f += 1;
+            }
+        }
+        if rank > 0 && file > 0 {
+            r = rank - 1;
+            f = file - 1;
+            loop {
+                result[square] |= 1 << (f + (r * 8));
+                if r == 0 || f == 0 {
+                    break;
+                }
+                r -= 1;
+                f -= 1;
+            }
+        }
+    }
+    result
+}
 
 pub struct MoveData {
     pub magic_bitboard_table: MagicTable,
@@ -19,6 +111,8 @@ pub struct MoveData {
     pub black_pawn_captures: [u64; 64],
     pub knight_moves: [u64; 64],
     pub king_moves: [u64; 64],
+    pub diagonal_threat_boards: [u64; 64],
+    pub orthogonal_threat_board: [u64; 64],
 }
 
 impl MoveData {
@@ -28,6 +122,8 @@ impl MoveData {
         let (white_pawn_captures, black_pawn_captures) = generate_pawn_captures();
         let knight_moves = generate_knight_moves();
         let king_moves = generate_king_moves();
+        let diagonal_threat_boards = diagonal_mask_generation();
+        let horizontal_threat_board = horizontal_mask_generation();
 
         Self {
             magic_bitboard_table,
@@ -37,6 +133,8 @@ impl MoveData {
             black_pawn_captures,
             knight_moves,
             king_moves,
+            diagonal_threat_boards,
+            orthogonal_threat_board: horizontal_threat_board,
         }
     }
 }
