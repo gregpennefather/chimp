@@ -37,7 +37,7 @@ fn main() {
     // assert_eq!(new_state, None);
 
 
-    perfts();
+    //perfts();
     //let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
     // //generate_blocker_patterns(rook_mask_generation(0));
@@ -128,7 +128,7 @@ fn main() {
 
     //println!("{r:?}");
 
-    //timed_depth_test();
+    timed_depth_test();
     //target_depth_test();
 
     // park_table();

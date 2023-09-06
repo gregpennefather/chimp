@@ -7,7 +7,7 @@ use crate::{
         king_position_analysis::{KingPositionAnalysis, ThreatSource, ThreatType},
     },
     shared::{
-        board_utils::{get_direction_to_normalized, get_rank, get_file},
+        board_utils::{get_direction_to_normalized, get_file, get_rank},
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
@@ -187,7 +187,7 @@ fn get_pawn_threatboard(piece_position: u8, is_black: bool) -> u64 {
         } else {
             0
         };
-        if piece_position > 7 && file != 0{
+        if piece_position > 7 && file != 0 {
             r |= 1 << piece_position - 7
         };
 
@@ -450,27 +450,29 @@ fn generate_pawn_moves(
         }
     }
 
-    let capture_b = (index as i8 + (offset_file * 8)) as u8 - 1;
-    let capture_b_rank = get_rank(capture_b);
-    if (rank as i8 + offset_file) as u8 == capture_b_rank
-        && (capture_b == ep_index || opponent_occupancy.occupied(capture_b))
-    {
-        if capture_b_rank == 0 || capture_b_rank == 7 {
-            moves.extend(generate_pawn_promotion_moves(
-                index, capture_b, true, is_black,
-            ));
-        } else {
-            moves.push(Move::new(
-                index,
-                capture_b,
-                if capture_b == ep_index {
-                    MF_EP_CAPTURE
-                } else {
-                    MF_CAPTURE
-                },
-                piece_type::PieceType::Pawn,
-                is_black,
-            ));
+    if index > 8 {
+        let capture_b = (index as i8 + (offset_file * 8)) as u8 - 1;
+        let capture_b_rank = get_rank(capture_b);
+        if (rank as i8 + offset_file) as u8 == capture_b_rank
+            && (capture_b == ep_index || opponent_occupancy.occupied(capture_b))
+        {
+            if capture_b_rank == 0 || capture_b_rank == 7 {
+                moves.extend(generate_pawn_promotion_moves(
+                    index, capture_b, true, is_black,
+                ));
+            } else {
+                moves.push(Move::new(
+                    index,
+                    capture_b,
+                    if capture_b == ep_index {
+                        MF_EP_CAPTURE
+                    } else {
+                        MF_CAPTURE
+                    },
+                    piece_type::PieceType::Pawn,
+                    is_black,
+                ));
+            }
         }
     }
 
@@ -519,11 +521,14 @@ fn generate_pawn_moves_when_threatened(
     }
 
     let capture_a = (index as i8 + (offset_file * 8)) as u8 + 1;
-    if threat.from == capture_a || (capture_a == ep_index && threat.threat_type == ThreatType::Pawn) {
+    if threat.from == capture_a || (capture_a == ep_index && threat.threat_type == ThreatType::Pawn)
+    {
         let capture_a_rank = get_rank(capture_a);
         if (rank as i8 + offset_file) as u8 == capture_a_rank {
             if capture_a_rank == 0 || capture_a_rank == 7 {
-                moves.extend(generate_pawn_promotion_moves(index, capture_a, true, is_black));
+                moves.extend(generate_pawn_promotion_moves(
+                    index, capture_a, true, is_black,
+                ));
             } else {
                 moves.push(Move::new(
                     index,
@@ -539,24 +544,30 @@ fn generate_pawn_moves_when_threatened(
             }
         }
     }
-    let capture_b = (index as i8 + (offset_file * 8)) as u8 - 1;
-    if threat.from == capture_b || (capture_b == ep_index && threat.threat_type == ThreatType::Pawn) {
-        let capture_b_rank = get_rank(capture_b);
-        if (rank as i8 + offset_file) as u8 == capture_b_rank {
-            if capture_b_rank == 0 || capture_b_rank == 7 {
-                moves.extend(generate_pawn_promotion_moves(index, capture_b, true, is_black));
-            } else {
-                moves.push(Move::new(
-                    index,
-                    capture_b,
-                    if capture_b == ep_index {
-                        MF_EP_CAPTURE
-                    } else {
-                        MF_CAPTURE
-                    },
-                    piece_type::PieceType::Pawn,
-                    is_black,
-                ));
+    if index > 8 {
+        let capture_b = (index as i8 + (offset_file * 8)) as u8 - 1;
+        if threat.from == capture_b
+            || (capture_b == ep_index && threat.threat_type == ThreatType::Pawn)
+        {
+            let capture_b_rank = get_rank(capture_b);
+            if (rank as i8 + offset_file) as u8 == capture_b_rank {
+                if capture_b_rank == 0 || capture_b_rank == 7 {
+                    moves.extend(generate_pawn_promotion_moves(
+                        index, capture_b, true, is_black,
+                    ));
+                } else {
+                    moves.push(Move::new(
+                        index,
+                        capture_b,
+                        if capture_b == ep_index {
+                            MF_EP_CAPTURE
+                        } else {
+                            MF_CAPTURE
+                        },
+                        piece_type::PieceType::Pawn,
+                        is_black,
+                    ));
+                }
             }
         }
     }
@@ -919,9 +930,7 @@ mod test {
 
     #[test]
     pub fn pawn_move_gen_threatened_take_ep() {
-        let board = BoardRep::from_fen(
-            "8/8/8/1Ppp3r/1KR2p1k/8/4P1P1/8 w - c6 0 3".into(),
-        );
+        let board = BoardRep::from_fen("8/8/8/1Ppp3r/1KR2p1k/8/4P1P1/8 w - c6 0 3".into());
         let king_position_analysis = analyze_king_position(
             board.white_king_position,
             false,
@@ -948,9 +957,7 @@ mod test {
 
     #[test]
     pub fn pawn_move_gen_threatened_take_threat() {
-        let board = BoardRep::from_fen(
-            "8/2p5/3p4/KPR3kr/5p2/8/4P1P1/8 b - - 3 2".into(),
-        );
+        let board = BoardRep::from_fen("8/2p5/3p4/KPR3kr/5p2/8/4P1P1/8 b - - 3 2".into());
         let king_position_analysis = analyze_king_position(
             board.black_king_position,
             true,
@@ -1008,7 +1015,7 @@ mod test {
     pub fn get_pawn_threatboard_no_wrap_around() {
         let r = get_pawn_threatboard(index_from_coords("a5"), false);
         println!("{}", r.to_board_format());
-        assert_eq!(r, 1<<index_from_coords("b6"));
+        assert_eq!(r, 1 << index_from_coords("b6"));
     }
 
     // #[test]
