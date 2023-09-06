@@ -1,4 +1,4 @@
-use crate::{board::position::Position, r#move::Move, POSITION_TRANSPOSITION_TABLE};
+use crate::{board::position::Position, POSITION_TRANSPOSITION_TABLE};
 
 pub fn lookup_position_table(zorb_key: u64) -> Option<Position> {
     // return None;

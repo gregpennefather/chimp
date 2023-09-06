@@ -7,7 +7,7 @@ use crate::{
         king_position_analysis::{KingPositionAnalysis, ThreatSource, ThreatType},
     },
     shared::{
-        board_utils::get_direction_to_normalized,
+        board_utils::{get_direction_to_normalized, get_rank},
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
@@ -337,83 +337,53 @@ fn generate_pawn_moves(
     opponent_occupancy: u64,
 ) -> Vec<Move> {
     let mut moves = Vec::new();
-    let mut moveboard = if is_black {
-        MOVE_DATA.black_pawn_moves[index as usize]
-    } else {
-        MOVE_DATA.white_pawn_moves[index as usize]
-    };
+    let offset_file: i8 = if is_black { -1 } else { 1 };
+    let rank = get_rank(index);
 
-    // Black and whites move u64s have different orientations that we need to parse out. For white its fairly simple, for black we need to see if a
-    // double pawn push is possible or not before determining what the normal move to_index is
-    let (to_index, to_index_dpp, promotion_rank) = if is_black {
-        let to_index_dpp = moveboard.trailing_zeros() as u8;
-        moveboard ^= 1 << to_index_dpp;
-        let to_index = moveboard.trailing_zeros() as u8;
-        if to_index == 64 {
-            (to_index_dpp, 64, BLACK_PAWN_PROMOTION_RANK)
-        } else {
-            (to_index, to_index_dpp, BLACK_PAWN_PROMOTION_RANK)
-        }
-    } else {
-        let to_index = moveboard.trailing_zeros() as u8;
-        moveboard ^= 1 << to_index;
-        let to_index_dpp = moveboard.trailing_zeros() as u8;
-        (to_index, to_index_dpp, WHITE_PAWN_PROMOTION_RANK)
-    };
-
-    // Can we move one square
-    if !board.occupancy.occupied(to_index) {
-        // Does moving that one square lead to a promotion?
-        if (1 << to_index) & promotion_rank != 0 {
-            moves.extend(generate_pawn_promotion_moves(
-                index, to_index, false, is_black,
-            ));
-        } else {
+    let to = (index as i8 + (8 * offset_file)) as u8;
+    if !board.occupancy.occupied(to) {
+        if get_rank(to) != 0 && get_rank(to) != 7 {
             moves.push(Move::new(
                 index,
-                to_index,
+                to,
                 0b0,
                 piece_type::PieceType::Pawn,
                 is_black,
             ));
 
-            // Can we move a second square in a Double Pawn Push?
-            if to_index_dpp != 64 {
-                if !board.occupancy.occupied(to_index_dpp) {
+            if (is_black && rank == 6) || (!is_black && rank == 1) {
+                let dpp = (to as i8 + (8 * offset_file)) as u8;
+                if !board.occupancy.occupied(dpp) {
                     moves.push(Move::new(
                         index,
-                        to_index_dpp,
+                        dpp,
                         MF_DOUBLE_PAWN_PUSH,
                         piece_type::PieceType::Pawn,
                         is_black,
                     ));
                 }
             }
+        } else {
+            moves.extend(generate_pawn_promotion_moves(
+                index, to, false, is_black,
+            ));
         }
     }
 
-    let mut capture_board = if is_black {
-        MOVE_DATA.black_pawn_captures[index as usize]
-    } else {
-        MOVE_DATA.white_pawn_captures[index as usize]
-    };
-
-    // Can we capture right or EP capture right
-    let first_capture_index = capture_board.trailing_zeros() as u8;
-    if opponent_occupancy.occupied(first_capture_index) || first_capture_index == ep_index {
-        // Does capturing right lead to a promotion?
-        if (1 << first_capture_index) & promotion_rank != 0 {
+    let capture_a = (index as i8 + (offset_file * 8)) as u8 + 1;
+    let capture_a_rank = get_rank(capture_a);
+    if (rank as i8 + offset_file) as u8 == capture_a_rank
+        && (capture_a == ep_index || opponent_occupancy.occupied(capture_a))
+    {
+        if capture_a_rank == 0 || capture_a_rank == 7 {
             moves.extend(generate_pawn_promotion_moves(
-                index,
-                first_capture_index,
-                true,
-                is_black,
-            ))
+                index, capture_a, true, is_black,
+            ));
         } else {
             moves.push(Move::new(
                 index,
-                first_capture_index,
-                if first_capture_index == ep_index {
+                capture_a,
+                if capture_a == ep_index {
                     MF_EP_CAPTURE
                 } else {
                     MF_CAPTURE
@@ -423,33 +393,27 @@ fn generate_pawn_moves(
             ));
         }
     }
-
-    // Can we capture left or EP capture left
-    capture_board ^= 1 << first_capture_index;
-    let second_capture_index = capture_board.trailing_zeros() as u8;
-    if second_capture_index != 64 {
-        if opponent_occupancy.occupied(second_capture_index) || second_capture_index == ep_index {
-            // Does capturing left lead to a promotion?
-            if (1 << second_capture_index) & promotion_rank != 0 {
-                moves.extend(generate_pawn_promotion_moves(
-                    index,
-                    second_capture_index,
-                    true,
-                    is_black,
-                ))
-            } else {
-                moves.push(Move::new(
-                    index,
-                    second_capture_index,
-                    if second_capture_index == ep_index {
-                        MF_EP_CAPTURE
-                    } else {
-                        MF_CAPTURE
-                    },
-                    piece_type::PieceType::Pawn,
-                    is_black,
-                ));
-            }
+    let capture_b = (index as i8 + (offset_file * 8)) as u8 - 1;
+    let capture_b_rank = get_rank(capture_b);
+    if (rank as i8 + offset_file) as u8 == capture_b_rank
+        && (capture_b == ep_index || opponent_occupancy.occupied(capture_b))
+    {
+        if capture_b_rank == 0|| capture_b_rank == 7 {
+            moves.extend(generate_pawn_promotion_moves(
+                index, capture_b, true, is_black,
+            ));
+        } else {
+            moves.push(Move::new(
+                index,
+                capture_b,
+                if capture_b == ep_index {
+                    MF_EP_CAPTURE
+                } else {
+                    MF_CAPTURE
+                },
+                piece_type::PieceType::Pawn,
+                is_black,
+            ));
         }
     }
 
@@ -618,6 +582,24 @@ mod test {
         );
         let moves: [Move; 128] = generate_moves(&king_analysis, board);
         assert!(moves.into_iter().position(|m| m.is_empty()).unwrap() <= 2);
+    }
+
+    #[test]
+    pub fn pawn_moves_scenario_0() {
+        let board = BoardRep::from_fen(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
+        );
+        let moves = generate_pawn_moves(board, 9, false, u8::MAX, board.black_occupancy);
+        assert_eq!(moves.len(), 3);
+    }
+
+    #[test]
+    pub fn pawn_moves_scenario_1() {
+        let board = BoardRep::from_fen(
+            "r3k2r/p1ppqpb1/bn2pnp1/1N1PN3/1p2P3/5Q2/PPPBBPpP/R3K2R w KQkq - 0 2".into(),
+        );
+        let moves = generate_pawn_moves(board, 9, true, u8::MAX, board.white_occupancy);
+        assert_eq!(moves.len(), 8);
     }
 
     // #[test]
