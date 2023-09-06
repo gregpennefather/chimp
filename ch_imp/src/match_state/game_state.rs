@@ -47,7 +47,7 @@ impl GameState {
         let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
         let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
         let recent_moves = [Move::default(); 6];
-        let result_state = result_state(half_moves, recent_moves, position);
+        let result_state = result_state(half_moves, recent_moves, &position);
         Self {
             position,
             half_moves,
@@ -79,7 +79,7 @@ impl GameState {
             Some(position) => position,
             None => {
                 let new_position = self.position.apply_segments(move_segments, new_zorb);
-                insert_into_position_table(new_position);
+                insert_into_position_table(new_position.clone());
                 new_position
             }
         };
@@ -110,7 +110,7 @@ impl GameState {
             self.recent_moves[4],
         ];
 
-        let result_state = result_state(half_moves, recent_moves, new_position); // TODO: Might need to add in some extra logic here
+        let result_state = result_state(half_moves, recent_moves, &new_position); // TODO: Might need to add in some extra logic here
 
         Some(Self {
             position: new_position,
@@ -205,7 +205,7 @@ impl Debug for GameState {
 fn result_state(
     half_moves: u8,
     recent_moves: [Move; 6],
-    position: Position
+    position: &Position
 ) -> MatchResultState {
     if half_moves >= 50 {
         return MatchResultState::Draw;

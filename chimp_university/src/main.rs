@@ -182,7 +182,7 @@ fn debug_search(fen_1: String, depth: u8) {
         let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
 
         let r = ab_search(
-            game_state.clone(),
+            &game_state,
             vec![],
             i,
             timeout,
@@ -264,7 +264,7 @@ fn target_depth_test() {
         let timeout = Instant::now().checked_add(Duration::from_secs(300)).unwrap();
 
         let r = ab_search(
-            game_state.clone(),
+            &game_state,
             vec![],
             i,
             timeout,

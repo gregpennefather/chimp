@@ -167,7 +167,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
         info!("depth: {depth} move-priority:{priority_moves:?}");
 
         let r = ab_search(
-            game_state.clone(),
+            &game_state,
             priority_moves,
             depth,
             timeout,
@@ -210,7 +210,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
 }
 
 pub fn ab_search(
-    game_state: GameState,
+    game_state: &GameState,
     priority_moves: Vec<Move>,
     depth: u8,
     timeout: Instant,
@@ -250,9 +250,9 @@ pub fn ab_search(
     let mut move_history = Vec::new();
 
     let ordered_moves = if priority_moves.is_empty() {
-        game_state.position.moves
+        game_state.position.moves.clone()
     } else {
-        let mut moves = game_state.position.moves;
+        let mut moves = game_state.position.moves.clone();
         moves.sort_by(|a: &Move, b| move_orderer::priority_cmp(a, b, &priority_moves));
         moves
     };
@@ -270,7 +270,7 @@ pub fn ab_search(
             0
         };
         let (path, node_eval, result_eval) = match ab_search(
-            new_state,
+            &new_state,
             vec![],
             depth - 1 + extensions,
             timeout,

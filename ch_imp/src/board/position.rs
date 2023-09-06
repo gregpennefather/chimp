@@ -9,20 +9,14 @@ use super::{board_rep::BoardRep, king_position_analysis::*};
 
 pub type MoveSegmentArray = [MoveSegment; 6];
 
-pub type OrderedMoveList = [Move; 64];
-
-fn default_ordered_move_list() -> OrderedMoveList {
-    [Move::default(); 64]
-}
-
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Position {
     pub board: BoardRep,
     pub white_in_check: bool,
     pub black_in_check: bool,
     pub legal: bool,
     pub eval: i32,
-    pub moves: [Move; 128],
+    pub moves: Vec<Move>,
 }
 
 impl Position {
@@ -66,7 +60,7 @@ impl Position {
                 black_in_check: false,
                 legal: false,
                 eval: 0,
-                moves: [Move::default();128],
+                moves: Vec::new(),
             };
         }
         let white_king_analysis = if board.black_turn {
@@ -122,7 +116,7 @@ impl Position {
             )
         };
         let mut eval = 0;
-        let mut moves = [Move::default(); 128];
+        let mut moves = Vec::new();
 
         let legal = !((board.black_turn && white_king_analysis.check)
             || (!board.black_turn && black_king_analysis.check));

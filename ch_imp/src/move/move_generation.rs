@@ -21,15 +21,15 @@ use crate::{
 
 use super::{
     move_data::{
-        BLACK_PAWN_PROMOTION_RANK, KING_CASTLING_CHECK, KING_CASTLING_CLEARANCE,
-        QUEEN_CASTLING_CHECK, QUEEN_CASTLING_CLEARANCE, WHITE_PAWN_PROMOTION_RANK,
+        KING_CASTLING_CHECK, KING_CASTLING_CLEARANCE, QUEEN_CASTLING_CHECK,
+        QUEEN_CASTLING_CLEARANCE,
     },
     Move,
 };
 
 type MoveList = [Move; 128];
 
-pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> MoveList {
+pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> Vec<Move> {
     let mut friendly_occupancy = if board.black_turn {
         board.black_occupancy
     } else {
@@ -71,7 +71,7 @@ pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> 
 
     // In the event of double king check we can only avoid check by moving the king
     if king_analysis.double_check {
-        return to_move_list(moves);
+        return moves;
     }
 
     while friendly_occupancy != 0 {
@@ -85,7 +85,7 @@ pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> 
         friendly_occupancy ^= 1 << piece_position;
     }
 
-    to_move_list(moves)
+    moves
 }
 
 fn generate_position_moves(board: BoardRep, index: u8, is_black: bool, ep_index: u8) -> Vec<Move> {
@@ -364,9 +364,7 @@ fn generate_pawn_moves(
                 }
             }
         } else {
-            moves.extend(generate_pawn_promotion_moves(
-                index, to, false, is_black,
-            ));
+            moves.extend(generate_pawn_promotion_moves(index, to, false, is_black));
         }
     }
 
@@ -398,7 +396,7 @@ fn generate_pawn_moves(
     if (rank as i8 + offset_file) as u8 == capture_b_rank
         && (capture_b == ep_index || opponent_occupancy.occupied(capture_b))
     {
-        if capture_b_rank == 0|| capture_b_rank == 7 {
+        if capture_b_rank == 0 || capture_b_rank == 7 {
             moves.extend(generate_pawn_promotion_moves(
                 index, capture_b, true, is_black,
             ));
@@ -560,7 +558,7 @@ mod test {
             board.queen_bitboard,
         );
         let moves = generate_moves(&king_analysis, board);
-        assert_eq!(moves.into_iter().position(|m| m.is_empty()).unwrap(), 20);
+        assert_eq!(moves.len(), 20);
     }
 
     #[test]
@@ -580,8 +578,8 @@ mod test {
             board.rook_bitboard,
             board.queen_bitboard,
         );
-        let moves: [Move; 128] = generate_moves(&king_analysis, board);
-        assert!(moves.into_iter().position(|m| m.is_empty()).unwrap() <= 2);
+        let moves = generate_moves(&king_analysis, board);
+        assert!(moves.len() <= 2);
     }
 
     #[test]
