@@ -116,7 +116,7 @@ fn main() {
     // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
     // println!("{:?}", game_state.result_state());
 
-    //debug_evals("rnbqkb1r/ppp2pp1/3p1n2/4pQ1p/8/4P3/PPPPNPPP/RNB1KBR1 b Qkq - 1 5".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
+    //debug_evals("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into());
 
     //debug_deepening("rnbqkbnr/pppppppp/8/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R b KQkq - 2 5".into(), 5000);
     //debug_deepening("r1bqkbnr/pppppppp/2n5/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R w KQkq - 3 6".into(), 5000);

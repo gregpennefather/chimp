@@ -11,7 +11,7 @@ fn main() {
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.7_{:?}.log",
+            "log/chimp_v0.0.0.9_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()

@@ -100,13 +100,13 @@ impl ChimpEngine {
             if btime < binc {
                 binc / 3 * 2
             } else {
-                binc + i32::min(10000, btime / 10)
+                i32::max(binc, i32::min(btime/30, binc + btime / 20))
             }
         } else {
             if wtime < winc {
                 winc / 3 * 2
             } else {
-                winc + i32::min(10000, wtime / 10)
+                i32::max(winc, i32::min(wtime/30, winc + wtime / 20))
             }
         };
         info!(
