@@ -49,8 +49,8 @@ impl GameState {
             }
         }
 
-        let from_file = char_from_file(get_file(m.from()));
-        r = format!("{r}{from_file}");
+        // let from_file = char_from_file(get_file(m.from()));
+        // r = format!("{r}{from_file}");
         if moves_targeting_square.len() > 1 {
             let from_rank = get_rank(m.from()) + 1;
             r = format!("{r}{from_rank}");
@@ -64,6 +64,51 @@ impl GameState {
             return m.uci();
         }
 
-        format!("{r}{}", get_coords_from_index(m.to()))
+        r = format!("{r}{}", get_coords_from_index(m.to()));
+
+        let ngs = self.make(m).unwrap();
+        if (m.is_black() && ngs.position.white_in_check) || (!m.is_black() && ngs.position.black_in_check) {
+            r = format!("{r}+");
+        }
+        r
+    }
+}
+
+
+
+#[cfg(test)]
+mod test {
+    use crate::{match_state::game_state, shared::{board_utils::index_from_coords, constants::{MF_DOUBLE_PAWN_PUSH, MF_CAPTURE}}};
+
+    use super::*;
+
+    #[test]
+    fn simple_situation_startpos_e4() {
+        let game_state = GameState::default();
+        let m = Move::new(index_from_coords("e2"), index_from_coords("e4"), MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false);
+
+        assert_eq!(game_state.to_san(m), "e4");
+    }
+
+    #[test]
+    fn simple_situation_startpos_knight_to_f3() {
+        let game_state = GameState::default();
+        let m = Move::new(index_from_coords("g1"), index_from_coords("f3"), 0b0, PieceType::Knight, false);
+
+        assert_eq!(game_state.to_san(m), "Nf3");
+    }
+
+    #[test]
+    fn capture_with_multiple_possible_attack_pieces() {
+        let game_state = GameState::new("3r2k1/p2r1p1p/1p2p1p1/q4n2/3P4/PQ5P/1P1RNPP1/3R2K1 b - -".into());
+        let m = Move::new(index_from_coords("f5"), index_from_coords("d4"), MF_CAPTURE, PieceType::Knight, true);
+        assert_eq!(game_state.to_san(m), "Nxd4");
+    }
+
+    #[test]
+    fn show_the_move_is_check() {
+        let game_state = GameState::new("1k1r4/pp1b1R2/3q2pp/4p3/2B5/4Q3/PPP2B2/2K5 b - - 0 1".into());
+        let m = Move::new(index_from_coords("d6"), index_from_coords("d1"), 0b0, PieceType::Queen, true);
+        assert_eq!(game_state.to_san(m), "Qd1+");
     }
 }

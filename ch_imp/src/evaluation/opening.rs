@@ -120,8 +120,8 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval += king_tropism(board.white_king_position, board.black_occupancy, board);
     eval -= king_tropism(board.black_king_position, board.white_occupancy, board);
 
-    eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy);
-    eval -= simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy);
+    // eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));
+    // eval -= simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));
 
     eval
 }

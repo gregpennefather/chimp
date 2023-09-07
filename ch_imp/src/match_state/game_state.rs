@@ -43,8 +43,14 @@ impl GameState {
         let ep_segment = fen_segments.nth(0).unwrap().to_string();
         let position = Position::new(position_segment, turn_segment, castling_segment, ep_segment);
 
-        let half_moves = fen_segments.nth(0).unwrap().parse::<u8>().unwrap();
-        let full_moves = fen_segments.nth(0).unwrap().parse::<u32>().unwrap();
+        let half_moves = match fen_segments.nth(0) {
+            Some(hm) => hm.parse::<u8>().unwrap(),
+            None => 0
+        };
+        let full_moves = match fen_segments.nth(0) {
+            Some(hm) => hm.parse::<u32>().unwrap(),
+            None => 0
+        };
         let recent_moves = [Move::default(); 6];
         let result_state = result_state(half_moves, recent_moves, &position);
         Self {
@@ -62,11 +68,6 @@ impl GameState {
 
     pub fn make(&self, m: Move) -> Option<Self> {
         let (new_zorb, move_segments) = self.position.board.zorb_key_after_move(m);
-
-        if m.is_black() != self.position.board.black_turn {
-            println!("m:{}", m.uci());
-            println!("segments:{move_segments:?}");
-        }
 
         let lookup_result = lookup_position_table(new_zorb);
         let new_position = match lookup_result {

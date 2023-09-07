@@ -4,7 +4,7 @@ use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
     match_state::game_state::{self, GameState, MatchResultState},
-    shared::board_utils::get_index_from_file_and_rank,
+    shared::board_utils::get_index_from_file_and_rank, testing::test_engine,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -119,7 +119,7 @@ fn main() {
 
     //debug_evals("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into());
 
-    GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
+    //GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
 
     //debug_deepening("rnbqkbnr/pppppppp/8/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R b KQkq - 2 5".into(), 5000);
     //debug_deepening("r1bqkbnr/pppppppp/2n5/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R w KQkq - 3 6".into(), 5000);
@@ -135,6 +135,7 @@ fn main() {
     //target_depth_test();
 
     //park_table();
+    test_engine();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {

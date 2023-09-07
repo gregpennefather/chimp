@@ -15,6 +15,7 @@ pub mod match_state;
 pub mod r#move;
 pub mod search;
 pub mod shared;
+pub mod testing;
 
 #[macro_use]
 extern crate lazy_static;
