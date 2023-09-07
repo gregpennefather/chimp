@@ -2,7 +2,7 @@ use crate::{board::{position::Position, board_rep::BoardRep}, r#move::Move};
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
-    utils::{piece_aggregate_score, piece_square_score},
+    utils::{piece_aggregate_score, piece_square_score, distance_to_center, manhattan_distance_to_center, manhattan_distance},
 };
 
 static MATERIAL_VALUES: PieceValues = [
@@ -24,12 +24,12 @@ static HANGING_PIECE_VALUE: PieceValues = [
 ];
 
 static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4,
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
     4, 4, 4, 4, 4, 4, 4, 4, 6, 6, 6, 6, 6, 6, 6, 6, 8, 8, 8, 8, 8, 8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
+    0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4,
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 static PAWN_SQUARE_FACTOR: i32 = 5;
 
@@ -39,8 +39,6 @@ static KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
 static KNIGHT_SQUARE_FACTOR: i32 = 2;
-
-static MOBILITY_VALUE: i32 = 1;
 
 pub fn calculate(board: BoardRep) -> i32 {
     let mut eval = 0;
@@ -57,10 +55,14 @@ pub fn calculate(board: BoardRep) -> i32 {
     eval -= piece_square_score(board.black_occupancy & board.knight_bitboard, KNIGHT_SQUARE_SCORE)
         * KNIGHT_SQUARE_FACTOR;
 
-    // // Did you leave anything hanging?
-    // let white_hanging = board.white_bitboard & !board.white_threatboard & board.black_threatboard;
-    // eval -= piece_aggregate_score(p, white_hanging, HANGING_PIECE_VALUE);
-    // let black_hanging = board.black_bitboard & !board.black_threatboard & board.white_threatboard;
-    // eval += piece_aggregate_score(p, black_hanging, HANGING_PIECE_VALUE);
+    eval += mop_up_score(board.white_king_position, board.black_king_position);
+    eval -= mop_up_score(board.black_king_position, board.white_king_position);
+
     eval
+}
+
+fn mop_up_score(king_pos: u8, b_king_pos: u8) -> i32 {
+    let cmd = manhattan_distance_to_center(king_pos);
+    let md = manhattan_distance(king_pos as i8, b_king_pos as i8) as i32;
+    (4 * cmd) + (1 * (14 - md))
 }

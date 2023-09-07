@@ -1,11 +1,9 @@
-use log::{trace};
+use log::trace;
 
-use crate::{board::{position::Position, board_rep::BoardRep}, r#move::Move};
+use crate::board::board_rep::BoardRep;
 
 use self::{eval_precomputed_data::PHASE_MATERIAL_VALUES, utils::piece_aggregate_score};
 
-pub mod base_eval;
-pub mod early_eval;
 mod endgame;
 mod eval_precomputed_data;
 mod opening;
@@ -19,12 +17,16 @@ pub fn calculate(board: BoardRep) -> i32 {
     let endgame = endgame::calculate(board);
     let result = ((opening * (256 - phase)) + (endgame * phase)) / 256;
 
-    trace!("Evaluate: {}\nPhase:{phase}\tOpening:{opening},Endgame:{endgame} => {result}", board.to_fen());
+    trace!(
+        "Evaluate: {}\nPhase:{phase}\tOpening:{opening},Endgame:{endgame} => {result}",
+        board.to_fen()
+    );
 
     result
 }
 
 fn phase(board: BoardRep) -> i32 {
-    let material_score = MAX_PHASE_MATERIAL_SCORE - piece_aggregate_score(board, board.occupancy, PHASE_MATERIAL_VALUES);
+    let material_score = MAX_PHASE_MATERIAL_SCORE
+        - piece_aggregate_score(board, board.occupancy, PHASE_MATERIAL_VALUES);
     return (material_score * 256 + (MAX_PHASE_MATERIAL_SCORE / 2)) / MAX_PHASE_MATERIAL_SCORE;
 }

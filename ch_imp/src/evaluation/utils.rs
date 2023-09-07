@@ -48,3 +48,22 @@ pub(super) fn piece_square_score(piece_bitboard: u64, piece_value_board: PieceVa
 pub(super) fn distance_to_center(square : u8) -> i32 {
     (2 * ((CENTER_DISTANCE_BIT_1 >> square) & 1) + ((CENTER_DISTANCE_BIT_0 >> square) & 1)) as i32
 }
+
+// https://www.chessprogramming.org/Center_Manhattan-Distance
+pub fn manhattan_distance_to_center(square: u8) -> i32 {
+   let mut file  = (square as i32)  & 7;
+   let mut rank  = (square as i32) >> 3;
+   file ^= (file-4) >> 8;
+   rank ^= (rank-4) >> 8;
+   (file + rank) & 7
+}
+
+pub fn manhattan_distance(a: i8, b:i8) -> u8 {
+    let a_file = a & 7;
+    let a_rank = a >> 3;
+
+    let b_file = b & 7;
+    let b_rank = b >> 3;
+
+    (i8::abs(b_rank - a_rank) + i8::abs(b_file - a_file)) as u8
+}

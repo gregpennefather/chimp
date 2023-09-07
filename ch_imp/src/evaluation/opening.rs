@@ -53,6 +53,17 @@ static BISHOP_SQUARE_SCORE: PieceValueBoard = [
 ];
 static BISHOP_SQUARE_FACTOR: i32 = 2;
 
+const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 7] = [
+    (PieceType::Knight, 1),
+    (PieceType::Bishop, 2),
+    (PieceType::Queen, 4),
+    (PieceType::Bishop, 5),
+    (PieceType::Knight, 6),
+    (PieceType::Pawn, 11),
+    (PieceType::Pawn, 12),
+];
+static UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 2;
+
 pub fn calculate(board: BoardRep) -> i32 {
     let mut eval = 0;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
@@ -95,11 +106,6 @@ pub fn calculate(board: BoardRep) -> i32 {
     eval += under_developed_penalty(board, board.white_occupancy);
     eval -= under_developed_penalty(board, board.black_occupancy.reverse_bits());
 
-    // // Did you leave anything hanging?
-    // let white_hanging = board.white_occupancy & !board.white_threatboard & board.black_threatboard;
-    // eval -= piece_aggregate_score(p, white_hanging, HANGING_PIECE_VALUE);
-    // let black_hanging = board.black_occupancy & !board.black_threatboard & board.white_threatboard;
-    // eval += piece_aggregate_score(p, black_hanging, HANGING_PIECE_VALUE);
     eval
 }
 
@@ -114,16 +120,6 @@ fn piece_centralization_score(side_occupancy: u64) -> i32 {
     score
 }
 
-const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 7] = [
-    (PieceType::Knight, 1),
-    (PieceType::Bishop, 2),
-    (PieceType::Queen, 4),
-    (PieceType::Bishop, 5),
-    (PieceType::Knight, 6),
-    (PieceType::Pawn, 11),
-    (PieceType::Pawn, 12),
-];
-
 fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i32 {
     let mut score = 0;
 
@@ -135,5 +131,5 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
         }
     }
 
-    score
+    score * UNDER_DEVELOPED_PENALTY_FACTOR
 }
