@@ -1,6 +1,6 @@
 use crate::{
-    board::{board_rep::BoardRep, position::Position},
-    r#move::Move,
+    board::{board_rep::BoardRep, position::Position, bitboard::Bitboard},
+    r#move::Move, shared::piece_type::PieceType,
 };
 
 use super::{
@@ -28,14 +28,14 @@ static HANGING_PIECE_VALUE: PieceValues = [
 
 static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,5,5,5,5,5,5,5,5,4,4,4,4,4,4,4,4,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,0,0,0,-1,-1,0,0,0,0,0,0,0,0,0,0,0];
 static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,0,0,0,-1,-1,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0];
-static PAWN_SQUARE_FACTOR: i32 = 2;
+static PAWN_SQUARE_FACTOR: i32 = 5;
 
 static KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-static KNIGHT_SQUARE_FACTOR: i32 = 4;
+static KNIGHT_SQUARE_FACTOR: i32 = 2;
 
 static BISHOP_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0,
@@ -43,13 +43,6 @@ static BISHOP_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
 static BISHOP_SQUARE_FACTOR: i32 = 2;
-
-static KING_SQUARE_SCORE: PieceValueBoard = [
-    1, 1, 4, -1, 0, -1, 4, 1, -1, -1, -1, -1, -1, -1, -1, -1, -2, -2, -2, -2, -2, -2, -2, -2, -3,
-    -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -2, -2, -2, -2, -2, -2, -2, -2, -1,
-    -1, -1, -1, -1, -1, -1, -1, 1, 1, 4, -1, 0, -1, 4, 1,
-];
-static KING_SQUARE_FACTOR: i32 = 5;
 
 pub fn calculate(board: BoardRep) -> i32 {
     let mut eval = 0;
@@ -71,11 +64,11 @@ pub fn calculate(board: BoardRep) -> i32 {
     eval -= piece_square_score(board.bishop_bitboard & board.bishop_bitboard, BISHOP_SQUARE_SCORE)
         * BISHOP_SQUARE_FACTOR;
 
-    eval += piece_square_score(1 << board.white_king_position, KING_SQUARE_SCORE) * KING_SQUARE_FACTOR;
-    eval -= piece_square_score(1 << board.black_king_position, KING_SQUARE_SCORE) * KING_SQUARE_FACTOR;
-
     eval += piece_centralization_score(board.white_occupancy & board.pawn_bitboard & board.knight_bitboard);
     eval -= piece_centralization_score(board.black_occupancy & board.pawn_bitboard & board.knight_bitboard);
+
+    eval += under_developed_penalty(board, board.white_occupancy);
+    eval -= under_developed_penalty(board, board.white_occupancy.reverse_bits());
 
     // // Did you leave anything hanging?
     // let white_hanging = board.white_occupancy & !board.white_threatboard & board.black_threatboard;
@@ -94,5 +87,19 @@ fn piece_centralization_score(side_occupancy: u64) -> i32 {
         score += 3-distance_to_center(pos as u8);
         occ ^= 1<<pos;
     }
+    score
+}
+
+const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 7] = [(PieceType::Knight, 1), (PieceType::Bishop, 2), (PieceType::Queen, 4), (PieceType::Bishop, 5), (PieceType::Knight, 6), (PieceType::Pawn, 11), (PieceType::Pawn, 12)];
+
+fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i32 {
+    let mut score = 0;
+
+    for penalty in UNDER_DEVELOPED_PENALTY_POSITIONS {
+        if orientated_side_occupancy.occupied(penalty.1) && board.get_piece_type_at_index(penalty.1) == penalty.0 {
+            score += 1;
+        }
+    }
+
     score
 }

@@ -118,7 +118,8 @@ fn main() {
 
     //debug_evals("rnbqkb1r/ppp2pp1/3p1n2/4pQ1p/8/4P3/PPPPNPPP/RNB1KBR1 b Qkq - 1 5".into(), "r1b2k1r/ppp2pp1/2nq1n2/1Qbpp2p/8/2N1PN2/PPPPBPPP/R1B2K1R b - - 1 13".into());
 
-    //debug_deepening("r1b1kb1r/ppp1pppp/2nq1n2/3p2N1/8/2N1P3/PPPP1PPP/R1BQKB1R w KQkq - 2 5".into(), 2000);
+    //debug_deepening("rnbqkbnr/pppppppp/8/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R b KQkq - 2 5".into(), 5000);
+    //debug_deepening("r1bqkbnr/pppppppp/2n5/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R w KQkq - 3 6".into(), 5000);
 
     //  debug_search(
     //      "r1bq1k1r/pppp1ppp/2n2n2/4p1N1/8/2P1PQ2/P1PP1PPP/1RB1KB1R b K - 2 7".into(),
@@ -180,7 +181,7 @@ fn debug_search(fen_1: String, depth: u8) {
     while i <= depth as i8 {
         let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
 
-        let r = ab_search(&game_state, vec![], i, timeout, 0, i32::MIN, i32::MAX).unwrap();
+        let r = ab_search(&game_state, &vec![], i, 0, timeout, 0, i32::MIN, i32::MAX).unwrap();
         let dur = timer.elapsed();
         println!("{i}:{:?} {:?}", r, dur);
         i += 1;
@@ -255,7 +256,7 @@ fn target_depth_test() {
             .checked_add(Duration::from_secs(300))
             .unwrap();
 
-        let r = ab_search(&game_state, vec![], i, timeout, 0, i32::MIN, i32::MAX).unwrap();
+        let r = ab_search(&game_state, &vec![], i, 0, timeout, 0, i32::MIN, i32::MAX).unwrap();
         let dur = timer.elapsed();
         info!("{i}:{:?} {:?}", r, dur);
         i += 1;
@@ -291,11 +292,11 @@ fn park_table() {
     let mut engine: ChimpEngine = ChimpEngine::new();
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 1000;
-    let mut black_ms = 1000;
-    let inc_ms = 3000;
+    let mut white_ms = 60000;
+    let mut black_ms = 60000;
+    let inc_ms = 2000;
     info!("Park Table:");
-    for _i in 0..10 {
+    for _i in 0..200 {
         let timer = Instant::now();
         let (m, ponder) = if _i == 0 || _i == 1 {
             engine.go(10000, 10000, -1, -1)

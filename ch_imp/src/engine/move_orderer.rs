@@ -12,6 +12,16 @@ pub fn priority_cmp(a: &Move, b: &Move, priority_moves: &Vec<Move>) -> Ordering 
     return Ordering::Equal;
 }
 
+pub fn top_priority(a: &Move, b: &Move, m: &Move) -> Ordering {
+    if m == a {
+        return Ordering::Less;
+    }
+    if m == b {
+        return Ordering::Greater;
+    }
+    return Ordering::Equal;
+}
+
 #[cfg(test)]
 mod test {
     use crate::{engine::move_orderer::priority_cmp, r#move::Move, shared::piece_type::PieceType};

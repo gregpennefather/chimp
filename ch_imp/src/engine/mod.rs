@@ -100,13 +100,13 @@ impl ChimpEngine {
             if btime < binc {
                 binc / 3 * 2
             } else {
-                binc + i32::min(15000, btime / 5)
+                binc + i32::min(10000, btime / 10)
             }
         } else {
             if wtime < winc {
                 winc / 3 * 2
             } else {
-                winc + i32::min(15000, wtime / 5)
+                winc + i32::min(10000, wtime / 10)
             }
         };
         info!(
@@ -152,24 +152,19 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
     let t_time = Instant::now();
 
     let mut cur_time = Instant::now();
-    while cur_time < timeout && depth < 20 {
+    while cur_time < timeout && depth < 10 {
         let alpha = i32::MIN;
         let beta = i32::MAX;
-        // This should maybe be re-created through more intelligent move ordering
-        // if game_state.position.black_turn {
-        //     beta = output_r.1;
-        // } else {
-        //     alpha = output_r.1;
-        // }
+
         depth += 1;
 
         let priority_moves = output_r.0.iter().map(|&f| f.0).collect();
-        info!("depth: {depth} move-priority:{priority_moves:?}");
 
         let r = ab_search(
             &game_state,
-            priority_moves,
+            &priority_moves,
             depth,
+            0,
             timeout,
             0,
             alpha,
@@ -211,8 +206,9 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
 
 pub fn ab_search(
     game_state: &GameState,
-    priority_moves: Vec<Move>,
+    priority_moves: &Vec<Move>,
     depth: i8,
+    ply: u8,
     timeout: Instant,
     total_extensions: i8,
     mut alpha: i32, // maximize
@@ -249,13 +245,13 @@ pub fn ab_search(
     let mut next_node_eval = 0;
     let mut move_history = Vec::new();
 
-    let ordered_moves = if priority_moves.is_empty() {
-        game_state.position.moves.clone()
-    } else {
-        let mut moves = game_state.position.moves.clone();
-        moves.sort_by(|a: &Move, b| move_orderer::priority_cmp(a, b, &priority_moves));
-        moves
-    };
+    let mut ordered_moves = game_state.position.moves.clone();
+    match priority_moves.iter().nth(ply as usize) {
+        Some(r) => {
+            ordered_moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r));
+        }
+        None => {}
+    }
     for move_index in 0..ordered_moves.len() {
         let test_move = ordered_moves[move_index];
         let new_state = match game_state.make(test_move) {
@@ -274,8 +270,9 @@ pub fn ab_search(
 
         let (path, node_eval, result_eval) = match ab_search(
             &new_state,
-            vec![],
+            &priority_moves,
             depth - 1 + extensions,
+            ply + 1,
             timeout,
             total_extensions + extensions,
             alpha,

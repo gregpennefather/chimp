@@ -11,7 +11,7 @@ fn main() {
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.5_{:?}.log",
+            "log/chimp_v0.0.0.7_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -67,10 +67,11 @@ fn run() -> bool {
                         let message = format!(
                             "bestmove {}{}",
                             bestmove.uci(),
-                            match ponder {
-                                Some(r) => format!(" ponder {}", r.uci()),
-                                None => "".into(),
-                            }
+                            ""
+                            // match ponder {
+                            //     Some(r) => "".into(), // Disable ponder for now: format!(" ponder {}", r.uci()),
+                            //     None => "".into(),
+                            // }
                         );
                         info!("{}", message);
                         println!("{}", message);
