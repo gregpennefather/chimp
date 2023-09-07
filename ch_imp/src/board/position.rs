@@ -1,6 +1,6 @@
 use crate::{
     evaluation::{self},
-    r#move::{move_generation::generate_moves, move_segment::MoveSegment, Move},
+    r#move::{move_generation::{generate_moves, MoveGenerationEvalMetrics}, move_segment::MoveSegment, Move},
     search::zorb_set_precomputed::ZORB_SET,
 };
 use std::fmt::Debug;
@@ -63,72 +63,47 @@ impl Position {
                 moves: Vec::new(),
             };
         }
-        let white_king_analysis = if board.black_turn {
-            analyze_king_position_shallow(
-                board.white_king_position,
-                false,
-                board.occupancy,
-                board.black_occupancy,
-                board.pawn_bitboard,
-                board.knight_bitboard,
-                board.bishop_bitboard,
-                board.rook_bitboard,
-                board.queen_bitboard,
-            )
-        } else {
-            analyze_king_position(
-                board.white_king_position,
-                false,
-                board.occupancy,
-                board.white_occupancy,
-                board.black_occupancy,
-                board.pawn_bitboard,
-                board.knight_bitboard,
-                board.bishop_bitboard,
-                board.rook_bitboard,
-                board.queen_bitboard,
-            )
-        };
-        let black_king_analysis = if board.black_turn {
-            analyze_king_position(
-                board.black_king_position,
-                true,
-                board.occupancy,
-                board.black_occupancy,
-                board.white_occupancy,
-                board.pawn_bitboard,
-                board.knight_bitboard,
-                board.bishop_bitboard,
-                board.rook_bitboard,
-                board.queen_bitboard,
-            )
-        } else {
-            analyze_king_position_shallow(
-                board.black_king_position,
-                true,
-                board.occupancy,
-                board.white_occupancy,
-                board.pawn_bitboard,
-                board.knight_bitboard,
-                board.bishop_bitboard,
-                board.rook_bitboard,
-                board.queen_bitboard,
-            )
-        };
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn,
+        );
+        let black_king_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            !board.black_turn,
+        );
         let mut eval = 0;
         let mut moves = Vec::new();
+        let mut move_gen_metrics = MoveGenerationEvalMetrics::default();
 
         let legal = !((board.black_turn && white_king_analysis.check)
             || (!board.black_turn && black_king_analysis.check));
 
         if legal {
-            moves = if board.black_turn {
-                generate_moves(&black_king_analysis, board)
+            (moves, move_gen_metrics) = if board.black_turn {
+                generate_moves(&black_king_analysis, &white_king_analysis, board)
             } else {
-                generate_moves(&white_king_analysis, board)
+                generate_moves(&white_king_analysis, &black_king_analysis, board)
             };
 
-            eval = evaluation::calculate(board);
+            eval = evaluation::calculate(board, move_gen_metrics);
         }
         Self {
             board,
@@ -191,9 +166,9 @@ impl Default for Position {
             threat_source: None,
             pins: Vec::new(),
         };
-        let moves = generate_moves(&king_analysis, board);
+        let (moves, eval_metrics) = generate_moves(&king_analysis, &king_analysis, board);
 
-        let eval = evaluation::calculate(board);
+        let eval = evaluation::calculate(board, eval_metrics);
 
         Self {
             board,

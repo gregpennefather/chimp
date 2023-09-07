@@ -4,7 +4,7 @@ use crate::{
     board::{
         bitboard::Bitboard,
         board_rep::BoardRep,
-        king_position_analysis::{KingPositionAnalysis, ThreatSource, ThreatType},
+        king_position_analysis::{KingPositionAnalysis, ThreatSource, ThreatType, ThreatRaycastCollision},
     },
     shared::{
         board_utils::{get_direction_to_normalized, get_file, get_rank},
@@ -14,7 +14,7 @@ use crate::{
             MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
-        piece_type,
+        piece_type::{self, PieceType},
     },
     MOVE_DATA,
 };
@@ -27,7 +27,15 @@ use super::{
     Move,
 };
 
-pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> Vec<Move> {
+#[derive(Clone, Default)]
+pub struct MoveGenerationEvalMetrics {
+    pub white_threatboard: u64,
+    pub black_threatboard: u64,
+    pub white_pinned: Vec<ThreatRaycastCollision>,
+    pub black_pinned: Vec<ThreatRaycastCollision>
+}
+
+pub fn generate_moves(king_analysis: &KingPositionAnalysis, opponent_king_analysis: &KingPositionAnalysis, board: BoardRep) -> (Vec<Move>, MoveGenerationEvalMetrics) {
     let mut friendly_occupancy = if board.black_turn {
         board.black_occupancy
     } else {
@@ -53,7 +61,8 @@ pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> 
         )
     };
 
-    let threat_board = generate_threat_board(!board.black_turn, opponent_occupancy, board);
+    let friendly_threat_board = generate_threat_board(board.black_turn, friendly_occupancy, board);
+    let opponent_threat_board = generate_threat_board(!board.black_turn, opponent_occupancy, board);
 
     let mut moves = generate_king_moves(
         king_pos,
@@ -63,13 +72,14 @@ pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> 
         board.black_turn,
         king_side_castling,
         queen_side_castling,
-        threat_board,
+        opponent_threat_board,
         king_analysis.threat_source,
     );
 
     // In the event of double king check we can only avoid check by moving the king
     if king_analysis.double_check {
-        return moves;
+        let metrics =  build_move_generation_eval_metrics(board.black_turn, king_analysis, opponent_king_analysis, friendly_threat_board, opponent_threat_board);
+        return (moves,metrics);
     }
 
     while friendly_occupancy != 0 {
@@ -84,7 +94,8 @@ pub fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> 
         friendly_occupancy ^= 1 << piece_position;
     }
 
-    moves
+    let metrics =  build_move_generation_eval_metrics(board.black_turn, king_analysis, opponent_king_analysis, friendly_threat_board, opponent_threat_board);
+    (moves,metrics)
 }
 
 fn generate_position_moves(
@@ -177,6 +188,25 @@ fn generate_threat_board(is_black: bool, mut piece_occupancy: u64, board: BoardR
         piece_occupancy ^= 1 << piece_position;
     }
     r
+}
+
+fn build_move_generation_eval_metrics(is_black: bool, friendly_king_analysis: &KingPositionAnalysis, opponent_king_analysis: &KingPositionAnalysis, friendly_threatboard: u64, opponent_threatboard: u64) -> MoveGenerationEvalMetrics {
+    if is_black {
+        MoveGenerationEvalMetrics {
+            white_threatboard: opponent_threatboard,
+            black_threatboard: friendly_threatboard,
+            black_pinned: friendly_king_analysis.pins.clone(),
+            white_pinned: opponent_king_analysis.pins.clone()
+        }
+    } else {
+        MoveGenerationEvalMetrics {
+            white_threatboard: friendly_threatboard,
+            black_threatboard: opponent_threatboard,
+            black_pinned: opponent_king_analysis.pins.clone(),
+            white_pinned: friendly_king_analysis.pins.clone(),
+
+        }
+    }
 }
 
 fn get_pawn_threatboard(piece_position: u8, is_black: bool) -> u64 {
@@ -687,9 +717,9 @@ mod test {
     #[test]
     pub fn startpos_move_generation() {
         let board = BoardRep::default();
-        let king_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
             board.white_king_position,
-            board.black_turn,
+            false,
             board.occupancy,
             board.white_occupancy,
             board.black_occupancy,
@@ -698,9 +728,24 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            board.black_turn
         );
-        let moves = generate_moves(&king_analysis, board);
-        assert_eq!(moves.len(), 20);
+
+        let black_king_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            !board.black_turn
+        );
+        let moves = generate_moves(&white_king_analysis, &black_king_analysis, board);
+        assert_eq!(moves.0.len(), 20);
     }
 
     #[test]
@@ -708,9 +753,23 @@ mod test {
         let board = BoardRep::from_fen(
             "rnbqk1nr/pppp1pNp/2Pb4/8/1B6/4Q3/PP1PPPPP/RN2KB1R b KQkq - 0 1".into(),
         );
-        let king_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
+        );
+
+        let black_king_analysis = analyze_king_position(
             board.black_king_position,
-            board.black_turn,
+            true,
             board.occupancy,
             board.black_occupancy,
             board.white_occupancy,
@@ -719,9 +778,10 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            !board.black_turn
         );
-        let moves = generate_moves(&king_analysis, board);
-        assert!(moves.len() <= 2);
+        let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
+        assert!(moves.0.len() <= 2);
     }
 
     #[test]
@@ -747,7 +807,21 @@ mod test {
         let board = BoardRep::from_fen(
             "r3k2r/p1Np1pb1/b3pnpq/1n1PN3/1p2P3/5Q1p/PPPBBPPP/R3K2R b KQkq - 0 2".into(),
         );
-        let king_position_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
+        );
+
+        let black_king_analysis = analyze_king_position(
             board.black_king_position,
             true,
             board.occupancy,
@@ -758,10 +832,11 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            !board.black_turn
         );
-        let moves = generate_moves(&king_position_analysis, board);
+        let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
 
-        assert_eq!(moves.len(), 4);
+        assert_eq!(moves.0.len(), 4);
     }
 
     #[test]
@@ -769,7 +844,21 @@ mod test {
         let board = BoardRep::from_fen(
             "r3kb1r/p1Npqp2/1b2pnp1/n2PN3/1p2P3/5Q1p/PPPBBPPP/R3K2R b KQkq - 0 2".into(),
         );
-        let king_position_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
+        );
+
+        let black_king_analysis = analyze_king_position(
             board.black_king_position,
             true,
             board.occupancy,
@@ -780,10 +869,11 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            !board.black_turn
         );
-        let moves = generate_moves(&king_position_analysis, board);
+        let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
 
-        assert_eq!(moves.len(), 2);
+        assert_eq!(moves.0.len(), 2);
     }
 
     #[test]
@@ -791,7 +881,21 @@ mod test {
         let board = BoardRep::from_fen(
             "3nkb1r/p1Npqp2/4pnp1/1b1PN3/1p2P3/5Q1p/PPrBBPPP/R3K2R b KQk - 0 2".into(),
         );
-        let king_position_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
+        );
+
+        let black_king_analysis = analyze_king_position(
             board.black_king_position,
             true,
             board.occupancy,
@@ -802,10 +906,11 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            !board.black_turn
         );
-        let moves = generate_moves(&king_position_analysis, board);
+        let moves = generate_moves(&black_king_analysis,&white_king_analysis, board);
 
-        assert_eq!(moves.len(), 1);
+        assert_eq!(moves.0.len(), 1);
     }
 
     #[test]
@@ -813,7 +918,7 @@ mod test {
         let board = BoardRep::from_fen(
             "r3kb2/pp3ppp/2n2n1r/1Bpp4/4b3/2N1PP2/PPPP2PP/R1B1q1KR w q - 0 11".into(),
         );
-        let king_position_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
             board.white_king_position,
             false,
             board.occupancy,
@@ -824,10 +929,25 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            board.black_turn
         );
-        let moves = generate_moves(&king_position_analysis, board);
 
-        assert_eq!(moves.len(), 1);
+        let black_king_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            !board.black_turn
+        );
+        let moves = generate_moves(&white_king_analysis, &black_king_analysis, board);
+
+        assert_eq!(moves.0.len(), 1);
     }
 
     #[test]
@@ -835,29 +955,7 @@ mod test {
         let board = BoardRep::from_fen(
             "3nkb1r/p1pbnp2/3Np1p1/q3N3/1p2P3/2q2Q1p/PPPBBPPP/R3K2R b KQk - 0 2".into(),
         );
-        let king_position_analysis = analyze_king_position(
-            board.black_king_position,
-            true,
-            board.occupancy,
-            board.black_occupancy,
-            board.white_occupancy,
-            board.pawn_bitboard,
-            board.knight_bitboard,
-            board.bishop_bitboard,
-            board.rook_bitboard,
-            board.queen_bitboard,
-        );
-        let moves = generate_moves(&king_position_analysis, board);
-
-        assert_eq!(moves.len(), 1);
-    }
-
-    #[test]
-    pub fn move_generation_block_with_pawn_or_move_king() {
-        let board = BoardRep::from_fen(
-            "r3kb2/pp3ppp/2n2n1r/1Bpp4/3qb3/2N2P2/PPPPP1PP/R1B3K1 w q - 0 11".into(),
-        );
-        let king_position_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
             board.white_king_position,
             false,
             board.occupancy,
@@ -868,20 +966,10 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            board.black_turn
         );
-        println!("{:?}", king_position_analysis);
-        assert!(king_position_analysis.check);
-        let moves = generate_moves(&king_position_analysis, board);
-        println!("{:?}", moves);
-        assert_eq!(moves.len(), 3);
-    }
 
-    #[test]
-    pub fn move_generation_block_or_capture_with_bishop() {
-        let board = BoardRep::from_fen(
-            "r3k2Q/p1ppqpb1/bn2pn2/3PN1p1/1p2P3/2N5/PPPBBPPP/R3K2R b KQq - 0 2".into(),
-        );
-        let king_position_analysis = analyze_king_position(
+        let black_king_analysis = analyze_king_position(
             board.black_king_position,
             true,
             board.occupancy,
@@ -892,11 +980,85 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            !board.black_turn
+        );
+        let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
+
+        assert_eq!(moves.0.len(), 1);
+    }
+
+    #[test]
+    pub fn move_generation_block_with_pawn_or_move_king() {
+        let board = BoardRep::from_fen(
+            "r3kb2/pp3ppp/2n2n1r/1Bpp4/3qb3/2N2P2/PPPPP1PP/R1B3K1 w q - 0 11".into(),
+        );
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
         );
 
-        let moves = generate_moves(&king_position_analysis, board);
-        println!("{:?}", moves);
-        assert_eq!(moves.len(), 5); // Should be 4 once we can stop retreating kings (king moving back along the line they're being checked from)
+        let black_king_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            !board.black_turn
+        );
+        let moves = generate_moves(&white_king_analysis, &black_king_analysis, board);
+        assert_eq!(moves.0.len(), 3);
+    }
+
+    #[test]
+    pub fn move_generation_block_or_capture_with_bishop() {
+        let board = BoardRep::from_fen(
+            "r3k2Q/p1ppqpb1/bn2pn2/3PN1p1/1p2P3/2N5/PPPBBPPP/R3K2R b KQq - 0 2".into(),
+        );
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
+        );
+
+        let black_king_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            !board.black_turn
+        );
+
+        let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
+
+        assert_eq!(moves.0.len(), 5); // Should be 4 once we can stop retreating kings (king moving back along the line they're being checked from)
     }
 
     #[test]
@@ -915,6 +1077,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         let moves = generate_pawn_moves_when_threatened(
@@ -942,6 +1105,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         let moves = generate_pawn_moves_when_threatened(
@@ -969,6 +1133,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         let moves = generate_pawn_moves_when_threatened(
@@ -988,7 +1153,21 @@ mod test {
             "r4rk1/p1ppqpb1/bn2pnp1/P2PN3/1p2P3/2N2Q1p/1PPBBPPP/R3K2R b KQ - 0 2".into(),
         );
 
-        let king_position_analysis = analyze_king_position(
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn
+        );
+
+        let black_king_analysis = analyze_king_position(
             board.black_king_position,
             true,
             board.occupancy,
@@ -999,10 +1178,11 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            !board.black_turn
         );
 
-        let moves = generate_moves(&king_position_analysis, board);
-        assert!(moves.contains(&Move::new(
+        let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
+        assert!(moves.0.contains(&Move::new(
             index_from_coords("g8"),
             index_from_coords("h7"),
             0b0,

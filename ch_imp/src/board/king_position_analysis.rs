@@ -51,6 +51,7 @@ pub fn analyze_king_position(
     bishop_bitboard: u64,
     rook_bitboard: u64,
     queen_bitboard: u64,
+    shallow: bool
 ) -> KingPositionAnalysis {
     let mut check = false;
     let mut double_check = false;
@@ -68,7 +69,7 @@ pub fn analyze_king_position(
             threat_source = ts;
         }
 
-        if double_check {
+        if double_check || (check && shallow) {
             return KingPositionAnalysis {
                 check: true,
                 double_check: true,
@@ -96,7 +97,7 @@ pub fn analyze_king_position(
         }
         pins.extend(p);
 
-        if double_check {
+        if double_check || (check && shallow) {
             return KingPositionAnalysis {
                 check: true,
                 double_check: true,
@@ -125,7 +126,7 @@ pub fn analyze_king_position(
         }
         pins.extend(p);
 
-        if double_check {
+        if double_check || (check && shallow) {
             return KingPositionAnalysis {
                 check: true,
                 double_check: true,
@@ -145,7 +146,7 @@ pub fn analyze_king_position(
             threat_source = ts;
         }
 
-        if double_check {
+        if double_check || (check && shallow) {
             return KingPositionAnalysis {
                 check: true,
                 double_check: true,
@@ -819,6 +820,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -841,6 +843,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -873,6 +876,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -906,6 +910,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -951,6 +956,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -973,6 +979,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -1005,6 +1012,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            false
         );
 
         assert_eq!(result.check, true);
@@ -1027,16 +1035,18 @@ mod test {
             "rnbqkb1r/ppp1pppp/3p3n/8/Q7/2P5/PP1PPPPP/RNB1KBNR w KQkq - 0 1".into(),
         );
 
-        let result = analyze_king_position_shallow(
+        let result = analyze_king_position(
             board.black_king_position,
             true,
             board.occupancy,
             board.white_occupancy,
+            board.black_occupancy,
             board.pawn_bitboard,
             board.knight_bitboard,
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            true
         );
 
         assert!(result.check);
@@ -1046,16 +1056,18 @@ mod test {
     fn analyze_king_position_shallow_scenario_2() {
         let board = BoardRep::from_fen("8/2p5/1K1p4/1P5r/1R3p1k/8/4P1P1/8 w - - 0 1".into());
 
-        let result = analyze_king_position_shallow(
-            board.white_king_position,
-            false,
+        let result = analyze_king_position(
+            board.black_king_position,
+            true,
             board.occupancy,
+            board.white_occupancy,
             board.black_occupancy,
             board.pawn_bitboard,
             board.knight_bitboard,
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
+            true
         );
 
         assert!(result.check);

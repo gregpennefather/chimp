@@ -28,13 +28,13 @@ static HANGING_PIECE_VALUE: PieceValues = [
 ];
 
 static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
     2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
     0,
 ];
 static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0,
 ];
 static PAWN_SQUARE_FACTOR: i32 = 2;
@@ -53,18 +53,22 @@ static BISHOP_SQUARE_SCORE: PieceValueBoard = [
 ];
 static BISHOP_SQUARE_FACTOR: i32 = 2;
 
-const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 7] = [
+const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 2, 3, 3, 2, 1, 1,
+    1, 1, 2, 3, 3, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+];
+
+const BOARD_CONTROL_SQUARES_PER_POINT: i32 = 4;
+
+const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Knight, 1),
     (PieceType::Bishop, 2),
-    (PieceType::Queen, 4),
     (PieceType::Bishop, 5),
     (PieceType::Knight, 6),
-    (PieceType::Pawn, 11),
-    (PieceType::Pawn, 12),
 ];
-static UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 2;
+static UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 3;
 
-pub fn calculate(board: BoardRep) -> i32 {
+pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64) -> i32 {
     let mut eval = 0;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
@@ -105,6 +109,15 @@ pub fn calculate(board: BoardRep) -> i32 {
 
     eval += under_developed_penalty(board, board.white_occupancy);
     eval -= under_developed_penalty(board, board.black_occupancy.reverse_bits());
+
+    eval += piece_square_score(
+        white_threatboard | board.white_occupancy,
+        BOARD_CONTROL_SQUARE_REWARD,
+    ) / BOARD_CONTROL_SQUARES_PER_POINT;
+    eval -= piece_square_score(
+        black_threatboard | board.black_occupancy,
+        BOARD_CONTROL_SQUARE_REWARD,
+    ) / BOARD_CONTROL_SQUARES_PER_POINT;
 
     eval
 }
