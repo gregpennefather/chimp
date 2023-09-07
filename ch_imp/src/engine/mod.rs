@@ -1,6 +1,7 @@
-use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
-
 use log::{debug, error, info, trace};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
 use crate::{
     match_state::game_state::{GameState, MatchResultState},
@@ -8,18 +9,19 @@ use crate::{
     shared::transposition_table::clear_tables,
     POSITION_TRANSPOSITION_TABLE,
 };
+use crate::{PONDERING, PONDERING_RESULT};
 
 pub mod move_orderer;
 pub mod perft;
 pub mod san;
 
 const MAX_EXTENSIONS: i8 = 4;
-const WHITE_WIN_THRESHOLD : i32 = i32::MAX-5;
-const BLACK_WIN_THRESHOLD : i32 = i32::MIN+5;
+const WHITE_WIN_THRESHOLD: i32 = i32::MAX - 5;
+const BLACK_WIN_THRESHOLD: i32 = i32::MIN + 5;
 
 pub struct ChimpEngine {
     pub current_game_state: GameState,
-    moves: Vec<Move>,
+    moves: Vec<Move>
 }
 
 impl ChimpEngine {
@@ -29,7 +31,7 @@ impl ChimpEngine {
         let moves = Vec::new();
         Self {
             current_game_state,
-            moves,
+            moves
         }
     }
 
@@ -38,7 +40,7 @@ impl ChimpEngine {
         let moves = Vec::new();
         Self {
             current_game_state,
-            moves,
+            moves
         }
     }
 
@@ -94,7 +96,7 @@ impl ChimpEngine {
         // }
     }
 
-    pub fn go(&self, wtime: i32, btime: i32, winc: i32, binc: i32) -> (Move, Option<Move>) {
+    pub fn go(&mut self, wtime: i32, btime: i32, winc: i32, binc: i32) -> (Move, Option<Move>) {
         let ms = if winc == -1 || binc == -1 {
             info!("go movetime 10000");
             wtime
@@ -123,7 +125,48 @@ impl ChimpEngine {
         let timeout = Instant::now()
             .checked_add(Duration::from_millis(ms as u64))
             .unwrap();
-        iterative_deepening(self.current_game_state.clone(), timeout)
+        iterative_deepening(self.current_game_state.clone(), timeout, vec![])
+    }
+
+    pub fn go_post_ponder(
+        &self,
+        wtime: i32,
+        btime: i32,
+        winc: i32,
+        binc: i32,
+        ponder_moves: Vec<Move>,
+    ) -> (Move, Option<Move>) {
+
+        let ms =  if ponder_moves.len() >= 6 {
+            if self.black_turn() { binc } else { winc }
+        } else if self.current_game_state.position.board.black_turn {
+            if btime < binc {
+                binc / 3 * 2
+            } else {
+                i32::max(binc - 50, i32::min(btime / 20, binc + btime / 12))
+            }
+        } else {
+            if wtime < winc {
+                winc / 3 * 2
+            } else {
+                i32::max(winc - 50, i32::min(wtime / 20, winc + wtime / 12))
+            }
+        };
+
+
+        info!(
+            "{}: go postponder {} {wtime} {btime} {winc} {binc} => {ms:?}",
+            self.moves.len(),
+            if self.current_game_state.position.board.black_turn {
+                "black"
+            } else {
+                "white"
+            }
+        );
+        let timeout = Instant::now()
+            .checked_add(Duration::from_millis(ms as u64))
+            .unwrap();
+        iterative_deepening(self.current_game_state.clone(), timeout, ponder_moves)
     }
 
     fn reset_state(&mut self) {
@@ -136,10 +179,43 @@ impl ChimpEngine {
         self.current_game_state = self.current_game_state.make(m).unwrap();
         self.moves.push(m);
     }
+
+    pub fn ponder_miss(&mut self) {
+        let binding = Arc::clone(&PONDERING);
+        let mut mut_pondering = binding.lock().unwrap();
+        *mut_pondering = false;
+        let len = self.moves.len();
+        let pre_ponder_moves = self.moves[0..len-1].to_vec();
+        self.current_game_state = GameState::default();
+        self.moves = vec![];
+        for m in pre_ponder_moves {
+            self.add_move(&m.uci());
+        }
+
+    }
+
+    pub fn ponder_hit(&self) {
+        let binding = Arc::clone(&PONDERING);
+        let mut mut_pondering = binding.lock().unwrap();
+        *mut_pondering = false;
+    }
+
+    pub fn ponder(&mut self) -> JoinHandle<Vec<Move>> {
+        let ponder_state = self.current_game_state.clone();
+        let pondering = Arc::clone(&PONDERING);
+        let mut thread_pondering = pondering.lock().unwrap();
+        *thread_pondering = true;
+
+        thread::spawn(move || {
+            let ponder_outcome = ponder_deepening(ponder_state);
+            info!("info ponder_outcome: {ponder_outcome:?}");
+            ponder_outcome
+        })
+    }
 }
 
-pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Option<Move>) {
-    let mut depth = 0;
+pub fn iterative_deepening(game_state: GameState, timeout: Instant, pondered_moves: Vec<Move>) -> (Move, Option<Move>) {
+    let mut depth = pondered_moves.len() as i8;
 
     let mut output_r = (
         Vec::<(Move, i32)>::new(),
@@ -150,6 +226,7 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
             i32::MIN
         },
     );
+    let mut priority_moves = pondered_moves.clone();
 
     let t_time = Instant::now();
 
@@ -159,8 +236,6 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
         let beta = i32::MAX;
 
         depth += 1;
-
-        let priority_moves = output_r.0.iter().map(|&f| f.0).collect();
 
         let r = ab_search(
             &game_state,
@@ -188,6 +263,8 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
         }
 
         cur_time = Instant::now();
+
+        priority_moves = output_r.0.iter().map(|&f| f.0).collect();
     }
 
     let m_history = output_r.0;
@@ -213,6 +290,40 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
     }
 }
 
+pub fn ponder_deepening(game_state: GameState) -> Vec<Move> {
+    let mut depth = 0;
+
+    let mut still_pondering = true;
+
+    let mut output_r = (
+        Vec::<(Move, i32)>::new(),
+        0,
+        if game_state.position.board.black_turn {
+            i32::MAX
+        } else {
+            i32::MIN
+        },
+    );
+
+    while still_pondering {
+        let alpha = i32::MIN;
+        let beta = i32::MAX;
+
+        depth += 1;
+
+        let priority_moves = output_r.0.iter().map(|&f| f.0).collect();
+
+        output_r = ponder_search(&game_state, &priority_moves, depth, 0, 0, alpha, beta).unwrap();
+
+        let pondering_arc = Arc::clone(&PONDERING);
+        let pondering_lock = pondering_arc.lock().unwrap();
+        still_pondering = *pondering_lock;
+        drop(pondering_lock)
+    }
+
+    output_r.0.into_iter().map(|e| e.0).collect::<Vec<Move>>()
+}
+
 pub fn ab_search(
     game_state: &GameState,
     priority_moves: &Vec<Move>,
@@ -232,12 +343,8 @@ pub fn ab_search(
         };
     }
 
-    let now = Instant::now();
+    let now: Instant = Instant::now();
     if now > timeout {
-        debug!(
-            "game_state: {} timeout at depth {depth}",
-            game_state.to_fen()
-        );
         return Ok(if game_state.position.board.black_turn {
             (vec![], i32::MIN + 1, i32::MIN + 1)
         } else {
@@ -292,10 +399,142 @@ pub fn ab_search(
 
         let now = Instant::now();
         if now > timeout {
-            debug!(
-                "game_state: {} timeout at depth {depth}",
-                game_state.to_fen()
-            );
+            if !chosen_move.is_empty() {
+                break;
+            }
+        }
+
+        if !game_state.position.board.black_turn {
+            if result_eval > chosen_move_eval {
+                trace!("{depth}:chosen move change: {test_move:?}{result_eval:?} > {chosen_move:?}:{chosen_move_eval:?}");
+                chosen_move = test_move;
+                chosen_move_eval = result_eval;
+                next_node_eval = node_eval;
+                move_history = path;
+            }
+            alpha = i32::max(alpha, chosen_move_eval);
+            if beta <= alpha {
+                break;
+            }
+        } else {
+            if result_eval < chosen_move_eval {
+                trace!("{depth}:chosen move change: {test_move:?}{result_eval:?} < {chosen_move:?}:{chosen_move_eval:?}");
+                chosen_move = test_move;
+                chosen_move_eval = result_eval;
+                next_node_eval = node_eval;
+                move_history = path;
+            }
+            beta = i32::min(beta, chosen_move_eval);
+            if beta <= alpha {
+                break;
+            }
+        }
+    }
+
+    // If we couldn't choose a move it means that none of the PL moves are actually legal so abandon this branch
+    if chosen_move.is_empty() {
+        trace!("No legal moves found at {}", game_state.to_fen());
+        return Ok(if game_state.position.board.black_turn {
+            (vec![], i32::MAX - 1, i32::MAX - 1)
+        } else {
+            (vec![], i32::MIN + 1, i32::MIN + 1)
+        });
+    }
+
+    // If the chosen_move_eval is equal to a max it means this branch will end in a mate
+    if chosen_move_eval == i32::MAX || chosen_move_eval == i32::MIN {
+        debug!(
+            "chosen_move_eval {chosen_move_eval} at {depth} for black:{} => {chosen_move:?}",
+            game_state.position.board.black_turn
+        );
+    }
+
+    let mut final_move_history = vec![(chosen_move, next_node_eval)];
+    final_move_history.extend(move_history);
+
+    Ok((
+        final_move_history,
+        game_state.position.eval,
+        chosen_move_eval,
+    ))
+}
+
+pub fn ponder_search(
+    game_state: &GameState,
+    priority_moves: &Vec<Move>,
+    depth: i8,
+    ply: u8,
+    total_extensions: i8,
+    mut alpha: i32, // maximize
+    mut beta: i32,
+) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
+    if depth <= 0 || game_state.result_state != MatchResultState::Active {
+        return match game_state.result_state {
+            MatchResultState::Draw => Ok((vec![], 0, 0)),
+            MatchResultState::WhiteVictory => Ok((vec![], i32::MAX - 1, i32::MAX - 1)),
+            MatchResultState::BlackVictory => Ok((vec![], i32::MIN + 1, i32::MIN + 1)),
+            _ => Ok((vec![], game_state.position.eval, game_state.position.eval)),
+        };
+    }
+
+    let pondering_arc = Arc::clone(&PONDERING);
+    let pondering_lock = pondering_arc.lock().unwrap();
+    let still_pondering = *pondering_lock;
+    drop(pondering_lock);
+
+    if !still_pondering {
+        return Ok(if game_state.position.board.black_turn {
+            (vec![], i32::MIN + 1, i32::MIN + 1)
+        } else {
+            (vec![], i32::MAX - 1, i32::MAX - 1)
+        });
+    }
+
+    let mut chosen_move = Move::default();
+    let mut chosen_move_eval = if !game_state.position.board.black_turn {
+        i32::MIN
+    } else {
+        i32::MAX
+    };
+    let mut next_node_eval = 0;
+    let mut move_history = Vec::new();
+
+    let mut ordered_moves = game_state.position.moves.clone();
+    match priority_moves.iter().nth(ply as usize) {
+        Some(r) => {
+            ordered_moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r));
+        }
+        None => {}
+    }
+    for move_index in 0..ordered_moves.len() {
+        let test_move = ordered_moves[move_index];
+        let new_state = match game_state.make(test_move) {
+            Some(new_state) => new_state,
+            None => continue,
+        };
+        let extensions: i8 = get_extensions(&new_state, test_move, total_extensions);
+
+        // if move_index >= 5 {
+        //     extensions -= 1; // Lower priority moves get a less deep search
+        // }
+
+        let (path, node_eval, result_eval) = match ponder_search(
+            &new_state,
+            &priority_moves,
+            depth - 1 + extensions,
+            ply + 1,
+            total_extensions + extensions,
+            alpha,
+            beta,
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("{e}");
+                panic!("{e}")
+            }
+        };
+
+        if !still_pondering {
             if !chosen_move.is_empty() {
                 break;
             }

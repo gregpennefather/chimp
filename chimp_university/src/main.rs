@@ -4,7 +4,8 @@ use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
     match_state::game_state::{self, GameState, MatchResultState},
-    shared::board_utils::get_index_from_file_and_rank, testing::test_engine,
+    shared::board_utils::get_index_from_file_and_rank,
+    testing::test_engine,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -134,8 +135,8 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    //park_table();
-    test_engine();
+    park_table();
+    //test_engine();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {
@@ -165,7 +166,7 @@ fn debug_deepening(fen_1: String, ms: u64) {
     let timeout = Instant::now()
         .checked_add(Duration::from_millis(ms))
         .unwrap();
-    iterative_deepening(game_state, timeout);
+    iterative_deepening(game_state, timeout, vec![]);
     let dur = timer.elapsed();
     println!("dur: {dur:?}");
 }
@@ -222,7 +223,7 @@ fn timed_depth_test() {
         .checked_add(Duration::from_secs(120))
         .unwrap();
     info!("Timed depth test: 120s");
-    iterative_deepening(game_state, timeout);
+    iterative_deepening(game_state, timeout, vec![]);
 }
 
 fn target_depth_test() {

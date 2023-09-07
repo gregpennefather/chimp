@@ -47,7 +47,7 @@ fn perform_test(
     id: String,
     timeout: usize,
 ) -> bool {
-    let engine = ChimpEngine::from_position(fen);
+    let mut engine = ChimpEngine::from_position(fen);
 
     let (bestmove, ponder) = engine.go(0, 0, timeout as i32, timeout as i32);
 
