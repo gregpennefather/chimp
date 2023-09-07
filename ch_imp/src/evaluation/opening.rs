@@ -6,7 +6,7 @@ use crate::{
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
-    utils::{distance_to_center, piece_aggregate_score, piece_square_score},
+    utils::*,
 };
 
 static MATERIAL_VALUES: PieceValues = [
@@ -28,14 +28,12 @@ static HANGING_PIECE_VALUE: PieceValues = [
 ];
 
 static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
-    0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 static PAWN_SQUARE_FACTOR: i32 = 2;
 
@@ -119,6 +117,9 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
         BOARD_CONTROL_SQUARE_REWARD,
     ) / BOARD_CONTROL_SQUARES_PER_POINT;
 
+    eval += king_tropism(board.white_king_position, board.black_occupancy, board);
+    eval -= king_tropism(board.black_king_position, board.white_occupancy, board);
+
     eval
 }
 
@@ -145,4 +146,26 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
     }
 
     score * UNDER_DEVELOPED_PENALTY_FACTOR
+}
+
+// https://www.chessprogramming.org/King_Safety
+// The higher the safer the king is
+fn king_tropism(king_pos: u8, opponent_occupancy: u64, board: BoardRep) -> i32 {
+    let mut occ = opponent_occupancy;
+    let mut score = 0;
+    while occ != 0 {
+        let pos = occ.trailing_zeros() as u8;
+        let sc = match board.get_piece_type_at_index(pos) {
+            PieceType::Knight => chebyshev_distance(pos as i8, king_pos as i8),
+            PieceType::Bishop | PieceType::Rook => {
+                chebyshev_distance(pos as i8, king_pos as i8)
+            }
+            PieceType::Queen => chebyshev_distance(pos as i8, king_pos as i8) * 2,
+            PieceType::Pawn | PieceType::King => 0, // Should never happen
+            PieceType::None => panic!("Unknown piece type"),
+        } as i32;
+        score += sc;
+        occ ^= 1 << pos;
+    }
+    score
 }

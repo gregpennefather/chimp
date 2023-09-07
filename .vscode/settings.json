@@ -12,6 +12,7 @@
         "bitboards",
         "bqkbnr",
         "BQKBNR",
+        "chebyshev",
         "dualing",
         "flexi",
         "MOVEBOARDS",
