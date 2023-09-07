@@ -1,7 +1,7 @@
 use crate::{
     board::{bitboard::Bitboard, board_rep::BoardRep, position::Position},
     r#move::Move,
-    shared::piece_type::PieceType,
+    shared::{piece_type::PieceType, board_utils::{get_rank, get_file}},
 };
 
 use super::{
@@ -120,8 +120,13 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval += king_tropism(board.white_king_position, board.black_occupancy, board);
     eval -= king_tropism(board.black_king_position, board.white_occupancy, board);
 
+    eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy);
+    eval -= simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy);
+
     eval
 }
+
+
 
 fn piece_centralization_score(side_occupancy: u64) -> i32 {
     let mut occ = side_occupancy;
@@ -168,4 +173,29 @@ fn king_tropism(king_pos: u8, opponent_occupancy: u64, board: BoardRep) -> i32 {
         occ ^= 1 << pos;
     }
     score
+}
+
+fn simple_pawn_shield_score(is_black: bool, king_position: u8, pawn_occupancy: u64) -> i32 {
+    // Give every king position a score from 0-9
+    // 1-2 points for the king position
+    // 2 points for pawns 1 rank ahead of the king
+    // 1 point for pawns 2 ranks ahead of the king
+    // Give a portion of the KING_PAWN_SHIELD_REWARD according to the portion of the
+    // max score achieved
+
+    let king_file = get_file(king_position);
+    let king_rank = get_rank(king_position);
+    if king_rank != 0 && king_rank != 7 {
+        return 0;
+    }
+
+    let mut score = 0;
+    score += match king_rank {
+        0 | 1 | 7 => 1,
+        2 | 6 => 2,
+        _ => 0
+    };
+
+    //let rank_1_shield_mask = if is_black + king_position +
+    0
 }
