@@ -1,9 +1,10 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use ch_imp::{
-    board::{position::Position, bitboard::Bitboard},
+    board::{bitboard::Bitboard, position::Position},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
-    match_state::game_state::{GameState, MatchResultState, self}, shared::board_utils::get_index_from_file_and_rank,
+    match_state::game_state::{self, GameState, MatchResultState},
+    shared::board_utils::get_index_from_file_and_rank,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -12,7 +13,6 @@ use log4rs::{
     encode::pattern::PatternEncoder,
 };
 fn main() {
-
     // let mut bb = 0;
     // for i in 0..8 {
     //     bb = bb.flip(get_index_from_file_and_rank(7-i,i));
@@ -35,7 +35,6 @@ fn main() {
     // let new_state = game_state.make(game_state.move_from_uci("f4f3"));
 
     // assert_eq!(new_state, None);
-
 
     //perfts();
     //let magic_table = MagicTable::new();
@@ -128,10 +127,10 @@ fn main() {
 
     //println!("{r:?}");
 
-    timed_depth_test();
+    // timed_depth_test();
     //target_depth_test();
 
-    // park_table();
+    park_table();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {
@@ -177,20 +176,11 @@ fn debug_search(fen_1: String, depth: u8) {
     let timer = Instant::now();
 
     let game_state = GameState::new(fen_1);
-    let mut i = 1;
-    while i <= depth {
+    let mut i: i8 = 1;
+    while i <= depth as i8 {
         let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
 
-        let r = ab_search(
-            &game_state,
-            vec![],
-            i,
-            timeout,
-            0,
-            i32::MIN,
-            i32::MAX,
-        )
-        .unwrap();
+        let r = ab_search(&game_state, vec![], i, timeout, 0, i32::MIN, i32::MAX).unwrap();
         let dur = timer.elapsed();
         println!("{i}:{:?} {:?}", r, dur);
         i += 1;
@@ -261,18 +251,11 @@ fn target_depth_test() {
     let mut i = 0;
     let timer = Instant::now();
     while i <= depth {
-        let timeout = Instant::now().checked_add(Duration::from_secs(300)).unwrap();
+        let timeout = Instant::now()
+            .checked_add(Duration::from_secs(300))
+            .unwrap();
 
-        let r = ab_search(
-            &game_state,
-            vec![],
-            i,
-            timeout,
-            0,
-            i32::MIN,
-            i32::MAX,
-        )
-        .unwrap();
+        let r = ab_search(&game_state, vec![], i, timeout, 0, i32::MIN, i32::MAX).unwrap();
         let dur = timer.elapsed();
         info!("{i}:{:?} {:?}", r, dur);
         i += 1;
@@ -308,11 +291,11 @@ fn park_table() {
     let mut engine: ChimpEngine = ChimpEngine::new();
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 60000;
-    let mut black_ms = 60000;
-    let inc_ms = 1000;
+    let mut white_ms = 1000;
+    let mut black_ms = 1000;
+    let inc_ms = 3000;
     info!("Park Table:");
-    for _i in 0..200 {
+    for _i in 0..10 {
         let timer = Instant::now();
         let (m, ponder) = if _i == 0 || _i == 1 {
             engine.go(10000, 10000, -1, -1)
@@ -331,18 +314,20 @@ fn park_table() {
             break;
         }
         move_ucis.push(m.uci());
-        let delay = timer.elapsed().as_millis() as i32;
-        if engine.black_turn() {
-            black_ms -= delay;
-            if black_ms < 0 {
-                info!("Black out of time!");
-                break;
-            }
-        } else {
-            white_ms -= delay;
-            if white_ms < 0 {
-                info!("White out of time!");
-                break;
+        if _i > 1 {
+            let delay = timer.elapsed().as_millis() as i32;
+            if engine.black_turn() {
+                black_ms -= delay;
+                if black_ms < 0 {
+                    info!("Black out of time!");
+                    break;
+                }
+            } else {
+                white_ms -= delay;
+                if white_ms < 0 {
+                    info!("White out of time!");
+                    break;
+                }
             }
         }
         moves.push(m);
@@ -380,11 +365,7 @@ fn perfts() {
 
     let config = Config::builder()
         .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
-        .build(
-            Root::builder()
-                .appender("chimp")
-                .build(LevelFilter::Info),
-        )
+        .build(Root::builder().appender("chimp").build(LevelFilter::Info))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
     perft(

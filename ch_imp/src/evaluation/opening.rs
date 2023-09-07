@@ -1,8 +1,11 @@
-use crate::{board::{position::Position, board_rep::BoardRep}, r#move::Move};
+use crate::{
+    board::{board_rep::BoardRep, position::Position},
+    r#move::Move,
+};
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
-    utils::{piece_aggregate_score, piece_square_score},
+    utils::{piece_aggregate_score, piece_square_score, distance_to_center},
 };
 
 static MATERIAL_VALUES: PieceValues = [
@@ -23,17 +26,9 @@ static HANGING_PIECE_VALUE: PieceValues = [
     0,                      // King
 ];
 
-static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 4, 4, 2, 2, 2,
-    1, 1, 2, 4, 4, 2, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,
-];
-static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 2, 4, 4, 2, 1,
-    1, 2, 2, 2, 4, 4, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
-    0,
-];
-static PAWN_SQUARE_FACTOR: i32 = 5;
+static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,5,5,5,5,5,5,5,5,4,4,4,4,4,4,4,4,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,0,0,0,-1,-1,0,0,0,0,0,0,0,0,0,0,0];
+static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,0,0,0,-1,-1,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0];
+static PAWN_SQUARE_FACTOR: i32 = 2;
 
 static KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
@@ -56,35 +51,48 @@ static KING_SQUARE_SCORE: PieceValueBoard = [
 ];
 static KING_SQUARE_FACTOR: i32 = 5;
 
-static MOBILITY_VALUE: i32 = 1;
-
 pub fn calculate(board: BoardRep) -> i32 {
     let mut eval = 0;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
-    // eval += piece_square_score(p.white_bitboard & p.pawn_bitboard, WHITE_PAWN_SQUARE_SCORE)
-    //     * PAWN_SQUARE_FACTOR;
-    // eval -= piece_square_score(p.black_bitboard & p.pawn_bitboard, BLACK_PAWN_SQUARE_SCORE)
-    //     * PAWN_SQUARE_FACTOR;
+     eval += piece_square_score(board.white_occupancy & board.pawn_bitboard, WHITE_PAWN_SQUARE_SCORE)
+         * PAWN_SQUARE_FACTOR;
+     eval -= piece_square_score(board.black_occupancy & board.pawn_bitboard, BLACK_PAWN_SQUARE_SCORE)
+         * PAWN_SQUARE_FACTOR;
 
-    // eval += piece_square_score(p.white_bitboard & p.knight_bitboard, KNIGHT_SQUARE_SCORE)
-    //     * KNIGHT_SQUARE_FACTOR;
-    // eval -= piece_square_score(p.black_bitboard & p.knight_bitboard, KNIGHT_SQUARE_SCORE)
-    //     * KNIGHT_SQUARE_FACTOR;
+    eval += piece_square_score(board.white_occupancy & board.knight_bitboard, KNIGHT_SQUARE_SCORE)
+        * KNIGHT_SQUARE_FACTOR;
+    eval -= piece_square_score(board.black_occupancy & board.knight_bitboard, KNIGHT_SQUARE_SCORE)
+        * KNIGHT_SQUARE_FACTOR;
 
-    // eval +=
-    //     piece_square_score(p.white_bitboard & p.bishop_bitboard, BISHOP_SQUARE_SCORE) * BISHOP_SQUARE_FACTOR;
-    // eval -=
-    //     piece_square_score(p.bishop_bitboard & p.bishop_bitboard, BISHOP_SQUARE_SCORE) * BISHOP_SQUARE_FACTOR;
+    eval += piece_square_score(board.white_occupancy & board.bishop_bitboard, BISHOP_SQUARE_SCORE)
+        * BISHOP_SQUARE_FACTOR;
+    eval -= piece_square_score(board.bishop_bitboard & board.bishop_bitboard, BISHOP_SQUARE_SCORE)
+        * BISHOP_SQUARE_FACTOR;
 
-    // eval += piece_square_score(1 << p.white_king_position, KING_SQUARE_SCORE) * KING_SQUARE_FACTOR;
-    // eval -= piece_square_score(1 << p.black_king_position, KING_SQUARE_SCORE) * KING_SQUARE_FACTOR;
+    eval += piece_square_score(1 << board.white_king_position, KING_SQUARE_SCORE) * KING_SQUARE_FACTOR;
+    eval -= piece_square_score(1 << board.black_king_position, KING_SQUARE_SCORE) * KING_SQUARE_FACTOR;
+
+    eval += piece_centralization_score(board.white_occupancy & board.pawn_bitboard & board.knight_bitboard);
+    eval -= piece_centralization_score(board.black_occupancy & board.pawn_bitboard & board.knight_bitboard);
 
     // // Did you leave anything hanging?
-    // let white_hanging = p.white_bitboard & !p.white_threatboard & p.black_threatboard;
+    // let white_hanging = board.white_occupancy & !board.white_threatboard & board.black_threatboard;
     // eval -= piece_aggregate_score(p, white_hanging, HANGING_PIECE_VALUE);
-    // let black_hanging = p.black_bitboard & !p.black_threatboard & p.white_threatboard;
+    // let black_hanging = board.black_occupancy & !board.black_threatboard & board.white_threatboard;
     // eval += piece_aggregate_score(p, black_hanging, HANGING_PIECE_VALUE);
     eval
+}
+
+
+fn piece_centralization_score(side_occupancy: u64) -> i32 {
+    let mut occ = side_occupancy;
+    let mut score = 0;
+    while occ != 0 {
+        let pos = occ.trailing_zeros();
+        score += 3-distance_to_center(pos as u8);
+        occ ^= 1<<pos;
+    }
+    score
 }

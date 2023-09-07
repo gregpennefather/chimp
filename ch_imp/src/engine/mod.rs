@@ -13,7 +13,7 @@ pub mod move_orderer;
 pub mod perft;
 pub mod san;
 
-const MAX_EXTENSIONS: u8 = 2;
+const MAX_EXTENSIONS: i8 = 2;
 
 pub struct ChimpEngine {
     pub current_game_state: GameState,
@@ -212,13 +212,13 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
 pub fn ab_search(
     game_state: &GameState,
     priority_moves: Vec<Move>,
-    depth: u8,
+    depth: i8,
     timeout: Instant,
-    total_extensions: u8,
+    total_extensions: i8,
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
-    if depth == 0 || game_state.result_state != MatchResultState::Active {
+    if depth <= 0 || game_state.result_state != MatchResultState::Active {
         return match game_state.result_state {
             MatchResultState::Draw => Ok((vec![], 0, 0)),
             MatchResultState::WhiteVictory => Ok((vec![], i32::MAX - 1, i32::MAX - 1)),
@@ -256,19 +256,22 @@ pub fn ab_search(
         moves.sort_by(|a: &Move, b| move_orderer::priority_cmp(a, b, &priority_moves));
         moves
     };
-    for &test_move in &ordered_moves {
-        if test_move.is_empty() {
-            break;
-        }
+    for move_index in 0..ordered_moves.len() {
+        let test_move = ordered_moves[move_index];
         let new_state = match game_state.make(test_move) {
             Some(new_state) => new_state,
             None => continue,
         };
-        let extensions = if depth == 1 {
+        let mut extensions: i8 = if depth == 1 {
             get_extensions(&new_state, test_move, total_extensions)
         } else {
             0
         };
+
+        // if move_index >= 5 {
+        //     extensions -= 1; // Lower priority moves get a less deep search
+        // }
+
         let (path, node_eval, result_eval) = match ab_search(
             &new_state,
             vec![],
@@ -351,7 +354,7 @@ pub fn ab_search(
     ))
 }
 
-fn get_extensions(new_state: &GameState, test_move: Move, total_extensions: u8) -> u8 {
+fn get_extensions(new_state: &GameState, test_move: Move, total_extensions: i8) -> i8 {
     if total_extensions >= MAX_EXTENSIONS {
         return 0;
     }
