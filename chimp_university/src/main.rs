@@ -121,7 +121,7 @@ fn main() {
 
     //GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
 
-    //debug_deepening("rnbqkbnr/pppppppp/8/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R b KQkq - 2 5".into(), 5000);
+    //debug_deepening("1k1r4/pp1b1R2/3q2pp/4p3/2B5/4Q3/PPP2B2/2K5 b - -".into(), 5000);
     //debug_deepening("r1bqkbnr/pppppppp/2n5/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R w KQkq - 3 6".into(), 5000);
 
     //  debug_search(

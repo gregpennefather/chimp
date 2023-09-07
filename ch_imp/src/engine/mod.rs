@@ -13,7 +13,9 @@ pub mod move_orderer;
 pub mod perft;
 pub mod san;
 
-const MAX_EXTENSIONS: i8 = 2;
+const MAX_EXTENSIONS: i8 = 4;
+const WHITE_WIN_THRESHOLD : i32 = i32::MAX-5;
+const BLACK_WIN_THRESHOLD : i32 = i32::MIN+5;
 
 pub struct ChimpEngine {
     pub current_game_state: GameState,
@@ -100,13 +102,13 @@ impl ChimpEngine {
             if btime < binc {
                 binc / 3 * 2
             } else {
-                i32::max(binc-50, i32::min(btime/20, binc + btime / 12))
+                i32::max(binc - 50, i32::min(btime / 20, binc + btime / 12))
             }
         } else {
             if wtime < winc {
                 winc / 3 * 2
             } else {
-                i32::max(winc-50, i32::min(wtime/20, winc + wtime / 12))
+                i32::max(winc - 50, i32::min(wtime / 20, winc + wtime / 12))
             }
         };
         info!(
@@ -178,6 +180,13 @@ pub fn iterative_deepening(game_state: GameState, timeout: Instant) -> (Move, Op
             t_time.elapsed(),
             output_r
         );
+
+        if (!game_state.position.board.black_turn && output_r.2 > WHITE_WIN_THRESHOLD)
+            || (game_state.position.board.black_turn && output_r.2 < BLACK_WIN_THRESHOLD)
+        {
+            break;
+        }
+
         cur_time = Instant::now();
     }
 
@@ -258,11 +267,7 @@ pub fn ab_search(
             Some(new_state) => new_state,
             None => continue,
         };
-        let mut extensions: i8 = if depth == 1 {
-            get_extensions(&new_state, test_move, total_extensions)
-        } else {
-            0
-        };
+        let extensions: i8 = get_extensions(&new_state, test_move, total_extensions);
 
         // if move_index >= 5 {
         //     extensions -= 1; // Lower priority moves get a less deep search

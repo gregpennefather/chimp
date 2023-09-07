@@ -51,7 +51,7 @@ impl GameState {
 
         // let from_file = char_from_file(get_file(m.from()));
         // r = format!("{r}{from_file}");
-        if moves_targeting_square.len() > 1 {
+        if moves_targeting_square.len() > 1 && piece_type != PieceType::Pawn{
             let from_rank = get_rank(m.from()) + 1;
             r = format!("{r}{from_rank}");
         }
@@ -111,4 +111,13 @@ mod test {
         let m = Move::new(index_from_coords("d6"), index_from_coords("d1"), 0b0, PieceType::Queen, true);
         assert_eq!(game_state.to_san(m), "Qd1+");
     }
+
+    #[test]
+    fn do_not_include_from_rank_if_piece_is_pawn() {
+        let game_state = GameState::new("2q1rr1k/3bbnnp/p2p1pp1/2pPp3/PpP1P1P1/1P2BNNP/2BQ1PRK/7R b - -".into());
+        let m = Move::new(index_from_coords("f6"), index_from_coords("f5"), 0b0, PieceType::Pawn, true);
+        assert_eq!(game_state.to_san(m), "f5");
+    }
+
+
 }
