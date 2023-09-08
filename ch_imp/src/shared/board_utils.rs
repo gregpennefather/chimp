@@ -54,6 +54,17 @@ pub fn get_coords_from_index(index: u8) -> String {
     format!("{}{rank}", char_from_file(file))
 }
 
+// Returns a position on blacks board as though they were white. So H8 becomes 0, E8 becomes 3, A8 becomes 7 etc
+pub fn mirror_position(index: u8) -> u8 {
+    let rank = get_rank(index);
+    let file = get_file(index);
+    return get_index_from_file_and_rank(file, 7-rank)
+}
+
+pub fn reverse_position(index: u8) -> u8 {
+    63-index
+}
+
 pub fn get_direction_to_normalized(from: u8, to: u8) -> i8 {
     let mut rank_delta:i8 = (to as i8 / 8) - (from as i8 / 8);
     let mut file_delta:i8 = (to as i8 % 8) - (from as i8 % 8);
@@ -78,5 +89,12 @@ mod test {
             get_direction_to_normalized(index_from_coords("e8"), index_from_coords("e4")),
             8
         )
+    }
+
+    #[test]
+    fn mirror_position_tests() {
+        assert_eq!(mirror_position(63), 7);
+        assert_eq!(mirror_position(59), 3);
+        assert_eq!(mirror_position(52), 12);
     }
 }

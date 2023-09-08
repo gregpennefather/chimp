@@ -8,6 +8,7 @@ mod endgame;
 mod eval_precomputed_data;
 mod opening;
 mod utils;
+pub mod pawn_structure;
 
 const MAX_PHASE_MATERIAL_SCORE: i32 = 24;
 

@@ -5,7 +5,7 @@ use ch_imp::{
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
     match_state::game_state::{self, GameState, MatchResultState},
     shared::board_utils::get_index_from_file_and_rank,
-    testing::test_engine,
+    testing::test_engine, evaluation::pawn_structure::build_pawn_frontspan_board,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -111,11 +111,10 @@ fn main() {
     //     println!("{:?}:{:?}", gs.to_san(m), m);
     // }
 
-    // let bitboard = 0.set(27).set(28).set(35).set(36);
-    // println!("{}", bitboard.to_board_format());
-    // println!("{}", bitboard);
+    //println!("{:?}", [0.set_file(7), 0.set_file(6), 0.set_file(5), 0.set_file(4), 0.set_file(3), 0.set_file(2), 0.set_file(1), 0.set_file(0)]);
 
-    // let game_state = GameState::new("rnbqkbnr/ppppp1p1/5pQ1/7p/8/4P3/PPPP1PPP/RNB1KBNR b KQkq - 1 3".into());
+    //build_pawn_frontspan_board();
+    let game_state = GameState::new("rkbq3r/1p1p1p1p/2n2n2/2b5/2B1P3/2N2N2/P1PP1P1P/R1BQ1RK1 w - - 0 1".into());
     // println!("{:?}", game_state.result_state());
 
     //debug_evals("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into());
@@ -138,7 +137,7 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    park_table();
+    //park_table();
     //test_engine();
 }
 
@@ -300,14 +299,14 @@ fn park_table() {
     let mut engine: ChimpEngine = ChimpEngine::new();
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 60000;
-    let mut black_ms = 60000;
+    let mut white_ms = 30000;
+    let mut black_ms = 30000;
     let inc_ms = 2000;
     info!("Park Table:");
     for _i in 0..200 {
         let timer = Instant::now();
         let (m, ponder) = if _i == 0 || _i == 1 {
-            engine.go(10000, 10000, -1, -1)
+            engine.go(5000, 5000, -1, -1)
         } else {
             engine.go(white_ms, black_ms, inc_ms, inc_ms)
         };

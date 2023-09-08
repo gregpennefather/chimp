@@ -5,14 +5,14 @@ use crate::{
     },
     r#move::{Move, move_generation::generate_queen_moves},
     shared::{
-        board_utils::{get_file, get_rank},
+        board_utils::{get_file, get_rank, mirror_position, reverse_position},
         piece_type::PieceType,
     },
 };
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
-    utils::*,
+    utils::*, pawn_structure::get_pawn_structure_metrics,
 };
 
 static MATERIAL_VALUES: PieceValues = [
@@ -72,6 +72,8 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
 ];
 static UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 3;
 
+static DOUBLED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 4;
+
 pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64) -> i32 {
     let mut eval = 0;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
@@ -128,6 +130,14 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
 
     eval -= king_openness(board.white_king_position, board);
     eval += king_openness(board.black_king_position, board);
+
+    let white_pawn_structure = get_pawn_structure_metrics(board.white_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.white_king_position);
+    println!("{white_pawn_structure:?}");
+    eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
+    let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).reverse_bits(), reverse_position(board.black_king_position));
+    eval += black_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
+    println!("{black_pawn_structure:?}");
+
 
 
     // eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));

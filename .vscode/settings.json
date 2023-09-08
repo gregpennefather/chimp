@@ -15,6 +15,7 @@
         "chebyshev",
         "dualing",
         "flexi",
+        "frontspan",
         "MOVEBOARDS",
         "NBQKBNR",
         "perft",
