@@ -6,7 +6,7 @@ use crate::shared::{
         MF_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
         MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
     },
-    piece_type::{get_piece_char, PieceType},
+    piece_type::{get_piece_char, PieceType, PIECE_TYPE_EXCHANGE_VALUE},
 };
 use core::fmt::Debug;
 use std::cmp::Ordering;
@@ -17,7 +17,11 @@ pub mod move_magic_bitboards;
 pub mod move_segment;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct Move(u16, PieceType, bool);
+pub struct Move(u16, PieceType, bool, i8);
+
+fn calculate_see(a: PieceType, b: PieceType) -> i8 {
+    PIECE_TYPE_EXCHANGE_VALUE[b as usize] - PIECE_TYPE_EXCHANGE_VALUE[a as usize]
+}
 
 impl Move {
     pub fn new(
@@ -26,11 +30,12 @@ impl Move {
         flags: u16,
         piece_type: PieceType,
         is_black: bool,
+        see_value: i8,
     ) -> Move {
         let f: u16 = from_index.into();
         let t: u16 = to_index.into();
         let m: u16 = f << 10 | t << 4 | flags;
-        Move(m, piece_type, is_black)
+        Move(m, piece_type, is_black, see_value)
     }
 
     pub fn from(&self) -> u8 {
@@ -76,6 +81,14 @@ impl Move {
 
     pub fn is_double_pawn_push(&self) -> bool {
         self.flags() == MF_DOUBLE_PAWN_PUSH
+    }
+
+    pub fn is_quiet(&self) -> bool {
+        self.3 == 0
+    }
+
+    pub fn see(&self) -> i8 {
+        self.3
     }
 
     pub fn uci(&self) -> String {
@@ -127,9 +140,16 @@ impl Debug for Move {
 
 impl PartialOrd for Move {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        // Flag priority (Promotion Captures -> Promotions -> EP Capture -> Captures -> Castling -> DPP -> Quiet)
         let flags_result = other.flags().cmp(&self.flags());
         if flags_result != Ordering::Equal {
             return Some(flags_result);
+        }
+
+        // Better SEE
+        let see_result = self.3.cmp(&other.see());
+        if see_result != Ordering::Equal {
+            return Some(see_result);
         }
 
         // Check Pawn captures first
@@ -168,14 +188,17 @@ impl Ord for Move {
 #[cfg(test)]
 mod test {
     use crate::{
-        r#move::Move,
-        shared::{constants::MF_CAPTURE, piece_type::PieceType},
+        r#move::{calculate_see, Move},
+        shared::{
+            constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_QUEEN_PROMOTION},
+            piece_type::PieceType,
+        },
     };
 
     #[test]
     pub fn order_will_prioritize_greater_valued_flags() {
-        let m1 = Move::new(2, 4, 1, PieceType::Queen, false);
-        let m2 = Move::new(2, 4, 15, PieceType::Queen, false);
+        let m1 = Move::new(2, 4, MF_DOUBLE_PAWN_PUSH, PieceType::Queen, false, 0);
+        let m2 = Move::new(2, 4, MF_QUEEN_PROMOTION, PieceType::Queen, false, 0);
 
         let mut vec = vec![m1, m2];
         vec.sort();
@@ -185,8 +208,8 @@ mod test {
 
     #[test]
     pub fn order_will_prioritize_greater_valued_pieces() {
-        let m1 = Move::new(2, 4, 1, PieceType::Pawn, false);
-        let m2 = Move::new(2, 4, 1, PieceType::Queen, false);
+        let m1 = Move::new(2, 4, 0b0, PieceType::Pawn, false, 0);
+        let m2 = Move::new(2, 4, 0b0, PieceType::Queen, false, 0);
 
         let mut vec = vec![m1, m2];
         vec.sort();
@@ -196,12 +219,52 @@ mod test {
 
     #[test]
     pub fn order_moves_case_capture_over_quiet() {
-        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true);
-        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true);
+        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 2);
+        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true, 0);
         let mut moves = vec![quiet, capture];
 
         moves.sort();
         assert_eq!(moves[0], capture);
         assert_eq!(moves[1], quiet);
+    }
+
+    #[test]
+    pub fn order_moves_case_better_exchange_value_first() {
+        let pawn_takes_pawn = Move::new(
+            12,
+            19,
+            MF_CAPTURE,
+            PieceType::Pawn,
+            false,
+            calculate_see(PieceType::Pawn, PieceType::Pawn),
+        );
+        let pawn_takes_knight = Move::new(
+            12,
+            21,
+            MF_CAPTURE,
+            PieceType::Pawn,
+            false,
+            calculate_see(PieceType::Pawn, PieceType::Knight),
+        );
+        let mut moves = vec![pawn_takes_pawn, pawn_takes_knight];
+
+        moves.sort();
+        assert_eq!(moves[0], pawn_takes_pawn);
+        assert_eq!(moves[1], pawn_takes_knight);
+    }
+
+    #[test]
+    pub fn calculate_see_pawn_takes_queen() {
+        assert_eq!(calculate_see(PieceType::Pawn, PieceType::Queen), 4);
+    }
+
+    #[test]
+    pub fn calculate_see_queen_takes_rook() {
+        assert_eq!(calculate_see(PieceType::Queen, PieceType::Rook), -1);
+    }
+
+    #[test]
+    pub fn calculate_see_queen_takes_queen() {
+        assert_eq!(calculate_see(PieceType::Queen, PieceType::Queen), 0);
     }
 }

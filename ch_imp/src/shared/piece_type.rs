@@ -1,3 +1,5 @@
+pub(crate) const PIECE_TYPE_EXCHANGE_VALUE : [i8;7] = [0, 1, 3, 3, 4, 5, 25];
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PieceType {
     None = 0,
@@ -7,6 +9,12 @@ pub enum PieceType {
     Rook = 4,
     Queen = 5,
     King = 6,
+}
+
+impl Into::<usize> for PieceType {
+    fn into(self) -> usize {
+        self as usize
+    }
 }
 
 impl Default for PieceType {

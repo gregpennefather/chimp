@@ -122,21 +122,24 @@ fn main() {
 
     //GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
 
-    //debug_deepening("1k1r4/pp1b1R2/3q2pp/4p3/2B5/4Q3/PPP2B2/2K5 b - -".into(), 5000);
+    //debug_deepening("rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(), 1000);
+
+
+
     //debug_deepening("r1bqkbnr/pppppppp/2n5/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R w KQkq - 3 6".into(), 5000);
 
-    //  debug_search(
-    //      "r1bq1k1r/pppp1ppp/2n2n2/4p1N1/8/2P1PQ2/P1PP1PPP/1RB1KB1R b K - 2 7".into(),
-    //      2,
-    //  );
+    // debug_search(
+    //     "rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(),
+    //     8,
+    // );
 
     //println!("{r:?}");
 
     //timed_depth_test();
     //target_depth_test();
 
-    park_table();
-    //test_engine();
+    //park_table();
+    test_engine();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {

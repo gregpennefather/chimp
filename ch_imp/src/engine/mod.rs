@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
+use crate::shared::board_utils::get_rank;
+use crate::shared::piece_type::PieceType;
 use crate::{
     match_state::game_state::{GameState, MatchResultState},
     r#move::Move,
@@ -15,13 +17,13 @@ pub mod move_orderer;
 pub mod perft;
 pub mod san;
 
-const MAX_EXTENSIONS: i8 = 4;
+const MAX_EXTENSIONS: i8 = 8;
 const WHITE_WIN_THRESHOLD: i32 = i32::MAX - 5;
 const BLACK_WIN_THRESHOLD: i32 = i32::MIN + 5;
 
 pub struct ChimpEngine {
     pub current_game_state: GameState,
-    moves: Vec<Move>
+    moves: Vec<Move>,
 }
 
 impl ChimpEngine {
@@ -31,7 +33,7 @@ impl ChimpEngine {
         let moves = Vec::new();
         Self {
             current_game_state,
-            moves
+            moves,
         }
     }
 
@@ -40,7 +42,7 @@ impl ChimpEngine {
         let moves = Vec::new();
         Self {
             current_game_state,
-            moves
+            moves,
         }
     }
 
@@ -136,9 +138,12 @@ impl ChimpEngine {
         binc: i32,
         ponder_moves: Vec<Move>,
     ) -> (Move, Option<Move>) {
-
-        let ms =  if ponder_moves.len() >= 6 {
-            if self.black_turn() { binc } else { winc }
+        let ms = if ponder_moves.len() >= 6 {
+            if self.black_turn() {
+                binc
+            } else {
+                winc
+            }
         } else if self.current_game_state.position.board.black_turn {
             if btime < binc {
                 binc / 3 * 2
@@ -152,7 +157,6 @@ impl ChimpEngine {
                 i32::max(winc - 50, i32::min(wtime / 20, winc + wtime / 12))
             }
         };
-
 
         info!(
             "{}: go postponder {} {wtime} {btime} {winc} {binc} => {ms:?}",
@@ -185,13 +189,12 @@ impl ChimpEngine {
         let mut mut_pondering = binding.lock().unwrap();
         *mut_pondering = false;
         let len = self.moves.len();
-        let pre_ponder_moves = self.moves[0..len-1].to_vec();
+        let pre_ponder_moves = self.moves[0..len - 1].to_vec();
         self.current_game_state = GameState::default();
         self.moves = vec![];
         for m in pre_ponder_moves {
             self.add_move(&m.uci());
         }
-
     }
 
     pub fn ponder_hit(&self) {
@@ -214,7 +217,11 @@ impl ChimpEngine {
     }
 }
 
-pub fn iterative_deepening(game_state: GameState, timeout: Instant, pondered_moves: Vec<Move>) -> (Move, Option<Move>) {
+pub fn iterative_deepening(
+    game_state: GameState,
+    timeout: Instant,
+    pondered_moves: Vec<Move>,
+) -> (Move, Option<Move>) {
     let mut depth = pondered_moves.len() as i8;
 
     let mut output_r = (
@@ -334,13 +341,16 @@ pub fn ab_search(
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
-    if depth <= 0 || game_state.result_state != MatchResultState::Active {
+    if game_state.result_state != MatchResultState::Active {
         return match game_state.result_state {
-            MatchResultState::Draw => Ok((vec![], 0, 0)),
             MatchResultState::WhiteVictory => Ok((vec![], i32::MAX - 1, i32::MAX - 1)),
             MatchResultState::BlackVictory => Ok((vec![], i32::MIN + 1, i32::MIN + 1)),
             _ => Ok((vec![], game_state.position.eval, game_state.position.eval)),
         };
+    }
+
+    if depth <= 0 {
+        return quiescence_search(game_state, timeout, alpha, beta);
     }
 
     let now: Instant = Instant::now();
@@ -595,6 +605,99 @@ pub fn ponder_search(
     ))
 }
 
+fn quiescence_search(
+    game_state: &GameState,
+    timeout: Instant,
+    mut alpha: i32, // maximize
+    mut beta: i32,
+) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
+    let capture_moves: Vec<Move> = game_state
+        .position
+        .moves
+        .clone()
+        .into_iter()
+        .filter(|m| !m.is_quiet())
+        .collect();
+
+    if capture_moves.len() == 0 {
+        return Ok((vec![], game_state.position.eval, game_state.position.eval));
+    }
+
+    let now: Instant = Instant::now();
+    if now > timeout {
+        return Ok(if game_state.position.board.black_turn {
+            (vec![], i32::MIN + 1, i32::MIN + 1)
+        } else {
+            (vec![], i32::MAX - 1, i32::MAX - 1)
+        });
+    }
+
+    let mut chosen_move = Move::default();
+    let mut chosen_move_eval = if !game_state.position.board.black_turn {
+        i32::MIN
+    } else {
+        i32::MAX
+    };
+    let mut next_node_eval = 0;
+    let mut move_history = Vec::new();
+
+    for m in capture_moves {
+        let new_state = match game_state.make(m) {
+            Some(new_state) => new_state,
+            None => continue,
+        };
+
+        let (path, node_eval, result_eval) =
+            match quiescence_search(&new_state, timeout, alpha, beta) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("{e}");
+                    panic!("{e}")
+                }
+            };
+
+        let now = Instant::now();
+        if now > timeout {
+            if !chosen_move.is_empty() {
+                break;
+            }
+        }
+
+        if !game_state.position.board.black_turn {
+            if result_eval > chosen_move_eval {
+                chosen_move = m;
+                chosen_move_eval = result_eval;
+                next_node_eval = node_eval;
+                move_history = path;
+            }
+            alpha = i32::max(alpha, chosen_move_eval);
+            if beta <= alpha {
+                break;
+            }
+        } else {
+            if result_eval < chosen_move_eval {
+                chosen_move = m;
+                chosen_move_eval = result_eval;
+                next_node_eval = node_eval;
+                move_history = path;
+            }
+            beta = i32::min(beta, chosen_move_eval);
+            if beta <= alpha {
+                break;
+            }
+        }
+    }
+
+    let mut final_move_history = vec![(chosen_move, next_node_eval)];
+    final_move_history.extend(move_history);
+
+    Ok((
+        final_move_history,
+        game_state.position.eval,
+        chosen_move_eval,
+    ))
+}
+
 fn get_extensions(new_state: &GameState, test_move: Move, total_extensions: i8) -> i8 {
     if total_extensions >= MAX_EXTENSIONS {
         return 0;
@@ -603,7 +706,8 @@ fn get_extensions(new_state: &GameState, test_move: Move, total_extensions: i8) 
         return 1;
     }
 
-    if test_move.is_capture() {
+    let m_rank = get_rank(test_move.to());
+    if test_move.piece_type() == PieceType::Pawn && (m_rank == 1 || m_rank == 6) {
         return 1;
     }
     return 0;

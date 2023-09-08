@@ -137,7 +137,7 @@ mod test {
     #[test]
     fn simple_situation_startpos_e4() {
         let game_state = GameState::default();
-        let m = Move::new(index_from_coords("e2"), index_from_coords("e4"), MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false);
+        let m = Move::new(index_from_coords("e2"), index_from_coords("e4"), MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false,0);
 
         assert_eq!(game_state.to_san(m), "e4");
     }
@@ -145,7 +145,7 @@ mod test {
     #[test]
     fn simple_situation_startpos_knight_to_f3() {
         let game_state = GameState::default();
-        let m = Move::new(index_from_coords("g1"), index_from_coords("f3"), 0b0, PieceType::Knight, false);
+        let m = Move::new(index_from_coords("g1"), index_from_coords("f3"), 0b0, PieceType::Knight, false,0);
 
         assert_eq!(game_state.to_san(m), "Nf3");
     }
@@ -153,21 +153,21 @@ mod test {
     #[test]
     fn capture_with_multiple_possible_attack_pieces() {
         let game_state = GameState::new("3r2k1/p2r1p1p/1p2p1p1/q4n2/3P4/PQ5P/1P1RNPP1/3R2K1 b - -".into());
-        let m = Move::new(index_from_coords("f5"), index_from_coords("d4"), MF_CAPTURE, PieceType::Knight, true);
+        let m = Move::new(index_from_coords("f5"), index_from_coords("d4"), MF_CAPTURE, PieceType::Knight, true,0);
         assert_eq!(game_state.to_san(m), "Nxd4");
     }
 
     #[test]
     fn show_the_move_is_check() {
         let game_state = GameState::new("1k1r4/pp1b1R2/3q2pp/4p3/2B5/4Q3/PPP2B2/2K5 b - - 0 1".into());
-        let m = Move::new(index_from_coords("d6"), index_from_coords("d1"), 0b0, PieceType::Queen, true);
+        let m = Move::new(index_from_coords("d6"), index_from_coords("d1"), 0b0, PieceType::Queen, true,0);
         assert_eq!(game_state.to_san(m), "Qd1+");
     }
 
     #[test]
     fn do_not_include_from_rank_if_piece_is_pawn() {
         let game_state = GameState::new("2q1rr1k/3bbnnp/p2p1pp1/2pPp3/PpP1P1P1/1P2BNNP/2BQ1PRK/7R b - -".into());
-        let m = Move::new(index_from_coords("f6"), index_from_coords("f5"), 0b0, PieceType::Pawn, true);
+        let m = Move::new(index_from_coords("f6"), index_from_coords("f5"), 0b0, PieceType::Pawn, true,0);
         assert_eq!(game_state.to_san(m), "f5");
     }
 

@@ -28,8 +28,8 @@ mod test {
 
     #[test]
     pub fn order_priority_move_to_top() {
-        let priority_move = Move::new(2, 4, 1, PieceType::Queen, false);
-        let mut moves = vec![Move::new(0, 1, 0, PieceType::Pawn, false), priority_move];
+        let priority_move = Move::new(2, 4, 1, PieceType::Queen, false, 0);
+        let mut moves = vec![Move::new(0, 1, 0, PieceType::Pawn, false, 0), priority_move];
         moves.sort_by(|a, b| priority_cmp(a, b, &vec![priority_move]));
         assert_eq!(moves[0], priority_move);
     }
