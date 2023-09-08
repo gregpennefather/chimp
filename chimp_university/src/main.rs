@@ -138,8 +138,8 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    //park_table();
-    test_engine();
+    park_table();
+    //test_engine();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {

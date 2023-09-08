@@ -106,13 +106,13 @@ impl ChimpEngine {
             if btime < binc {
                 binc / 3 * 2
             } else {
-                i32::max(binc - 50, i32::min(btime / 20, binc + btime / 12))
+                i32::max(binc - 50, i32::min(btime / 10, binc + (btime / 12)))
             }
         } else {
             if wtime < winc {
                 winc / 3 * 2
             } else {
-                i32::max(winc - 50, i32::min(wtime / 20, winc + wtime / 12))
+                i32::max(winc - 50, i32::min(wtime / 10, winc + (wtime / 12)))
             }
         };
         info!(
@@ -390,22 +390,59 @@ pub fn ab_search(
         //     extensions -= 1; // Lower priority moves get a less deep search
         // }
 
-        let (path, node_eval, result_eval) = match ab_search(
-            &new_state,
-            &priority_moves,
-            depth - 1 + extensions,
-            ply + 1,
-            timeout,
-            total_extensions + extensions,
-            alpha,
-            beta,
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("{e}");
-                panic!("{e}")
+        let mut full_search = true;
+        let mut shallow_eval = (Vec::new(), 0, 0);
+
+        // Attempt to reduce the search depth
+        if extensions == 0 && depth >= 2 && move_index >= 4 && test_move.is_quiet() {
+            full_search = false;
+            shallow_eval = match ab_search(
+                &new_state,
+                &priority_moves,
+                depth - 1 - 1,
+                ply + 1,
+                timeout,
+                total_extensions + 0,
+                alpha,
+                beta,
+            ) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("{e}");
+                    panic!("{e}")
+                }
+            };
+
+            // If the shallow eval is better than our current move redo the search with full depth
+            if !game_state.position.board.black_turn && shallow_eval.2 > chosen_move_eval {
+                full_search = true;
+            } else if shallow_eval.2 < chosen_move_eval {
+                full_search = true;
             }
+        }
+
+        // if we dont need to redo a full search return the partial_search
+        let (path, node_eval, result_eval) = if full_search {
+             match ab_search(
+                &new_state,
+                &priority_moves,
+                depth - 1 + extensions,
+                ply + 1,
+                timeout,
+                total_extensions + extensions,
+                alpha,
+                beta,
+            ) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("{e}");
+                    panic!("{e}")
+                }
+            }
+        } else {
+            shallow_eval
         };
+
 
         let now = Instant::now();
         if now > timeout {
