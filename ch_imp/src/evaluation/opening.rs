@@ -1,7 +1,13 @@
 use crate::{
-    board::{bitboard::Bitboard, board_rep::BoardRep, position::Position},
-    r#move::Move,
-    shared::{piece_type::PieceType, board_utils::{get_rank, get_file}},
+    board::{
+        bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::KingPositionAnalysis,
+        position::Position,
+    },
+    r#move::{Move, move_generation::generate_queen_moves},
+    shared::{
+        board_utils::{get_file, get_rank},
+        piece_type::PieceType,
+    },
 };
 
 use super::{
@@ -120,13 +126,15 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval += king_tropism(board.white_king_position, board.black_occupancy, board);
     eval -= king_tropism(board.black_king_position, board.white_occupancy, board);
 
+    eval -= king_openness(board.white_king_position, board);
+    eval += king_openness(board.black_king_position, board);
+
+
     // eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));
     // eval -= simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));
 
     eval
 }
-
-
 
 fn piece_centralization_score(side_occupancy: u64) -> i32 {
     let mut occ = side_occupancy;
@@ -162,9 +170,7 @@ fn king_tropism(king_pos: u8, opponent_occupancy: u64, board: BoardRep) -> i32 {
         let pos = occ.trailing_zeros() as u8;
         let sc = match board.get_piece_type_at_index(pos) {
             PieceType::Knight => chebyshev_distance(pos as i8, king_pos as i8),
-            PieceType::Bishop | PieceType::Rook => {
-                chebyshev_distance(pos as i8, king_pos as i8)
-            }
+            PieceType::Bishop | PieceType::Rook => chebyshev_distance(pos as i8, king_pos as i8),
             PieceType::Queen => chebyshev_distance(pos as i8, king_pos as i8) * 2,
             PieceType::Pawn | PieceType::King => 0, // Should never happen
             PieceType::None => panic!("Unknown piece type"),
@@ -173,6 +179,19 @@ fn king_tropism(king_pos: u8, opponent_occupancy: u64, board: BoardRep) -> i32 {
         occ ^= 1 << pos;
     }
     score
+}
+
+// King openness is a penalty for each square the king could reach if they were a queen
+fn king_openness(king_pos: u8, board: BoardRep) -> i32 {
+    let possible_queen_moves = generate_queen_moves(
+        king_pos,
+        board,
+        0,
+        board.occupancy,
+        false,
+        None,
+    );
+    possible_queen_moves.len() as i32
 }
 
 fn simple_pawn_shield_score(is_black: bool, king_position: u8, pawn_occupancy: u64) -> i32 {
@@ -193,7 +212,7 @@ fn simple_pawn_shield_score(is_black: bool, king_position: u8, pawn_occupancy: u
     score += match king_rank {
         0 | 1 | 7 => 1,
         2 | 6 => 2,
-        _ => 0
+        _ => 0,
     };
 
     //let rank_1_shield_mask = if is_black + king_position +

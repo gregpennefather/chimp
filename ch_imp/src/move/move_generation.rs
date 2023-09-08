@@ -299,7 +299,7 @@ fn generate_king_moves(
     moves
 }
 
-fn generate_queen_moves(
+pub(crate) fn generate_queen_moves(
     index: u8,
     board: BoardRep,
     opponent_occupancy: u64,
