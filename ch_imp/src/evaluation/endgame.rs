@@ -70,5 +70,5 @@ pub fn calculate(board: BoardRep) -> i32 {
 fn mop_up_score(king_pos: u8, b_king_pos: u8) -> i32 {
     let cmd = manhattan_distance_to_center(king_pos);
     let md = manhattan_distance(king_pos as i8, b_king_pos as i8) as i32;
-    (4 * cmd) + (1 * (14 - md))
+    (4 * cmd) + (14 - md)
 }

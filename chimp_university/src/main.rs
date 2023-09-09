@@ -140,7 +140,7 @@ fn main() {
     // ];
     // println!("{rank3:?}");
 
-    //let game_state = GameState::new("rnbq1rk1/ppp1bppp/3p1n2/4p3/2B1P3/2N2NP1/PPPP1P1P/R1BQ1RK1 b - - 0 6".into());
+    let game_state = GameState::new("8/5p2/8/p1p3P1/P1P5/7P/1P6/8 w - - 0 1".into());
     // println!("{:?}", game_state.result_state());
 
     //debug_evals("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into());
@@ -163,7 +163,7 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    park_table();
+    //park_table();
     //test_engine();
 }
 

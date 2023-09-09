@@ -7,7 +7,7 @@ use crate::{
     shared::{
         board_utils::{get_file, get_rank, reverse_position_orientation, reverse_position},
         piece_type::PieceType,
-    },
+    }, evaluation::pawn_structure::{get_backward_pawns, get_open_pawns, get_straggler_pawns, get_passed_pawns},
 };
 
 use super::{
@@ -15,7 +15,7 @@ use super::{
     utils::*, pawn_structure::get_pawn_structure_metrics,
 };
 
-static MATERIAL_VALUES: PieceValues = [
+const MATERIAL_VALUES: PieceValues = [
     100, // Pawn
     300, // Knight
     300, // Bishop
@@ -24,7 +24,7 @@ static MATERIAL_VALUES: PieceValues = [
     0,   // King
 ];
 
-static HANGING_PIECE_VALUE: PieceValues = [
+const HANGING_PIECE_VALUE: PieceValues = [
     MATERIAL_VALUES[0] / 2, // Pawn
     MATERIAL_VALUES[1] / 2, // Knight
     MATERIAL_VALUES[2] / 2, // Bishop
@@ -33,29 +33,29 @@ static HANGING_PIECE_VALUE: PieceValues = [
     0,                      // King
 ];
 
-static WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
+const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
     2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-static BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
+const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-static PAWN_SQUARE_FACTOR: i32 = 2;
+const PAWN_SQUARE_FACTOR: i32 = 2;
 
-static KNIGHT_SQUARE_SCORE: PieceValueBoard = [
+const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-static KNIGHT_SQUARE_FACTOR: i32 = 2;
+const KNIGHT_SQUARE_FACTOR: i32 = 2;
 
-static BISHOP_SQUARE_SCORE: PieceValueBoard = [
+const BISHOP_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 3, 0, 0, 0, 0, 3, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-static BISHOP_SQUARE_FACTOR: i32 = 2;
+const BISHOP_SQUARE_FACTOR: i32 = 2;
 
 const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 2, 3, 3, 2, 1, 1,
@@ -70,10 +70,12 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Bishop, 5),
     (PieceType::Knight, 6),
 ];
-static UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 3;
+const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 3;
 
-static DOUBLED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 4;
-static ISOLATED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 10;
+const DOUBLED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 4;
+const ISOLATED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 10;
+const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
+
 
 pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64) -> i32 {
     let mut eval = 0;
@@ -114,6 +116,10 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
         board.black_occupancy & board.pawn_bitboard & board.knight_bitboard,
     );
 
+    // Double Bishop reward
+    eval += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 { DOUBLE_BISHOP_REWARD } else { 0 };
+    eval -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 { DOUBLE_BISHOP_REWARD } else { 0 };
+
     eval += under_developed_penalty(board, board.white_occupancy);
     eval -= under_developed_penalty(board, board.black_occupancy.reverse_bits());
 
@@ -133,6 +139,9 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval += king_openness(board.black_king_position, board);
 
     let white_pawn_structure = get_pawn_structure_metrics(board.white_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.white_king_position);
+
+    println!("wafs:\n{}", white_pawn_structure.attack_frontspan.to_board_format());
+
     eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
     eval -= white_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
     eval += white_pawn_structure.pawn_shield as i32;
@@ -141,6 +150,17 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval += black_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
     eval -= black_pawn_structure.pawn_shield as i32;
 
+    let white_backward_pawns = get_backward_pawns(board.pawn_bitboard & board.white_occupancy, white_pawn_structure.attack_frontspan, black_pawn_structure.attack_frontspan.flip_orientation());
+    println!("{}", white_backward_pawns.to_board_format());
+
+    let white_open_pawns = get_open_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation());
+    println!("{}", white_open_pawns.to_board_format());
+
+    let stragglers = get_straggler_pawns(white_backward_pawns, white_open_pawns);
+    println!("{}", stragglers.to_board_format());
+
+    let passed = get_passed_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation(), black_pawn_structure.attack_frontspan.flip_orientation());
+    println!("{}", passed.to_board_format());
 
 
     // eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));

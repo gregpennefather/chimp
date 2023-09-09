@@ -25,8 +25,15 @@ const PAWN_SHIELD_RANK_3_MASK: [u64; 8] = [14680064, 14680064, 14680064, 0, 0, 4
 
 const PAWN_SHIELD_REWARD : i8 = 50;
 
+pub struct PawnStructureEval {
+    pub opening: i16,
+    pub endgame: i16
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct PawnInfo {
+    pub frontspan: u64,
+    pub attack_frontspan: u64,
     pub doubles: u8,
     pub isolated: u8,
     pub pawn_shield: i8,
@@ -115,18 +122,22 @@ fn build_and_store_metrics(pawn_zorb: u32, pawn_occupancy: u64, king_position: u
 fn build_pawn_metrics(pawn_occupancy: u64, king_position: u8) -> PawnInfo {
     let lsb = pawn_occupancy.trailing_zeros() as u8 - 8;
     let frontspan = calculate_frontspan(pawn_occupancy);
+    let attack_frontspan = calculate_attack_frontspan(pawn_occupancy);
 
     let doubles = get_doubled(pawn_occupancy, frontspan);
     let pawn_shield = get_pawn_shield(pawn_occupancy, king_position);
     let isolated = get_isolated(pawn_occupancy);
 
     PawnInfo {
+        frontspan,
+        attack_frontspan,
         doubles,
         lsb,
         isolated,
         pawn_shield,
     }
 }
+
 
 fn lookup(zorb_key: u32, lsb: u8) -> Result<Option<PawnInfo>, String> {
     let binding = PAWN_STRUCTURE_HASH.try_read().unwrap();
@@ -162,6 +173,25 @@ pub fn calculate_frontspan(mut pawn_occupancy: u64) -> u64 {
 
         let mask = BOARD_FILES[file as usize] << ((rank + 1) * 8);
         r |= mask;
+        pawn_occupancy ^= 1 << pos;
+    }
+    r
+}
+
+fn calculate_attack_frontspan(mut pawn_occupancy: u64) -> u64 {
+    let mut r = 0;
+    while pawn_occupancy != 0 {
+        let pos = pawn_occupancy.trailing_zeros() as u8;
+        let rank = get_rank(pos);
+        let file = get_file(pos);
+
+        if file > 0 {
+            r |= BOARD_FILES[file as usize - 1] << ((rank + 1) * 8)
+        }
+
+        if file < 7 {
+            r |= BOARD_FILES[file as usize + 1] << ((rank + 1) * 8)
+        }
         pawn_occupancy ^= 1 << pos;
     }
     r
@@ -234,6 +264,24 @@ pub fn build_pawn_frontspan_board() {
             }
         }
     }
+}
+
+pub fn get_backward_pawns(a_pawns: u64, a_attack_frontspan: u64, b_attack_frontspan: u64) -> u64 {
+    let stops = a_pawns << 8; // Move each pawn 1 push to its stop
+    (stops & b_attack_frontspan & !a_attack_frontspan) >> 8
+}
+
+pub fn get_open_pawns(a_pawns:u64, b_front_span: u64) -> u64 {
+    a_pawns & !b_front_span
+}
+
+pub fn get_straggler_pawns(backward_pawns: u64, open_pawns: u64) -> u64 {
+    backward_pawns & open_pawns & 0xffff00 // rank 2,3
+}
+
+pub fn get_passed_pawns(a_pawns: u64, b_front_span: u64, b_attack_frontspan: u64) -> u64 {
+    let b_control = b_front_span | b_attack_frontspan;
+    a_pawns & !b_control
 }
 
 #[cfg(test)]
