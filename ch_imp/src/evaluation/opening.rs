@@ -138,29 +138,29 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval -= king_openness(board.white_king_position, board);
     eval += king_openness(board.black_king_position, board);
 
-    let white_pawn_structure = get_pawn_structure_metrics(board.white_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.white_king_position);
+    // let white_pawn_structure = get_pawn_structure_metrics(board.white_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.white_king_position);
 
-    println!("wafs:\n{}", white_pawn_structure.attack_frontspan.to_board_format());
+    // println!("wafs:\n{}", white_pawn_structure.attack_frontspan.to_board_format());
 
-    eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
-    eval -= white_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
-    eval += white_pawn_structure.pawn_shield as i32;
-    let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).flip_orientation(), reverse_position_orientation(board.black_king_position));
-    eval += black_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
-    eval += black_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
-    eval -= black_pawn_structure.pawn_shield as i32;
+    // eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
+    // eval -= white_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
+    // eval += white_pawn_structure.pawn_shield as i32;
+    // let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).flip_orientation(), reverse_position_orientation(board.black_king_position));
+    // eval += black_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
+    // eval += black_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
+    // eval -= black_pawn_structure.pawn_shield as i32;
 
-    let white_backward_pawns = get_backward_pawns(board.pawn_bitboard & board.white_occupancy, white_pawn_structure.attack_frontspan, black_pawn_structure.attack_frontspan.flip_orientation());
-    println!("{}", white_backward_pawns.to_board_format());
+    // let white_backward_pawns = get_backward_pawns(board.pawn_bitboard & board.white_occupancy, white_pawn_structure.attack_frontspan, black_pawn_structure.attack_frontspan.flip_orientation());
+    // println!("{}", white_backward_pawns.to_board_format());
 
-    let white_open_pawns = get_open_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation());
-    println!("{}", white_open_pawns.to_board_format());
+    // let white_open_pawns = get_open_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation());
+    // println!("{}", white_open_pawns.to_board_format());
 
-    let stragglers = get_straggler_pawns(white_backward_pawns, white_open_pawns);
-    println!("{}", stragglers.to_board_format());
+    // let stragglers = get_straggler_pawns(white_backward_pawns, white_open_pawns);
+    // println!("{}", stragglers.to_board_format());
 
-    let passed = get_passed_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation(), black_pawn_structure.attack_frontspan.flip_orientation());
-    println!("{}", passed.to_board_format());
+    // let passed = get_passed_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation(), black_pawn_structure.attack_frontspan.flip_orientation());
+    // println!("{}", passed.to_board_format());
 
 
     // eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));

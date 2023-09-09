@@ -164,7 +164,7 @@ fn main() {
     //target_depth_test();
 
     //park_table();
-    //test_engine();
+    test_engine();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {
