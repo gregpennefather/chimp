@@ -19,6 +19,12 @@ const BOARD_FILES: [u64; 8] = [
     72340172838076673,
 ];
 
+const PAWN_SHIELD_RANK_2_MASK: [u64; 8] = [57344, 57344, 57344, 0, 0, 1792, 1792, 1792];
+
+const PAWN_SHIELD_RANK_3_MASK: [u64; 8] = [14680064, 14680064, 14680064, 0, 0, 458752, 458752, 458752];
+
+const PAWN_SHIELD_REWARD : i8 = 50;
+
 #[derive(Clone, Copy, Debug)]
 pub struct PawnInfo {
     pub doubles: u8,
@@ -47,7 +53,10 @@ impl PawnZorb {
             king_table[i] = rng.next_u32();
         }
 
-        Self { pawn_table, king_table }
+        Self {
+            pawn_table,
+            king_table,
+        }
     }
 
     pub fn hash(&self, mut pawn_occupancy: u64, king_pos: u8) -> u32 {
@@ -70,7 +79,6 @@ impl PawnZorb {
         key ^ self.pawn_table[sq_in_48 as usize]
     }
 
-
     pub fn shift_king(&self, key: u32, pos: u8) -> u32 {
         key ^ self.king_table[pos as usize]
     }
@@ -80,7 +88,11 @@ lazy_static! {
     static ref PAWN_STRUCTURE_HASH: RwLock<HashMap<u32, PawnInfo>> = RwLock::new(HashMap::new());
 }
 
-pub fn get_pawn_structure_metrics(pawn_zorb: u32, pawn_occupancy: u64, king_position: u8) -> PawnInfo {
+pub fn get_pawn_structure_metrics(
+    pawn_zorb: u32,
+    pawn_occupancy: u64,
+    king_position: u8,
+) -> PawnInfo {
     let lsb = pawn_occupancy.trailing_zeros() as u8 - 8;
     match lookup(pawn_zorb, lsb) {
         Ok(option) => match option {
@@ -107,9 +119,13 @@ fn build_pawn_metrics(pawn_occupancy: u64, king_position: u8) -> PawnInfo {
     let doubles = get_doubled(pawn_occupancy, frontspan);
     let pawn_shield = get_pawn_shield(pawn_occupancy, king_position);
     let isolated = get_isolated(pawn_occupancy);
-    println!("isolated: {isolated}");
 
-    PawnInfo { doubles, lsb, isolated, pawn_shield }
+    PawnInfo {
+        doubles,
+        lsb,
+        isolated,
+        pawn_shield,
+    }
 }
 
 fn lookup(zorb_key: u32, lsb: u8) -> Result<Option<PawnInfo>, String> {
@@ -181,13 +197,13 @@ fn get_isolated(pawn_occupancy: u64) -> u8 {
 fn isolated(pos: u8, pawn_occupancy: u64) -> bool {
     let file = get_file(pos);
     if file != 0 {
-        let l_mask = BOARD_FILES[file as usize-1];
+        let l_mask = BOARD_FILES[file as usize - 1];
         if pawn_occupancy & l_mask != 0 {
             return false;
         }
     }
     if file != 7 {
-        let r_mask = BOARD_FILES[file as usize+1];
+        let r_mask = BOARD_FILES[file as usize + 1];
         if pawn_occupancy & r_mask != 0 {
             return false;
         }
@@ -198,11 +214,14 @@ fn isolated(pos: u8, pawn_occupancy: u64) -> bool {
 fn get_pawn_shield(pawn_occupancy: u64, king_position: u8) -> i8 {
     let king_file = get_file(king_position);
     let king_rank = get_rank(king_position);
-    println!("king at {king_position} r:{king_rank} f:{king_file}");
-    if king_rank > 1 || king_file == 4 || king_file == 3  {
-        return -10;
+    if king_rank > 1 || !(king_file <= 3 || king_file >= 6) {
+        return -5;
     }
-    0
+    let rank_two_pawns = pawn_occupancy & PAWN_SHIELD_RANK_2_MASK[king_file as usize];
+    let rank_three_pawns = pawn_occupancy & PAWN_SHIELD_RANK_3_MASK[king_file as usize];
+
+    let score = rank_three_pawns.count_ones() + (rank_two_pawns.count_ones() * 2);
+    PAWN_SHIELD_REWARD / 6 * (score as i8)
 }
 
 pub fn build_pawn_frontspan_board() {

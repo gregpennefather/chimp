@@ -19,6 +19,7 @@ pub trait Bitboard {
     fn to_board_format(&self) -> String;
     fn rotate_180(&self) -> u64;
     fn mirror_horizontally(&self) -> Self;
+    fn flip_orientation(&self) -> Self;
 }
 
 impl Bitboard for u64 {
@@ -96,6 +97,10 @@ impl Bitboard for u64 {
         r = ((r >> 2) & K2) | ((r & K2) << 2);
         r = ((r >> 4) & K4) | ((r & K4) << 4);
         r
+    }
+
+    fn flip_orientation(&self) -> Self {
+        self.reverse_bits().mirror_horizontally()
     }
 }
 

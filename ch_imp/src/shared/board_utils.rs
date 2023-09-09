@@ -55,7 +55,7 @@ pub fn get_coords_from_index(index: u8) -> String {
 }
 
 // Returns a position on blacks board as though they were white. So H8 becomes 0, E8 becomes 3, A8 becomes 7 etc
-pub fn mirror_position(index: u8) -> u8 {
+pub fn reverse_position_orientation(index: u8) -> u8 {
     let rank = get_rank(index);
     let file = get_file(index);
     return get_index_from_file_and_rank(file, 7-rank)
@@ -94,8 +94,8 @@ mod test {
 
     #[test]
     fn mirror_position_tests() {
-        assert_eq!(mirror_position(63), 7);
-        assert_eq!(mirror_position(59), 3);
-        assert_eq!(mirror_position(52), 12);
+        assert_eq!(reverse_position_orientation(63), 7);
+        assert_eq!(reverse_position_orientation(59), 3);
+        assert_eq!(reverse_position_orientation(52), 12);
     }
 }

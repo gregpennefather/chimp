@@ -2,7 +2,7 @@ use crate::{
     r#move::{move_segment::*, Move},
     search::zorb_set_precomputed::ZORB_SET,
     shared::{
-        board_utils::{get_coords_from_index, get_file, index_from_coords, reverse_position},
+        board_utils::{get_coords_from_index, get_file, index_from_coords, reverse_position_orientation},
         constants::*,
         piece_type::{get_piece_char, get_piece_type_from_char, PieceType},
     }, PAWN_ZORB,
@@ -194,7 +194,7 @@ impl BoardRep {
 
         r.zorb_key = ZORB_SET.hash(r);
         r.white_pawn_zorb = PAWN_ZORB.hash(r.pawn_bitboard & r.white_occupancy, r.white_king_position);
-        r.black_pawn_zorb = PAWN_ZORB.hash((r.pawn_bitboard & r.black_occupancy).reverse_bits(), reverse_position(r.black_king_position));
+        r.black_pawn_zorb = PAWN_ZORB.hash((r.pawn_bitboard & r.black_occupancy).flip_orientation(), reverse_position_orientation(r.black_king_position));
         r
     }
 
@@ -526,7 +526,7 @@ impl BoardRep {
                                     black_occupancy,
                                     occupancy,
                                 );
-                                black_pawn_zorb = PAWN_ZORB.shift(black_pawn_zorb, reverse_position(segment.index))
+                                black_pawn_zorb = PAWN_ZORB.shift(black_pawn_zorb, reverse_position_orientation(segment.index))
                             }
                             PieceType::Knight => {
                                 (knight_bitboard, black_occupancy, occupancy) = flip_piece(
@@ -569,7 +569,7 @@ impl BoardRep {
                                     };
                                 black_occupancy = black_occupancy.flip(segment.index);
                                 occupancy = occupancy.flip(segment.index);
-                                black_pawn_zorb = PAWN_ZORB.shift_king(black_pawn_zorb, reverse_position(segment.index))
+                                black_pawn_zorb = PAWN_ZORB.shift_king(black_pawn_zorb, reverse_position_orientation(segment.index))
                             }
                         }
                     } else {
@@ -701,7 +701,7 @@ impl Default for BoardRep {
         };
         board.zorb_key = ZORB_SET.hash(board);
         board.white_pawn_zorb = PAWN_ZORB.hash(board.pawn_bitboard & board.white_occupancy, board.white_king_position);
-        board.black_pawn_zorb = PAWN_ZORB.hash((board.pawn_bitboard & board.black_occupancy).reverse_bits(), reverse_position(board.black_king_position));
+        board.black_pawn_zorb = PAWN_ZORB.hash((board.pawn_bitboard & board.black_occupancy).flip_orientation(), reverse_position_orientation(board.black_king_position));
 
         board
     }
@@ -769,17 +769,17 @@ mod test {
         assert_eq!(result.queen_bitboard, 1152921504606846992);
         assert_eq!(result.white_king_position, 3);
         assert_eq!(result.black_king_position, 59);
-        assert_ne!(result.white_pawn_zorb, result.black_pawn_zorb);
+        assert_eq!(result.white_pawn_zorb, result.black_pawn_zorb);
     }
 
 
     #[test]
     pub fn mirrored_positions_should_have_matching_pawn_zorbs() {
-        let result = BoardRep::from_fen("k7/8/8/8/8/8/8/7K w - - 0 1".into());
+        let result = BoardRep::from_fen("k7/8/8/8/8/8/8/K7 w - - 0 1".into());
         assert_eq!(result.white_pawn_zorb, result.black_pawn_zorb);
-        let result = BoardRep::from_fen("k7/1p6/8/8/8/8/6P1/7K w - - 0 1".into());
+        let result = BoardRep::from_fen("k7/1p6/8/8/8/8/1P6/K7 w - - 0 1".into());
         assert_eq!(result.white_pawn_zorb, result.black_pawn_zorb);
-        let result = BoardRep::from_fen("k7/pp6/8/5P2/2p5/8/6PP/7K w - - 0 1".into());
+        let result = BoardRep::from_fen("k7/pp6/8/5P2/5p2/8/PP6/K7 w - - 0 1".into());
         assert_eq!(result.white_pawn_zorb, result.black_pawn_zorb);
     }
 

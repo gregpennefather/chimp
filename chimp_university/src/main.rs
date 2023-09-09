@@ -114,7 +114,33 @@ fn main() {
     //println!("{:?}", [0.set_file(7), 0.set_file(6), 0.set_file(5), 0.set_file(4), 0.set_file(3), 0.set_file(2), 0.set_file(1), 0.set_file(0)]);
 
     //build_pawn_frontspan_board();
-    let game_state = GameState::new("rkbq3r/1p1p1p1p/2n2n2/2b5/2B1P3/2N2N2/P1PP1P1P/R1BQ1RK1 w - - 0 1".into());
+
+    // let rank2 : [u64; 8] = [
+    //     0.flip(15).flip(14).flip(13),
+    //     0.flip(15).flip(14).flip(13),
+    //     0.flip(15).flip(14).flip(13),
+    //     0,
+    //     0,
+    //     0.flip(8).flip(9).flip(10),
+    //     0.flip(8).flip(9).flip(10),
+    //     0.flip(8).flip(9).flip(10),
+    // ];
+    // println!("{rank2:?}");
+
+
+    // let rank3 : [u64; 8] = [
+    //     0.flip(23).flip(22).flip(21),
+    //     0.flip(23).flip(22).flip(21),
+    //     0.flip(23).flip(22).flip(21),
+    //     0,
+    //     0,
+    //     0.flip(16).flip(17).flip(18),
+    //     0.flip(16).flip(17).flip(18),
+    //     0.flip(16).flip(17).flip(18),
+    // ];
+    // println!("{rank3:?}");
+
+    //let game_state = GameState::new("rnbq1rk1/ppp1bppp/3p1n2/4p3/2B1P3/2N2NP1/PPPP1P1P/R1BQ1RK1 b - - 0 6".into());
     // println!("{:?}", game_state.result_state());
 
     //debug_evals("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into());
@@ -137,7 +163,7 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    //park_table();
+    park_table();
     //test_engine();
 }
 

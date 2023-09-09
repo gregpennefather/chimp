@@ -5,7 +5,7 @@ use crate::{
     },
     r#move::{Move, move_generation::generate_queen_moves},
     shared::{
-        board_utils::{get_file, get_rank, mirror_position, reverse_position},
+        board_utils::{get_file, get_rank, reverse_position_orientation, reverse_position},
         piece_type::PieceType,
     },
 };
@@ -136,7 +136,7 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
     eval -= white_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
     eval += white_pawn_structure.pawn_shield as i32;
-    let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).reverse_bits(), reverse_position(board.black_king_position));
+    let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).flip_orientation(), reverse_position_orientation(board.black_king_position));
     eval += black_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
     eval += black_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
     eval -= black_pawn_structure.pawn_shield as i32;
