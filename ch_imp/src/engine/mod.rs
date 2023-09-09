@@ -350,7 +350,9 @@ pub fn ab_search(
     }
 
     if depth <= 0 {
-        return quiescence_search(game_state, timeout, alpha, beta);
+        let q_search_r = quiescence_search(game_state, timeout, 0, alpha, beta);
+        println!("q_s_r: {q_search_r:?}");
+        return q_search_r
     }
 
     let now: Instant = Instant::now();
@@ -645,6 +647,7 @@ pub fn ponder_search(
 fn quiescence_search(
     game_state: &GameState,
     timeout: Instant,
+    ply: u8,
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
@@ -656,7 +659,10 @@ fn quiescence_search(
         .filter(|m| !m.is_quiet())
         .collect();
 
+    debug!("{ply}: quiescence_search begun {} captures for {}", capture_moves.len(), game_state.to_fen());
+
     if capture_moves.len() == 0 {
+        debug!("{ply}: quiescence_search ended at {} {}", game_state.to_fen(), game_state.position.eval);
         return Ok((vec![], game_state.position.eval, game_state.position.eval));
     }
 
@@ -679,13 +685,14 @@ fn quiescence_search(
     let mut move_history = Vec::new();
 
     for m in capture_moves {
+        debug!("{ply}: quiescence_search move {m:?}");
         let new_state = match game_state.make(m) {
             Some(new_state) => new_state,
             None => continue,
         };
 
         let (path, node_eval, result_eval) =
-            match quiescence_search(&new_state, timeout, alpha, beta) {
+            match quiescence_search(&new_state, timeout, ply+1, alpha, beta) {
                 Ok(r) => r,
                 Err(e) => {
                     error!("{e}");
@@ -702,6 +709,7 @@ fn quiescence_search(
 
         if !game_state.position.board.black_turn {
             if result_eval > chosen_move_eval {
+                debug!("{ply}: quiescence_search move chosen {m:?}");
                 chosen_move = m;
                 chosen_move_eval = result_eval;
                 next_node_eval = node_eval;
@@ -713,6 +721,7 @@ fn quiescence_search(
             }
         } else {
             if result_eval < chosen_move_eval {
+                debug!("{ply}: quiescence_search move chosen {m:?}");
                 chosen_move = m;
                 chosen_move_eval = result_eval;
                 next_node_eval = node_eval;
@@ -725,9 +734,15 @@ fn quiescence_search(
         }
     }
 
+    if chosen_move.is_empty() {
+        debug!("{ply}: no legal captures {} {}", game_state.to_fen(), game_state.position.eval);
+        return Ok((vec![], game_state.position.eval, game_state.position.eval));
+    }
+
     let mut final_move_history = vec![(chosen_move, next_node_eval)];
     final_move_history.extend(move_history);
 
+    println!("{ply}: returning {final_move_history:?} -> {chosen_move_eval}");
     Ok((
         final_move_history,
         game_state.position.eval,

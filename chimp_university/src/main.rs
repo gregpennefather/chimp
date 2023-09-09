@@ -151,7 +151,7 @@ fn main() {
 
 
 
-    //debug_deepening("r1bqkbnr/pppppppp/2n5/3P4/2P1P3/5N2/PP3PPP/RNBQKB1R w KQkq - 3 6".into(), 5000);
+    debug_deepening("r1b4k/ppp2Rb1/2p1p2r/8/2NPP1p1/1PP3q1/P1Q4P/RN5K b - - 3 22".into(), 5000);
 
     // debug_search(
     //     "rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(),
@@ -163,7 +163,7 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    park_table();
+    //park_table();
     //test_engine();
 }
 
@@ -185,7 +185,7 @@ fn debug_deepening(fen_1: String, ms: u64) {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
