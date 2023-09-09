@@ -73,6 +73,7 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
 static UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 3;
 
 static DOUBLED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 4;
+static ISOLATED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 10;
 
 pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64) -> i32 {
     let mut eval = 0;
@@ -132,11 +133,13 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     eval += king_openness(board.black_king_position, board);
 
     let white_pawn_structure = get_pawn_structure_metrics(board.white_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.white_king_position);
-    println!("{white_pawn_structure:?}");
     eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
+    eval -= white_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
+    eval += white_pawn_structure.pawn_shield as i32;
     let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).reverse_bits(), reverse_position(board.black_king_position));
     eval += black_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
-    println!("{black_pawn_structure:?}");
+    eval += black_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
+    eval -= black_pawn_structure.pawn_shield as i32;
 
 
 

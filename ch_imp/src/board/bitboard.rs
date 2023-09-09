@@ -1,3 +1,13 @@
+const H1: u64 = 0x5555555555555555u64;
+const H2: u64 = 0x3333333333333333u64;
+const H4: u64 = 0x0F0F0F0F0F0F0F0Fu64;
+const V1: u64 = 0x00FF00FF00FF00FFu64;
+const V2: u64 = 0x0000FFFF0000FFFFu64;
+
+const K1 : u64 = 0x5555555555555555u64;
+const K2 : u64 = 0x3333333333333333u64;
+const K4 : u64 = 0x0f0f0f0f0f0f0f0fu64;
+
 pub trait Bitboard {
     fn occupied(&self, index: u8) -> bool;
     fn flip(&self, index: u8) -> u64;
@@ -7,6 +17,8 @@ pub trait Bitboard {
     fn set_file(&self, file: u8) -> u64;
     fn set_rank(&self, rank: u8) -> u64;
     fn to_board_format(&self) -> String;
+    fn rotate_180(&self) -> u64;
+    fn mirror_horizontally(&self) -> Self;
 }
 
 impl Bitboard for u64 {
@@ -53,6 +65,38 @@ impl Bitboard for u64 {
 
         r
     }
+
+    /**
+     * Rotate a bitboard by 180 degrees.
+     * Square a1 is mapped to h8, and a8 is mapped to h1.
+     * @param x any bitboard
+     * @return bitboard x rotated 180 degrees
+     */
+    fn rotate_180(&self) -> Self {
+        let mut r = *self;
+        r = ((r >> 1) & H1) | ((r & H1) << 1);
+        r = ((r >> 2) & H2) | ((r & H2) << 2);
+        r = ((r >> 4) & H4) | ((r & H4) << 4);
+        r = ((r >> 8) & V1) | ((r & V1) << 8);
+        r = ((r >> 16) & V2) | ((r & V2) << 16);
+        r = (r >> 32) | (r << 32);
+        r
+    }
+
+
+/**
+ * Mirror a bitboard horizontally about the center files.
+ * File a is mapped to file h and vice versa.
+ * @param x any bitboard
+ * @return bitboard x mirrored horizontally
+ */
+    fn mirror_horizontally(&self) -> Self {
+        let mut r = *self;
+        r = ((r >> 1) & K1) | ((r & K1) << 1);
+        r = ((r >> 2) & K2) | ((r & K2) << 2);
+        r = ((r >> 4) & K4) | ((r & K4) << 4);
+        r
+    }
 }
 
 #[cfg(test)]
@@ -83,5 +127,15 @@ mod test {
         let bitboard = 0;
         let expected = u64::pow(2, 41);
         assert_eq!(bitboard.set(41), expected);
+    }
+
+    #[test]
+    pub fn mirror_horizontally_tests() {
+        let bb = 0.set_rank(6).flip(6*8);
+        println!("{}", bb.to_board_format());
+        println!("{}", bb.reverse_bits().mirror_horizontally().to_board_format());
+        let e = 0.set_rank(1).flip(8);
+        println!("{}", e.to_board_format());
+        assert_eq!(bb.reverse_bits().mirror_horizontally(),e);
     }
 }

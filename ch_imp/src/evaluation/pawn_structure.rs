@@ -22,6 +22,7 @@ const BOARD_FILES: [u64; 8] = [
 #[derive(Clone, Copy, Debug)]
 pub struct PawnInfo {
     pub doubles: u8,
+    pub isolated: u8,
     pub pawn_shield: i8,
     pub lsb: u8,
 }
@@ -108,7 +109,7 @@ fn build_pawn_metrics(pawn_occupancy: u64, king_position: u8) -> PawnInfo {
     let isolated = get_isolated(pawn_occupancy);
     println!("isolated: {isolated}");
 
-    PawnInfo { doubles, lsb, pawn_shield }
+    PawnInfo { doubles, lsb, isolated, pawn_shield }
 }
 
 fn lookup(zorb_key: u32, lsb: u8) -> Result<Option<PawnInfo>, String> {
