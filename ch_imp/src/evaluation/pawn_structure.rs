@@ -4,7 +4,7 @@ use log::error;
 use rand::RngCore;
 
 use crate::{
-    board::{bitboard::Bitboard, position::Position},
+    board::{bitboard::Bitboard, position::Position, board_rep::BoardRep},
     shared::board_utils::{get_file, get_rank},
 };
 
@@ -24,40 +24,34 @@ const PAWN_SHIELD_RANK_2_MASK: [u64; 8] = [57344, 57344, 57344, 0, 0, 1792, 1792
 const PAWN_SHIELD_RANK_3_MASK: [u64; 8] = [14680064, 14680064, 14680064, 0, 0, 458752, 458752, 458752];
 
 const PAWN_SHIELD_REWARD : i8 = 50;
+#[derive(Clone, Copy, Debug, Default)]
 
 pub struct PawnStructureEval {
     pub opening: i16,
-    pub endgame: i16
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct PawnInfo {
-    pub frontspan: u64,
-    pub attack_frontspan: u64,
-    pub doubles: u8,
-    pub isolated: u8,
-    pub pawn_shield: i8,
-    pub lsb: u8,
+    pub endgame: i16,
+    pub p_count: u8
 }
 
 pub struct PawnZorb {
-    pawn_table: [u32; 48],
-    king_table: [u32; 64],
+    pawn_table: [[u32; 2]; 48],
+    king_table: [[u32; 2]; 64],
 }
 
 impl PawnZorb {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
 
-        let mut pawn_table: [u32; 48] = [0; 48];
-        let mut king_table: [u32; 64] = [0; 64];
+        let mut pawn_table:  [[u32; 2]; 48] = [[0; 2]; 48];
+        let mut king_table:  [[u32; 2]; 64] = [[0; 2]; 64];
 
         for i in 0..48 {
-            pawn_table[i] = rng.next_u32();
+            pawn_table[i][0] = rng.next_u32();
+            pawn_table[i][1] = rng.next_u32();
         }
 
         for i in 0..64 {
-            king_table[i] = rng.next_u32();
+            king_table[i][0] = rng.next_u32();
+            king_table[i][1] = rng.next_u32();
         }
 
         Self {
@@ -66,57 +60,64 @@ impl PawnZorb {
         }
     }
 
-    pub fn hash(&self, mut pawn_occupancy: u64, king_pos: u8) -> u32 {
+    pub fn hash(&self, board: BoardRep) -> u32 {
         let mut key = 0;
+        let mut pawn_occupancy = board.pawn_bitboard;
         while pawn_occupancy != 0 {
             let pos = pawn_occupancy.trailing_zeros();
             assert!(pos >= 8 && pos < 56);
-            key ^= self.pawn_table[(pos - 8) as usize];
+            let colour = if board.white_occupancy.occupied(pos as u8) { 0 } else { 1 };
+
+            key ^= self.pawn_table[(pos - 8) as usize][colour];
             pawn_occupancy ^= 1 << pos;
         }
-        key ^= self.king_table[king_pos as usize];
+        key ^= self.king_table[board.white_king_position as usize][0];
+        key ^= self.king_table[board.black_king_position as usize][1];
         key
     }
 
-    pub fn shift(&self, key: u32, changed_pos_in_64_square_rep: u8) -> u32 {
+    pub fn shift(&self, key: u32, changed_pos_in_64_square_rep: u8, is_black: bool) -> u32 {
         if changed_pos_in_64_square_rep < 8 || changed_pos_in_64_square_rep >= 56 {
             panic!("cant pawn zorb for position {changed_pos_in_64_square_rep}")
         }
         let sq_in_48 = changed_pos_in_64_square_rep - 8;
-        key ^ self.pawn_table[sq_in_48 as usize]
+        key ^ self.pawn_table[sq_in_48 as usize][if is_black { 1 } else { 0 }]
     }
 
-    pub fn shift_king(&self, key: u32, pos: u8) -> u32 {
-        key ^ self.king_table[pos as usize]
+    pub fn shift_king(&self, key: u32, pos: u8, is_black: bool) -> u32 {
+        key ^ self.king_table[pos as usize][if is_black { 1 } else { 0 }]
     }
 }
 
 lazy_static! {
-    static ref PAWN_STRUCTURE_HASH: RwLock<HashMap<u32, PawnInfo>> = RwLock::new(HashMap::new());
+    static ref PAWN_STRUCTURE_EVAL_HASHMAP: RwLock<HashMap<u32, PawnStructureEval>> = RwLock::new(HashMap::new());
 }
 
-pub fn get_pawn_structure_metrics(
-    pawn_zorb: u32,
-    pawn_occupancy: u64,
-    king_position: u8,
-) -> PawnInfo {
-    let lsb = pawn_occupancy.trailing_zeros() as u8 - 8;
-    match lookup(pawn_zorb, lsb) {
+pub fn get_pawn_structure_eval(zorb_key: u32, w_pawns: u64, b_pawns: u64, w_king: u8, b_king: u8) -> PawnStructureEval {
+    let p_count = w_pawns.count_ones() + b_pawns.count_ones();
+    if p_count == 0 {
+        return PawnStructureEval::default();
+    }
+    match lookup(zorb_key, p_count as u8) {
         Ok(option) => match option {
             Some(r) => r,
-            None => build_and_store_metrics(pawn_zorb, pawn_occupancy, king_position),
+            None => build_and_store_pawn_structure_eval(zorb_key, w_pawns, b_pawns, w_king, b_king, p_count),
         },
         Err(r) => {
             error!("{r}");
-            build_pawn_metrics(pawn_occupancy, king_position)
+            build_pawn_pawn_structure_eval(zorb_key, w_pawns, b_pawns, w_king, b_king, p_count)
         }
     }
 }
 
-fn build_and_store_metrics(pawn_zorb: u32, pawn_occupancy: u64, king_position: u8) -> PawnInfo {
-    let metrics = build_pawn_metrics(pawn_occupancy, king_position);
-    store(pawn_zorb, metrics);
-    metrics
+fn build_and_store_pawn_structure_eval(zorb_key: u32, w_pawns: u64, b_pawns: u64, w_king: u8, b_king: u8, p_count: u32) -> PawnStructureEval {
+    let eval = build_pawn_pawn_structure_eval(zorb_key, w_pawns, b_pawns, w_king, b_king, p_count);
+    store(zorb_key, eval);
+    eval
+}
+
+fn build_pawn_pawn_structure_eval(zorb_key: u32, w_pawns: u64, b_pawns: u64, w_king: u8, b_king: u8, p_count: u32) -> PawnStructureEval {
+    todo!()
 }
 
 fn build_pawn_metrics(pawn_occupancy: u64, king_position: u8) -> PawnInfo {
@@ -139,8 +140,8 @@ fn build_pawn_metrics(pawn_occupancy: u64, king_position: u8) -> PawnInfo {
 }
 
 
-fn lookup(zorb_key: u32, lsb: u8) -> Result<Option<PawnInfo>, String> {
-    let binding = PAWN_STRUCTURE_HASH.try_read().unwrap();
+fn lookup(zorb_key: u32, lsb: u8) -> Result<Option<PawnStructureEval>, String> {
+    let binding = PAWN_STRUCTURE_EVAL_HASHMAP.try_read().unwrap();
     let r = binding.get(&zorb_key);
 
     match r {
@@ -157,11 +158,11 @@ fn lookup(zorb_key: u32, lsb: u8) -> Result<Option<PawnInfo>, String> {
     }
 }
 
-fn store(zorb_key: u32, metrics: PawnInfo) {
-    PAWN_STRUCTURE_HASH
+fn store(zorb_key: u32, eval: PawnStructureEval) {
+    PAWN_STRUCTURE_EVAL_HASHMAP
         .write()
         .unwrap()
-        .insert(zorb_key, metrics);
+        .insert(zorb_key, eval);
 }
 
 pub fn calculate_frontspan(mut pawn_occupancy: u64) -> u64 {

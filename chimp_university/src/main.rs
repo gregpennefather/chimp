@@ -140,6 +140,13 @@ fn main() {
     // ];
     // println!("{rank3:?}");
 
+    let pos1 = Position::default();
+    let pos2 = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into());
+    assert_eq!(pos1.board.king_pawn_zorb, pos2.board.king_pawn_zorb);
+    let gs = GameState::new("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into());
+    let gs2 = gs.make(gs.move_from_uci("g8h6")).unwrap();
+    assert_eq!(pos1.board.king_pawn_zorb, gs2.position.board.king_pawn_zorb);
+
     let game_state = GameState::new("8/5p2/8/p1p3P1/P1P5/7P/1P6/8 w - - 0 1".into());
     // println!("{:?}", game_state.result_state());
 
@@ -164,7 +171,7 @@ fn main() {
     //target_depth_test();
 
     //park_table();
-    test_engine();
+    //test_engine();
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {
