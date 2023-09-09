@@ -151,7 +151,7 @@ fn main() {
 
 
 
-    debug_deepening("r1b4k/ppp2Rb1/2p1p2r/8/2NPP1p1/1PP3q1/P1Q4P/RN5K b - - 3 22".into(), 5000);
+    //debug_deepening("r1b4k/ppp2Rb1/2p1p2r/8/2NPP1p1/1PP3q1/P1Q4P/RN5K b - - 3 22".into(), 5000);
 
     // debug_search(
     //     "rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(),
@@ -163,7 +163,7 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    //park_table();
+    park_table();
     //test_engine();
 }
 

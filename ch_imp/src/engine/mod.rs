@@ -350,9 +350,7 @@ pub fn ab_search(
     }
 
     if depth <= 0 {
-        let q_search_r = quiescence_search(game_state, timeout, 0, alpha, beta);
-        println!("q_s_r: {q_search_r:?}");
-        return q_search_r
+        return quiescence_search(game_state, timeout, 0, alpha, beta);
     }
 
     let now: Instant = Instant::now();
@@ -659,10 +657,7 @@ fn quiescence_search(
         .filter(|m| !m.is_quiet())
         .collect();
 
-    debug!("{ply}: quiescence_search begun {} captures for {}", capture_moves.len(), game_state.to_fen());
-
     if capture_moves.len() == 0 {
-        debug!("{ply}: quiescence_search ended at {} {}", game_state.to_fen(), game_state.position.eval);
         return Ok((vec![], game_state.position.eval, game_state.position.eval));
     }
 
@@ -685,7 +680,6 @@ fn quiescence_search(
     let mut move_history = Vec::new();
 
     for m in capture_moves {
-        debug!("{ply}: quiescence_search move {m:?}");
         let new_state = match game_state.make(m) {
             Some(new_state) => new_state,
             None => continue,
@@ -709,7 +703,6 @@ fn quiescence_search(
 
         if !game_state.position.board.black_turn {
             if result_eval > chosen_move_eval {
-                debug!("{ply}: quiescence_search move chosen {m:?}");
                 chosen_move = m;
                 chosen_move_eval = result_eval;
                 next_node_eval = node_eval;
@@ -721,7 +714,6 @@ fn quiescence_search(
             }
         } else {
             if result_eval < chosen_move_eval {
-                debug!("{ply}: quiescence_search move chosen {m:?}");
                 chosen_move = m;
                 chosen_move_eval = result_eval;
                 next_node_eval = node_eval;
@@ -742,7 +734,6 @@ fn quiescence_search(
     let mut final_move_history = vec![(chosen_move, next_node_eval)];
     final_move_history.extend(move_history);
 
-    println!("{ply}: returning {final_move_history:?} -> {chosen_move_eval}");
     Ok((
         final_move_history,
         game_state.position.eval,
