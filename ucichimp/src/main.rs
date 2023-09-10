@@ -13,7 +13,7 @@ fn main() {
     let chimp_logs = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.11_{:?}.log",
+            "log/chimp_v0.0.0.13_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -99,15 +99,17 @@ fn run() -> bool {
                     ponder_handler = None;
                 }
                 "pondermiss" | "stop" => {
+                    info!("stop ponder");
                     engine.ponder_miss();
                     let _ponder_result = await_ponder_handler_result(ponder_handler);
-                    let (bestmove, ponder) = engine.go(
-                        last_time_info.wtime,
-                        last_time_info.btime,
-                        last_time_info.winc,
-                        last_time_info.binc,
-                    );
-                    handle_go_result(bestmove, ponder);
+                    info!("stop ponder_result: {_ponder_result:?}");
+                    // let (bestmove, ponder) = engine.go(
+                    //     last_time_info.wtime,
+                    //     last_time_info.btime,
+                    //     last_time_info.winc,
+                    //     last_time_info.binc,
+                    // );
+                    handle_go_result(_ponder_result[0], None);
                     ponder_handler = None;
                 }
                 "quit" => break,

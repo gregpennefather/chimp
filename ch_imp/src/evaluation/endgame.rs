@@ -1,4 +1,4 @@
-use crate::{board::{position::Position, board_rep::BoardRep}, r#move::Move};
+use crate::{board::{position::Position, board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision}, r#move::Move, shared::piece_type::PieceType};
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
@@ -42,7 +42,9 @@ const KNIGHT_SQUARE_FACTOR: i32 = 2;
 
 const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
 
-pub fn calculate(board: BoardRep, pawn_structure: i16) -> i32 {
+pub fn calculate(board: BoardRep,
+    white_pinned: &Vec<ThreatRaycastCollision>,
+    black_pinned: &Vec<ThreatRaycastCollision>, pawn_structure: i16) -> i32 {
     let mut eval = pawn_structure as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
@@ -63,6 +65,25 @@ pub fn calculate(board: BoardRep, pawn_structure: i16) -> i32 {
 
     eval += mop_up_score(board.white_king_position, board.black_king_position);
     eval -= mop_up_score(board.black_king_position, board.white_king_position);
+
+    for white_pin in white_pinned {
+        if white_pin.reveal_attack == false {
+            let piece: PieceType = board.get_piece_type_at_index(white_pin.at);
+            eval -= MATERIAL_VALUES[piece as usize] / 4 * 3
+        } else {
+            eval -= 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
+        }
+    }
+
+    for black_pin in black_pinned {
+        if black_pin.reveal_attack == false {
+            let piece = board.get_piece_type_at_index(black_pin.at);
+            eval += MATERIAL_VALUES[piece as usize] / 4 * 3
+        } else {
+            eval += 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
+        }
+    }
+
 
     eval
 }

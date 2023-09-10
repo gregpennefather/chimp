@@ -19,10 +19,10 @@ pub enum ThreatType {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ThreatRaycastCollision {
-    from: u8,
-    at: u8,
-    reveal_attack: bool,
-    threat_type: ThreatType,
+    pub from: u8,
+    pub at: u8,
+    pub reveal_attack: bool,
+    pub threat_type: ThreatType,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

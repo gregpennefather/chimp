@@ -138,23 +138,23 @@ impl ChimpEngine {
         binc: i32,
         ponder_moves: Vec<Move>,
     ) -> (Move, Option<Move>) {
-        let ms = if ponder_moves.len() >= 6 {
+        let ms = if ponder_moves.len() >= 5 {
             if self.black_turn() {
-                binc
+                binc / 2
             } else {
-                winc
+                winc / 2
             }
         } else if self.current_game_state.position.board.black_turn {
             if btime < binc {
                 binc / 3 * 2
             } else {
-                i32::max(binc - 50, i32::min(btime / 20, binc + btime / 12))
+                i32::max(binc - 50, i32::min(btime / 10, binc + (btime / 12)))
             }
         } else {
             if wtime < winc {
                 winc / 3 * 2
             } else {
-                i32::max(winc - 50, i32::min(wtime / 20, winc + wtime / 12))
+                i32::max(winc - 50, i32::min(wtime / 10, winc + (wtime / 12)))
             }
         };
 
@@ -738,7 +738,7 @@ fn quiescence_search(
     }
 
     if chosen_move.is_empty() {
-        debug!(
+        trace!(
             "{ply}: no legal captures {} {}",
             game_state.to_fen(),
             game_state.position.eval

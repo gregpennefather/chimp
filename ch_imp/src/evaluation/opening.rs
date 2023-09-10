@@ -1,5 +1,7 @@
 use crate::{
-    board::{bitboard::Bitboard, board_rep::BoardRep},
+    board::{
+        bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision,
+    },
     r#move::move_generation::generate_queen_moves,
     shared::{
         board_utils::{get_file, get_rank},
@@ -30,8 +32,16 @@ const HANGING_PIECE_VALUE: PieceValues = [
     0,                      // King
 ];
 
-const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,0,0,0,-1,-1,0,0,0,1,1,1,1,1,1,1,1,2,2,2,3,3,2,2,2,2,2,2,3,3,2,2,2,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0];
-const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,5,5,5,5,5,5,5,5,4,4,4,4,4,4,4,4,2,2,2,3,3,2,2,2,2,2,2,3,3,2,2,2,1,1,1,1,1,1,1,1,0,0,0,-1,-1,0,0,0,0,0,0,0,0,0,0,0];
+const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 2, 2,
+    2, 2, 2, 2, 3, 3, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
+    0,
+];
+const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
+    0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 3, 3, 2, 2, 2,
+    2, 2, 2, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+];
 const PAWN_SQUARE_FACTOR: i32 = 6;
 
 const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
@@ -41,10 +51,17 @@ const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
 ];
 const KNIGHT_SQUARE_FACTOR: i32 = 3;
 
-const BISHOP_SQUARE_SCORE: PieceValueBoard = [-1,-1,-1,-1,-1,-1,-1,-1,-1,3,0,0,0,0,3,-1,-1,0,2,0,0,2,0,-1,-1,0,2,0,0,2,0,-1,-1,0,2,0,0,2,0,-1,-1,0,2,0,0,2,0,-1,-1,3,0,0,0,0,3,-1,-1,-1,-1,-1,-1,-1,-1,-1];
+const BISHOP_SQUARE_SCORE: PieceValueBoard = [
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2,
+    0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 3, 0, 0, 0, 0, 3, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+];
 const BISHOP_SQUARE_FACTOR: i32 = 3;
 
-const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,3,3,3,2,1,1,2,3,6,6,3,2,1,1,2,3,6,6,3,2,1,1,2,3,3,3,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 3, 3, 3, 2, 1, 1, 2, 3, 6, 6, 3, 2, 1,
+    1, 2, 3, 6, 6, 3, 2, 1, 1, 2, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+];
 
 const BOARD_CONTROL_SQUARES_PER_POINT: i32 = 6;
 
@@ -62,6 +79,8 @@ const CAN_NOT_CASTLE_PENALTY: i32 = 5;
 
 pub fn calculate(
     board: BoardRep,
+    white_pinned: &Vec<ThreatRaycastCollision>,
+    black_pinned: &Vec<ThreatRaycastCollision>,
     white_threatboard: u64,
     black_threatboard: u64,
     pawn_structure_eval: i16,
@@ -145,6 +164,24 @@ pub fn calculate(
     }
     if !board.black_queen_side_castling {
         eval += CAN_NOT_CASTLE_PENALTY;
+    }
+
+    for white_pin in white_pinned {
+        if white_pin.reveal_attack == false {
+            let piece: PieceType = board.get_piece_type_at_index(white_pin.at);
+            eval -= MATERIAL_VALUES[piece as usize] / 2
+        } else {
+            eval -= 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
+        }
+    }
+    for black_pin in black_pinned {
+
+        if black_pin.reveal_attack == false {
+            let piece = board.get_piece_type_at_index(black_pin.at);
+            eval += MATERIAL_VALUES[piece as usize] / 2
+        } else {
+            eval += 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
+        }
     }
 
     eval
