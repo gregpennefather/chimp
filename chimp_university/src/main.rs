@@ -158,7 +158,7 @@ fn main() {
 
 
 
-    //debug_deepening("r1b4k/ppp2Rb1/2p1p2r/8/2NPP1p1/1PP3q1/P1Q4P/RN5K b - - 3 22".into(), 5000);
+    debug_deepening("rnb1kbr1/ppq1pppp/1npp4/8/2BPP2N/2N5/PPPB1PPP/R2Q1RK1 w q - 6 12".into(), 5000);
 
     // debug_search(
     //     "rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(),

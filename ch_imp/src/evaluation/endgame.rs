@@ -42,8 +42,8 @@ const KNIGHT_SQUARE_FACTOR: i32 = 2;
 
 const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
 
-pub fn calculate(board: BoardRep) -> i32 {
-    let mut eval = 0;
+pub fn calculate(board: BoardRep, pawn_structure: i16) -> i32 {
+    let mut eval = pawn_structure as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 

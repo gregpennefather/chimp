@@ -1,18 +1,15 @@
 use crate::{
-    board::{
-        bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::KingPositionAnalysis,
-        position::Position,
-    },
-    r#move::{Move, move_generation::generate_queen_moves},
+    board::{bitboard::Bitboard, board_rep::BoardRep},
+    r#move::move_generation::generate_queen_moves,
     shared::{
-        board_utils::{get_file, get_rank, reverse_position_orientation, reverse_position},
+        board_utils::{get_file, get_rank},
         piece_type::PieceType,
-    }, evaluation::pawn_structure::{get_backward_pawns, get_open_pawns, get_straggler_pawns, get_passed_pawns},
+    },
 };
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
-    utils::*, pawn_structure::get_pawn_structure_metrics,
+    utils::*,
 };
 
 const MATERIAL_VALUES: PieceValues = [
@@ -70,15 +67,17 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Bishop, 5),
     (PieceType::Knight, 6),
 ];
-const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 3;
+const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 5;
 
-const DOUBLED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 4;
-const ISOLATED_PAWN_PENALTY: i32 = MATERIAL_VALUES[0] / 10;
 const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
 
-
-pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64) -> i32 {
-    let mut eval = 0;
+pub fn calculate(
+    board: BoardRep,
+    white_threatboard: u64,
+    black_threatboard: u64,
+    pawn_structure_eval: i16,
+) -> i32 {
+    let mut eval = pawn_structure_eval as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
@@ -117,8 +116,16 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
     );
 
     // Double Bishop reward
-    eval += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 { DOUBLE_BISHOP_REWARD } else { 0 };
-    eval -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 { DOUBLE_BISHOP_REWARD } else { 0 };
+    eval += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 {
+        DOUBLE_BISHOP_REWARD
+    } else {
+        0
+    };
+    eval -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 {
+        DOUBLE_BISHOP_REWARD
+    } else {
+        0
+    };
 
     eval += under_developed_penalty(board, board.white_occupancy);
     eval -= under_developed_penalty(board, board.black_occupancy.reverse_bits());
@@ -137,34 +144,6 @@ pub fn calculate(board: BoardRep, white_threatboard: u64, black_threatboard: u64
 
     eval -= king_openness(board.white_king_position, board);
     eval += king_openness(board.black_king_position, board);
-
-    // let white_pawn_structure = get_pawn_structure_metrics(board.white_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.white_king_position);
-
-    // println!("wafs:\n{}", white_pawn_structure.attack_frontspan.to_board_format());
-
-    // eval -= white_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
-    // eval -= white_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
-    // eval += white_pawn_structure.pawn_shield as i32;
-    // let black_pawn_structure = get_pawn_structure_metrics(board.black_pawn_zorb, (board.black_occupancy & board.pawn_bitboard).flip_orientation(), reverse_position_orientation(board.black_king_position));
-    // eval += black_pawn_structure.doubles as i32 * DOUBLED_PAWN_PENALTY;
-    // eval += black_pawn_structure.isolated as i32 * ISOLATED_PAWN_PENALTY;
-    // eval -= black_pawn_structure.pawn_shield as i32;
-
-    // let white_backward_pawns = get_backward_pawns(board.pawn_bitboard & board.white_occupancy, white_pawn_structure.attack_frontspan, black_pawn_structure.attack_frontspan.flip_orientation());
-    // println!("{}", white_backward_pawns.to_board_format());
-
-    // let white_open_pawns = get_open_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation());
-    // println!("{}", white_open_pawns.to_board_format());
-
-    // let stragglers = get_straggler_pawns(white_backward_pawns, white_open_pawns);
-    // println!("{}", stragglers.to_board_format());
-
-    // let passed = get_passed_pawns(board.pawn_bitboard & board.white_occupancy, black_pawn_structure.frontspan.flip_orientation(), black_pawn_structure.attack_frontspan.flip_orientation());
-    // println!("{}", passed.to_board_format());
-
-
-    // eval += simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));
-    // eval -= simple_pawn_shield_score(board.white_king_position, board.pawn_bitboard & board.white_occupancy));
 
     eval
 }
@@ -216,14 +195,8 @@ fn king_tropism(king_pos: u8, opponent_occupancy: u64, board: BoardRep) -> i32 {
 
 // King openness is a penalty for each square the king could reach if they were a queen
 fn king_openness(king_pos: u8, board: BoardRep) -> i32 {
-    let possible_queen_moves = generate_queen_moves(
-        king_pos,
-        board,
-        0,
-        board.occupancy,
-        false,
-        None,
-    );
+    let possible_queen_moves =
+        generate_queen_moves(king_pos, board, 0, board.occupancy, false, None);
     possible_queen_moves.len() as i32
 }
 

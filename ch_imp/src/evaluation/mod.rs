@@ -1,6 +1,6 @@
 use log::trace;
 
-use crate::{board::board_rep::BoardRep, r#move::move_generation::MoveGenerationEvalMetrics};
+use crate::{board::board_rep::BoardRep, r#move::move_generation::MoveGenerationEvalMetrics, evaluation::pawn_structure::get_pawn_structure_eval};
 
 use self::{eval_precomputed_data::PHASE_MATERIAL_VALUES, utils::piece_aggregate_score};
 
@@ -14,8 +14,9 @@ const MAX_PHASE_MATERIAL_SCORE: i32 = 24;
 
 pub fn calculate(board: BoardRep, move_gen_metrics: MoveGenerationEvalMetrics) -> i32 {
     let phase = phase(board);
-    let opening = opening::calculate(board, move_gen_metrics.white_threatboard, move_gen_metrics.black_threatboard);
-    let endgame = endgame::calculate(board);
+    let pawn_structure_eval = get_pawn_structure_eval(board.king_pawn_zorb, board.white_occupancy & board.pawn_bitboard, board.black_occupancy & board.pawn_bitboard, board.white_king_position, board.black_king_position);
+    let opening = opening::calculate(board, move_gen_metrics.white_threatboard, move_gen_metrics.black_threatboard, pawn_structure_eval.opening);
+    let endgame = endgame::calculate(board, pawn_structure_eval.endgame);
     let result = ((opening * (256 - phase)) + (endgame * phase)) / 256;
 
     trace!(

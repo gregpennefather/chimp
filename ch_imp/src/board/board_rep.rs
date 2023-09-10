@@ -29,7 +29,7 @@ pub struct BoardRep {
     pub black_king_side_castling: bool,
     pub ep_index: u8,
     pub zorb_key: u64,
-    pub king_pawn_zorb: u32,
+    pub king_pawn_zorb: u64,
 }
 
 impl BoardRep {
