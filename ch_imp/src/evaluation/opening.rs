@@ -54,10 +54,7 @@ const BISHOP_SQUARE_SCORE: PieceValueBoard = [
 ];
 const BISHOP_SQUARE_FACTOR: i32 = 2;
 
-const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 2, 3, 3, 2, 1, 1,
-    1, 1, 2, 3, 3, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-];
+const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,1,2,4,4,2,1,1,1,1,2,4,4,2,1,1,1,1,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
 
 const BOARD_CONTROL_SQUARES_PER_POINT: i32 = 4;
 
@@ -70,6 +67,8 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
 const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 5;
 
 const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
+
+const CAN_NOT_CASTLE_PENALTY: i32 = 10;
 
 pub fn calculate(
     board: BoardRep,
@@ -144,6 +143,13 @@ pub fn calculate(
 
     eval -= king_openness(board.white_king_position, board);
     eval += king_openness(board.black_king_position, board);
+
+    if !(board.white_king_side_castling || board.white_queen_side_castling) {
+        eval -= CAN_NOT_CASTLE_PENALTY;
+    }
+    if !(board.black_king_side_castling || board.black_queen_side_castling) {
+        eval += CAN_NOT_CASTLE_PENALTY;
+    }
 
     eval
 }

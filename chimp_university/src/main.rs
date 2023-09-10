@@ -140,17 +140,17 @@ fn main() {
     // ];
     // println!("{rank3:?}");
 
-    let pos1 = Position::default();
-    let pos2 = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into());
-    assert_eq!(pos1.board.king_pawn_zorb, pos2.board.king_pawn_zorb);
-    let gs = GameState::new("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into());
-    let gs2 = gs.make(gs.move_from_uci("g8h6")).unwrap();
-    assert_eq!(pos1.board.king_pawn_zorb, gs2.position.board.king_pawn_zorb);
+    // let pos1 = Position::default();
+    // let pos2 = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into());
+    // assert_eq!(pos1.board.king_pawn_zorb, pos2.board.king_pawn_zorb);
+    // let gs = GameState::new("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into());
+    // let gs2 = gs.make(gs.move_from_uci("g8h6")).unwrap();
+    // assert_eq!(pos1.board.king_pawn_zorb, gs2.position.board.king_pawn_zorb);
 
-    let game_state = GameState::new("8/5p2/8/p1p3P1/P1P5/7P/1P6/8 w - - 0 1".into());
+    // let game_state = GameState::new("8/5p2/8/p1p3P1/P1P5/7P/1P6/8 w - - 0 1".into());
     // println!("{:?}", game_state.result_state());
 
-    //debug_evals("rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1".into(), "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1".into());
+    //debug_evals("r1bqkbnr/pppppp2/2n3p1/7p/3P4/3Q1N2/PPP1PPPP/RNB1KB1R w KQkq - 2 4".into(), "r1bqkbnr/pppppp2/2n3p1/7p/3P4/3Q1N2/PPP1PPPP/RNBK1B1R b kq - 3 4".into());
 
     //GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
 
@@ -158,7 +158,7 @@ fn main() {
 
 
 
-    debug_deepening("rnb1kbr1/ppq1pppp/1npp4/8/2BPP2N/2N5/PPPB1PPP/R2Q1RK1 w q - 6 12".into(), 5000);
+    //debug_deepening("rnb1kbr1/ppq1pppp/1npp4/8/2BPP2N/2N5/PPPB1PPP/R2Q1RK1 w q - 6 12".into(), 5000);
 
     // debug_search(
     //     "rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(),
@@ -170,7 +170,7 @@ fn main() {
     //timed_depth_test();
     //target_depth_test();
 
-    //park_table();
+    park_table();
     //test_engine();
 }
 
@@ -336,7 +336,7 @@ fn park_table() {
     let mut black_ms = 10000;
     let inc_ms = 2000;
     info!("Park Table:");
-    for _i in 0..200 {
+    for _i in 0..50 {
         let timer = Instant::now();
         let (m, ponder) = if _i == 0 || _i == 1 {
             engine.go(5000, 5000, -1, -1)

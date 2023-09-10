@@ -153,7 +153,7 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     opening -= w_doubles * OPENING_DOUBLE_PENALTY;
     endgame -= w_doubles * ENDGAME_DOUBLE_PENALTY;
 
-    let b_doubles = get_doubled(b_pawns, b_frontspan).count_ones() as i16;
+    let b_doubles = get_doubled(b_pawns_mirrored, b_frontspan).count_ones() as i16;
     opening += b_doubles * OPENING_DOUBLE_PENALTY;
     endgame += b_doubles * ENDGAME_DOUBLE_PENALTY;
 
@@ -162,7 +162,7 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     opening -= w_isolated * OPENING_ISOLATED_PENALTY;
     endgame -= w_isolated * ENDGAME_ISOLATED_PENALTY;
 
-    let b_isolated = get_isolated(b_pawns).count_ones() as i16;
+    let b_isolated = get_isolated(b_pawns_mirrored).count_ones() as i16;
     opening += b_isolated * OPENING_ISOLATED_PENALTY;
     endgame += b_isolated * ENDGAME_ISOLATED_PENALTY;
 
@@ -183,7 +183,7 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     opening += w_open_count * OPENING_OPEN_REWARD;
     endgame += w_open_count * ENDGAME_OPEN_REWARD;
 
-    let b_open_pawns = get_open_pawns(b_pawns, w_frontspan.flip_orientation());
+    let b_open_pawns = get_open_pawns(b_pawns, w_frontspan);
     let b_open_count =  b_open_pawns.count_ones() as i16;
     opening -= b_open_count * OPENING_OPEN_REWARD;
     endgame -= b_open_count * ENDGAME_OPEN_REWARD;
@@ -193,7 +193,7 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     opening += w_passed_pawns * OPENING_PASSED_REWARD;
     endgame += w_passed_pawns * ENDGAME_PASSED_REWARD;
 
-    let b_passed_pawns = get_passed_pawns(b_pawns, w_frontspan.flip_orientation(), w_attack_frontspan.flip_orientation()).count_ones() as i16;
+    let b_passed_pawns = get_passed_pawns(b_pawns_mirrored, w_frontspan.flip_orientation(), w_attack_frontspan.flip_orientation()).count_ones() as i16;
     opening -= b_passed_pawns * OPENING_PASSED_REWARD;
     endgame -= b_passed_pawns * ENDGAME_PASSED_REWARD;
 
@@ -319,7 +319,7 @@ fn isolated(pos: u8, pawn_occupancy: u64) -> bool {
 fn get_pawn_shield(pawn_occupancy: u64, king_position: u8) -> i16 {
     let king_file = get_file(king_position);
     let king_rank = get_rank(king_position);
-    if king_rank > 1 || !(king_file <= 3 || king_file >= 6) {
+    if king_rank > 1 || !(king_file <= 2 || king_file >= 6) {
         return -5;
     }
     let rank_two_pawns = pawn_occupancy & PAWN_SHIELD_RANK_2_MASK[king_file as usize];
