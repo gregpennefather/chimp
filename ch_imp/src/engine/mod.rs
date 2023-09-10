@@ -423,7 +423,7 @@ pub fn ab_search(
 
         // if we dont need to redo a full search return the partial_search
         let (path, node_eval, result_eval) = if full_search {
-             match ab_search(
+            match ab_search(
                 &new_state,
                 &priority_moves,
                 depth - 1 + extensions,
@@ -442,7 +442,6 @@ pub fn ab_search(
         } else {
             shallow_eval
         };
-
 
         let now = Instant::now();
         if now > timeout {
@@ -649,6 +648,18 @@ fn quiescence_search(
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
+
+    // Dont force a bad capture
+    if !game_state.position.board.black_turn {
+        if game_state.position.eval < alpha {
+            return Ok((vec![], alpha, alpha));
+        }
+    } else {
+        if game_state.position.eval > beta {
+            return Ok((vec![], beta, beta));
+        }
+    }
+
     let capture_moves: Vec<Move> = game_state
         .position
         .moves
@@ -686,7 +697,7 @@ fn quiescence_search(
         };
 
         let (path, node_eval, result_eval) =
-            match quiescence_search(&new_state, timeout, ply+1, alpha, beta) {
+            match quiescence_search(&new_state, timeout, ply + 1, alpha, beta) {
                 Ok(r) => r,
                 Err(e) => {
                     error!("{e}");
@@ -727,7 +738,11 @@ fn quiescence_search(
     }
 
     if chosen_move.is_empty() {
-        debug!("{ply}: no legal captures {} {}", game_state.to_fen(), game_state.position.eval);
+        debug!(
+            "{ply}: no legal captures {} {}",
+            game_state.to_fen(),
+            game_state.position.eval
+        );
         return Ok((vec![], game_state.position.eval, game_state.position.eval));
     }
 
