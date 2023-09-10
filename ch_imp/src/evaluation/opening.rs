@@ -30,33 +30,23 @@ const HANGING_PIECE_VALUE: PieceValues = [
     0,                      // King
 ];
 
-const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-];
-const PAWN_SQUARE_FACTOR: i32 = 2;
+const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,0,0,0,-1,-1,0,0,0,1,1,1,1,1,1,1,1,2,2,2,3,3,2,2,2,2,2,2,3,3,2,2,2,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0];
+const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [0,0,0,0,0,0,0,0,5,5,5,5,5,5,5,5,4,4,4,4,4,4,4,4,2,2,2,3,3,2,2,2,2,2,2,3,3,2,2,2,1,1,1,1,1,1,1,1,0,0,0,-1,-1,0,0,0,0,0,0,0,0,0,0,0];
+const PAWN_SQUARE_FACTOR: i32 = 6;
 
 const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-const KNIGHT_SQUARE_FACTOR: i32 = 2;
+const KNIGHT_SQUARE_FACTOR: i32 = 3;
 
-const BISHOP_SQUARE_SCORE: PieceValueBoard = [
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0,
-    0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 3, 0, 0, 0, 0, 3, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1,
-];
-const BISHOP_SQUARE_FACTOR: i32 = 2;
+const BISHOP_SQUARE_SCORE: PieceValueBoard = [-1,-1,-1,-1,-1,-1,-1,-1,-1,3,0,0,0,0,3,-1,-1,0,2,0,0,2,0,-1,-1,0,2,0,0,2,0,-1,-1,0,2,0,0,2,0,-1,-1,0,2,0,0,2,0,-1,-1,3,0,0,0,0,3,-1,-1,-1,-1,-1,-1,-1,-1,-1];
+const BISHOP_SQUARE_FACTOR: i32 = 3;
 
-const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,1,2,4,4,2,1,1,1,1,2,4,4,2,1,1,1,1,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,3,3,3,2,1,1,2,3,6,6,3,2,1,1,2,3,6,6,3,2,1,1,2,3,3,3,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
 
-const BOARD_CONTROL_SQUARES_PER_POINT: i32 = 4;
+const BOARD_CONTROL_SQUARES_PER_POINT: i32 = 6;
 
 const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Knight, 1),
@@ -64,11 +54,11 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Bishop, 5),
     (PieceType::Knight, 6),
 ];
-const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 5;
+const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 10;
 
 const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
 
-const CAN_NOT_CASTLE_PENALTY: i32 = 10;
+const CAN_NOT_CASTLE_PENALTY: i32 = 5;
 
 pub fn calculate(
     board: BoardRep,
@@ -127,7 +117,7 @@ pub fn calculate(
     };
 
     eval += under_developed_penalty(board, board.white_occupancy);
-    eval -= under_developed_penalty(board, board.black_occupancy.reverse_bits());
+    eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
 
     eval += piece_square_score(
         white_threatboard | board.white_occupancy,
@@ -144,10 +134,16 @@ pub fn calculate(
     eval -= king_openness(board.white_king_position, board);
     eval += king_openness(board.black_king_position, board);
 
-    if !(board.white_king_side_castling || board.white_queen_side_castling) {
+    if !board.white_king_side_castling {
         eval -= CAN_NOT_CASTLE_PENALTY;
     }
-    if !(board.black_king_side_castling || board.black_queen_side_castling) {
+    if !board.white_queen_side_castling {
+        eval -= CAN_NOT_CASTLE_PENALTY;
+    }
+    if !board.black_king_side_castling {
+        eval += CAN_NOT_CASTLE_PENALTY;
+    }
+    if !board.black_queen_side_castling {
         eval += CAN_NOT_CASTLE_PENALTY;
     }
 
