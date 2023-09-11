@@ -24,6 +24,7 @@ const BLACK_WIN_THRESHOLD: i32 = i32::MIN + 5;
 pub struct ChimpEngine {
     pub current_game_state: GameState,
     moves: Vec<Move>,
+    previous_best_line: Vec<Move>
 }
 
 impl ChimpEngine {
@@ -34,6 +35,7 @@ impl ChimpEngine {
         Self {
             current_game_state,
             moves,
+            previous_best_line: Vec::new()
         }
     }
 
@@ -43,6 +45,7 @@ impl ChimpEngine {
         Self {
             current_game_state,
             moves,
+            previous_best_line: Vec::new()
         }
     }
 
@@ -127,7 +130,19 @@ impl ChimpEngine {
         let timeout = Instant::now()
             .checked_add(Duration::from_millis(ms as u64))
             .unwrap();
-        iterative_deepening(self.current_game_state.clone(), timeout, vec![])
+
+        let previous_line = if self.previous_best_line.len() > 0 && self.moves.iter().last() == self.previous_best_line.iter().nth(0) {
+            info!("line hit! : {:?}", self.previous_best_line);
+            let num_priority_moves = self.previous_best_line.len();
+            self.previous_best_line[1..num_priority_moves].to_vec()
+        } else {
+            info!("line miss! {:?} vs  {:?}", self.moves.iter().last(), self.previous_best_line);
+            Vec::new()
+        };
+
+        let eval_result = iterative_deepening(self.current_game_state.clone(), timeout, previous_line);
+        self.previous_best_line = eval_result.2;
+        (eval_result.0, eval_result.1)
     }
 
     pub fn go_post_ponder(
@@ -170,7 +185,8 @@ impl ChimpEngine {
         let timeout = Instant::now()
             .checked_add(Duration::from_millis(ms as u64))
             .unwrap();
-        iterative_deepening(self.current_game_state.clone(), timeout, ponder_moves)
+        let (m,ponder,_c) = iterative_deepening(self.current_game_state.clone(), timeout, ponder_moves);
+        (m,ponder)
     }
 
     fn reset_state(&mut self) {
@@ -221,7 +237,7 @@ pub fn iterative_deepening(
     game_state: GameState,
     timeout: Instant,
     pondered_moves: Vec<Move>,
-) -> (Move, Option<Move>) {
+) -> (Move, Option<Move>, Vec<Move>) {
     let mut depth = pondered_moves.len() as i8;
 
     let mut output_r = (
@@ -281,7 +297,7 @@ pub fn iterative_deepening(
     }
 
     if m_history.len() == 0 {
-        return (Move::default(), None);
+        return (Move::default(), None, Vec::new());
     }
 
     info!(
@@ -291,9 +307,11 @@ pub fn iterative_deepening(
         m_history
     );
     if m_history.len() > 1 {
-        (m_history[0].0, Some(m_history[1].0))
+        let num_priority_moves = priority_moves.len();
+        let slice = priority_moves[1..num_priority_moves].to_vec();
+        (m_history[0].0, Some(m_history[1].0), slice)
     } else {
-        (m_history[0].0, None)
+        (m_history[0].0, None, Vec::new())
     }
 }
 
