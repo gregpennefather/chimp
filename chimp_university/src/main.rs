@@ -3,9 +3,10 @@ use std::time::{Duration, Instant, SystemTime};
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
     engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
+    evaluation::pawn_structure::build_pawn_frontspan_board,
     match_state::game_state::{self, GameState, MatchResultState},
     shared::board_utils::get_index_from_file_and_rank,
-    testing::test_engine, evaluation::pawn_structure::build_pawn_frontspan_board,
+    testing::test_engine,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -127,7 +128,6 @@ fn main() {
     // ];
     // println!("{rank2:?}");
 
-
     // let rank3 : [u64; 8] = [
     //     0.flip(23).flip(22).flip(21),
     //     0.flip(23).flip(22).flip(21),
@@ -150,14 +150,15 @@ fn main() {
     // let game_state = GameState::new("8/5p2/8/p1p3P1/P1P5/7P/1P6/8 w - - 0 1".into());
     // println!("{:?}", game_state.result_state());
 
-    debug_evals("rnbqkbnr/pp2pppp/2Pp4/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(), "rnbqkbnr/p2ppppp/2p5/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into());
+    // debug_evals(
+    //     "rnbqkbnr/pp2pppp/2Pp4/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(),
+    //     "rnbqkbnr/p2ppppp/2p5/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(),
+    // );
     //debug_evals("rnbqkbnr/p3pppp/8/1pp5/8/1B2PN2/PP1P1PPP/RNBQK2R w KQkq - 0 6".into(), "rnbqkbnr/p3pppp/8/1pp5/8/1B2PN2/PP1P1PPP/RNBQ1K1R b kq - 1 6".into());
 
     //GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
 
     //debug_deepening("rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(), 1000);
-
-
 
     //debug_deepening("rnb1kbr1/ppq1pppp/1npp4/8/2BPP2N/2N5/PPPB1PPP/R2Q1RK1 w q - 6 12".into(), 5000);
 
@@ -330,7 +331,9 @@ fn park_table() {
     let _handle = log4rs::init_config(config).unwrap();
 
     let start = Instant::now();
-    let mut engine: ChimpEngine = ChimpEngine::new();
+    let mut w_engine: ChimpEngine = ChimpEngine::new();
+    let mut b_engine: ChimpEngine = ChimpEngine::new();
+    let mut white_turn = true;
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     let mut white_ms = 10000;
@@ -339,13 +342,27 @@ fn park_table() {
     info!("Park Table:");
     for _i in 0..50 {
         let timer = Instant::now();
-        let (m, ponder) = if _i == 0 || _i == 1 {
-            engine.go(5000, 5000, -1, -1)
+        if white_turn {
+            w_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
         } else {
-            engine.go(white_ms, black_ms, inc_ms, inc_ms)
+            b_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
+        }
+        let (m, ponder) = if _i == 0 || _i == 1 {
+            if white_turn {
+                w_engine.go(5000, 5000, -1, -1)
+            } else {
+                b_engine.go(5000, 5000, -1, -1)
+            }
+        } else {
+            if white_turn {
+                w_engine.go(white_ms, black_ms, inc_ms, inc_ms)
+            } else {
+                b_engine.go(white_ms, black_ms, inc_ms, inc_ms)
+            }
         };
+
         if _i > 1 {
-            if engine.black_turn() {
+            if !white_turn {
                 black_ms += inc_ms;
             } else {
                 white_ms += inc_ms;
@@ -358,7 +375,7 @@ fn park_table() {
         move_ucis.push(m.uci());
         if _i > 1 {
             let delay = timer.elapsed().as_millis() as i32;
-            if engine.black_turn() {
+            if !white_turn {
                 black_ms -= delay;
                 if black_ms < 0 {
                     info!("Black out of time!");
@@ -372,17 +389,17 @@ fn park_table() {
                 }
             }
         }
+        white_turn = !white_turn;
         moves.push(m);
-        engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
-        if engine.current_game_state.result_state != MatchResultState::Active {
+        if b_engine.current_game_state.result_state != MatchResultState::Active {
             break;
         }
     }
     let duration = start.elapsed();
-    info!("Result: {:?}", engine.current_game_state.result_state);
+    info!("Result: {:?}", b_engine.current_game_state.result_state);
     info!("Runtime: {:?}", duration);
     info!("SAN: {}", build_san(moves));
-    info!("Final state: {:?}", engine.current_game_state);
+    info!("Final state: {:?}", b_engine.current_game_state);
 }
 
 fn get_moves_string(moves: &Vec<String>) -> String {
