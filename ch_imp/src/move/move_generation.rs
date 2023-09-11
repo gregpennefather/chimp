@@ -5,8 +5,8 @@ use crate::{
         bitboard::Bitboard,
         board_rep::BoardRep,
         king_position_analysis::{
-            KingPositionAnalysis, ThreatRaycastCollision, ThreatSource, ThreatType,
-        },
+            KingPositionAnalysis, ThreatRaycastCollision, ThreatSource, ThreatType, analyze_king_position,
+        }, position::Position,
     },
     shared::{
         board_utils::{get_direction_to_normalized, get_file, get_rank},
@@ -97,7 +97,7 @@ pub fn generate_moves(
 
     while friendly_occupancy != 0 {
         let piece_position = friendly_occupancy.trailing_zeros() as u8;
-        moves.extend(generate_position_moves(
+        moves.extend(generate_index_moves(
             board,
             piece_position,
             board.black_turn,
@@ -117,7 +117,46 @@ pub fn generate_moves(
     (moves, metrics)
 }
 
-fn generate_position_moves(
+pub fn generate_moves_for_board(board: BoardRep) -> Vec<Move> {
+
+    let white_king_analysis = analyze_king_position(
+        board.white_king_position,
+        false,
+        board.occupancy,
+        board.white_occupancy,
+        board.black_occupancy,
+        board.pawn_bitboard,
+        board.knight_bitboard,
+        board.bishop_bitboard,
+        board.rook_bitboard,
+        board.queen_bitboard,
+        board.black_turn,
+    );
+
+    let black_king_analysis = analyze_king_position(
+        board.black_king_position,
+        true,
+        board.occupancy,
+        board.black_occupancy,
+        board.white_occupancy,
+        board.pawn_bitboard,
+        board.knight_bitboard,
+        board.bishop_bitboard,
+        board.rook_bitboard,
+        board.queen_bitboard,
+        !board.black_turn,
+    );
+
+    let (king_analysis, opponent_king_analysis) = if board.black_turn {
+        (black_king_analysis, white_king_analysis)
+    } else {
+        (white_king_analysis, black_king_analysis)
+    };
+
+    generate_moves(&king_analysis, &opponent_king_analysis, board).0
+}
+
+fn generate_index_moves(
     board: BoardRep,
     index: u8,
     is_black: bool,
@@ -180,7 +219,7 @@ fn generate_position_moves(
     }
 }
 
-fn generate_threat_board(is_black: bool, mut piece_occupancy: u64, board: BoardRep) -> u64 {
+pub fn generate_threat_board(is_black: bool, mut piece_occupancy: u64, board: BoardRep) -> u64 {
     let mut r: u64 = 0;
     while piece_occupancy != 0 {
         let piece_position = piece_occupancy.trailing_zeros() as u8;

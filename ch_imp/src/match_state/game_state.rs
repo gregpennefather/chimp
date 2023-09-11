@@ -10,7 +10,6 @@ use crate::{
             MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
         },
         piece_type::{get_piece_type_from_char, PieceType},
-        transposition_table::{insert_into_position_table, lookup_position_table},
     },
 };
 use core::fmt::Debug;
@@ -24,12 +23,14 @@ pub enum MatchResultState {
     BlackVictory = 3,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct GameState {
     pub position: Position,
     pub half_moves: u8,
     pub full_moves: u32,
     pub result_state: MatchResultState,
+    pub entry_move: Move,
+    pub subjective_eval: i16,
     recent_moves: [Move; 6],
 }
 
@@ -45,20 +46,23 @@ impl GameState {
 
         let half_moves = match fen_segments.nth(0) {
             Some(hm) => hm.parse::<u8>().unwrap(),
-            None => 0
+            None => 0,
         };
         let full_moves = match fen_segments.nth(0) {
             Some(hm) => hm.parse::<u32>().unwrap(),
-            None => 0
+            None => 0,
         };
         let recent_moves = [Move::default(); 6];
         let result_state = result_state(half_moves, recent_moves, &position);
+        let subjective_eval = get_subjective_eval(&position);
         Self {
             position,
             half_moves,
             full_moves,
             result_state,
             recent_moves,
+            entry_move: Move::default(),
+            subjective_eval,
         }
     }
 
@@ -69,20 +73,7 @@ impl GameState {
     pub fn make(&self, m: Move) -> Option<Self> {
         let (new_zorb, move_segments) = self.position.board.zorb_key_after_move(m);
 
-        let lookup_result = lookup_position_table(new_zorb);
-        let new_position = match lookup_result {
-            // Some(new_position) => {
-            //     let calc_position =  self.position.apply_segments(move_segments);
-            //     assert_eq!(new_position, calc_position, "{self:?}:{m:?}");
-            //     new_position
-            // }
-            Some(position) => position,
-            None => {
-                let new_position = self.position.apply_segments(move_segments, new_zorb);
-                insert_into_position_table(new_position.clone());
-                new_position
-            }
-        };
+        let new_position = self.position.apply_segments(move_segments, new_zorb);
 
         if !new_position.legal {
             return None;
@@ -111,6 +102,7 @@ impl GameState {
         ];
 
         let result_state = result_state(half_moves, recent_moves, &new_position); // TODO: Might need to add in some extra logic here
+        let subjective_eval = get_subjective_eval(&new_position);
 
         Some(Self {
             position: new_position,
@@ -118,6 +110,8 @@ impl GameState {
             full_moves,
             recent_moves,
             result_state,
+            entry_move: m,
+            subjective_eval,
         })
     }
 
@@ -188,7 +182,14 @@ impl GameState {
             _ => {}
         }
 
-        Move::new(from, to, flags, piece_type, self.position.board.black_turn, 0) // See shouldnt be 0 but also theres no real need to calc it
+        Move::new(
+            from,
+            to,
+            flags,
+            piece_type,
+            self.position.board.black_turn,
+            0,
+        ) // See shouldnt be 0 but also theres no real need to calc it
     }
 }
 
@@ -217,17 +218,26 @@ fn result_state(half_moves: u8, recent_moves: [Move; 6], position: &Position) ->
         return MatchResultState::Draw;
     }
 
-    if position.moves.len() == 0 {
-        if position.board.black_turn && position.black_in_check {
-            return MatchResultState::WhiteVictory;
-        }
-        if !position.board.black_turn && position.white_in_check {
-            return MatchResultState::BlackVictory;
-        }
+    // if position.moves.len() == 0 {
+    //     if position.board.black_turn && position.black_in_check {
+    //         return MatchResultState::WhiteVictory;
+    //     }
+    //     if !position.board.black_turn && position.white_in_check {
+    //         return MatchResultState::BlackVictory;
+    //     }
 
-        return MatchResultState::Draw;
-    }
+    //     return MatchResultState::Draw;
+    // }
     MatchResultState::Active
+}
+
+// Gets the eval from the POV of the current player
+pub fn get_subjective_eval(position: &Position) -> i16 {
+    if position.board.black_turn {
+        -position.eval as i16
+    } else {
+        position.eval as i16
+    }
 }
 
 fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {
@@ -246,14 +256,7 @@ impl Default for GameState {
 }
 #[cfg(test)]
 mod test {
-    use crate::{
-        board::{
-            board_rep::BoardRep,
-            king_position_analysis::{self, analyze_king_position},
-        },
-        r#move::move_generation::generate_moves,
-        shared::constants::{MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING},
-    };
+    use crate::shared::constants::{MF_DOUBLE_PAWN_PUSH, MF_KING_CASTLING};
 
     use super::*;
 
@@ -313,7 +316,7 @@ mod test {
                 MF_DOUBLE_PAWN_PUSH,
                 PieceType::Pawn,
                 true,
-                0
+                0,
             ))
             .unwrap();
         assert_eq!(
@@ -328,7 +331,7 @@ mod test {
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 2".into(),
         );
         game_state = game_state
-            .make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true,0))
+            .make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true, 0))
             .unwrap();
         assert_eq!(
             game_state.to_fen(),
@@ -346,7 +349,6 @@ mod test {
         let new_state = game_state.make(m);
         assert_eq!(new_state, None);
     }
-
 
     // #[test]
     // pub fn bishop_to_c4() {

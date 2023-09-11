@@ -2,7 +2,10 @@ use std::time::Instant;
 
 use log::info;
 
-use crate::{match_state::game_state::GameState, r#move::Move, POSITION_TRANSPOSITION_TABLE};
+use crate::{
+    match_state::game_state::GameState,
+    r#move::{move_generation::generate_moves_for_board, Move},
+};
 
 pub fn perft(name: String, fen: String, counts: Vec<usize>) {
     info!("--- {name} ---");
@@ -11,7 +14,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
     let mut top_level_states = Vec::new();
 
     let start: Instant = Instant::now();
-    for &m in &origin_game_state.position.moves {
+    for m in generate_moves_for_board(origin_game_state.position.board) {
         if m.is_empty() {
             break;
         }
@@ -39,7 +42,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
         for top_level_state in top_level_states.iter_mut() {
             let mut new_edge_states = Vec::new();
             for game_state in &top_level_state.2 {
-                for &m in &game_state.position.moves {
+                for m in generate_moves_for_board(game_state.position.board) {
                     if m.is_empty() {
                         break;
                     }
@@ -65,10 +68,6 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
             return;
         }
     }
-    info!(
-        "Table size: {}",
-        POSITION_TRANSPOSITION_TABLE.read().unwrap().len()
-    )
 }
 
 fn print_move_counts(top_level_states: &Vec<(Move, usize, Vec<GameState>)>) {

@@ -3,19 +3,20 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
+use crate::r#move::move_generation::{generate_moves, generate_moves_for_board};
 use crate::shared::board_utils::get_rank;
 use crate::shared::piece_type::PieceType;
+use crate::shared::transposition_table::TranspositionTable;
 use crate::{
     match_state::game_state::{GameState, MatchResultState},
     r#move::Move,
-    shared::transposition_table::clear_tables,
-    POSITION_TRANSPOSITION_TABLE,
 };
 use crate::{PONDERING, PONDERING_RESULT};
 
 pub mod move_orderer;
 pub mod perft;
 pub mod san;
+pub mod search;
 
 const MAX_EXTENSIONS: i8 = 8;
 const WHITE_WIN_THRESHOLD: i32 = i32::MAX - 5;
@@ -24,18 +25,19 @@ const BLACK_WIN_THRESHOLD: i32 = i32::MIN + 5;
 pub struct ChimpEngine {
     pub current_game_state: GameState,
     moves: Vec<Move>,
-    previous_best_line: Vec<Move>
+    previous_best_line: Vec<Move>,
+    pub(super) transposition_table: TranspositionTable,
 }
 
 impl ChimpEngine {
     pub fn new() -> Self {
-        clear_tables();
         let current_game_state = GameState::default();
         let moves = Vec::new();
         Self {
             current_game_state,
             moves,
-            previous_best_line: Vec::new()
+            previous_best_line: Vec::new(),
+            transposition_table: TranspositionTable::new(),
         }
     }
 
@@ -45,7 +47,8 @@ impl ChimpEngine {
         Self {
             current_game_state,
             moves,
-            previous_best_line: Vec::new()
+            previous_best_line: Vec::new(),
+            transposition_table: TranspositionTable::new(),
         }
     }
 
@@ -131,16 +134,23 @@ impl ChimpEngine {
             .checked_add(Duration::from_millis(ms as u64))
             .unwrap();
 
-        let previous_line = if self.previous_best_line.len() > 0 && self.moves.iter().last() == self.previous_best_line.iter().nth(0) {
+        let previous_line = if self.previous_best_line.len() > 0
+            && self.moves.iter().last() == self.previous_best_line.iter().nth(0)
+        {
             info!("line hit! : {:?}", self.previous_best_line);
             let num_priority_moves = self.previous_best_line.len();
             self.previous_best_line[1..num_priority_moves].to_vec()
         } else {
-            info!("line miss! {:?} vs  {:?}", self.moves.iter().last(), self.previous_best_line);
+            info!(
+                "line miss! {:?} vs  {:?}",
+                self.moves.iter().last(),
+                self.previous_best_line
+            );
             Vec::new()
         };
 
-        let eval_result = iterative_deepening(self.current_game_state.clone(), timeout, previous_line);
+        let eval_result =
+            iterative_deepening(self.current_game_state.clone(), timeout, previous_line);
         self.previous_best_line = eval_result.2;
         (eval_result.0, eval_result.1)
     }
@@ -185,13 +195,13 @@ impl ChimpEngine {
         let timeout = Instant::now()
             .checked_add(Duration::from_millis(ms as u64))
             .unwrap();
-        let (m,ponder,_c) = iterative_deepening(self.current_game_state.clone(), timeout, ponder_moves);
-        (m,ponder)
+        let (m, ponder, _c) =
+            iterative_deepening(self.current_game_state.clone(), timeout, ponder_moves);
+        (m, ponder)
     }
 
     fn reset_state(&mut self) {
         self.current_game_state = GameState::default();
-        POSITION_TRANSPOSITION_TABLE.write().unwrap().clear();
     }
 
     fn add_move(&mut self, move_uci: &str) {
@@ -389,7 +399,7 @@ pub fn ab_search(
     let mut next_node_eval = 0;
     let mut move_history = Vec::new();
 
-    let mut ordered_moves = game_state.position.moves.clone();
+    let mut ordered_moves = generate_moves_for_board(game_state.position.board); // game_state.position.moves.clone();
     match priority_moves.iter().nth(ply as usize) {
         Some(r) => {
             ordered_moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r));
@@ -563,7 +573,7 @@ pub fn ponder_search(
     let mut next_node_eval = 0;
     let mut move_history = Vec::new();
 
-    let mut ordered_moves = game_state.position.moves.clone();
+    let mut ordered_moves = generate_moves_for_board(game_state.position.board);
     match priority_moves.iter().nth(ply as usize) {
         Some(r) => {
             ordered_moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r));
@@ -666,7 +676,6 @@ fn quiescence_search(
     mut alpha: i32, // maximize
     mut beta: i32,
 ) -> Result<(Vec<(Move, i32)>, i32, i32), String> {
-
     // Dont force a bad capture
     if !game_state.position.board.black_turn {
         if game_state.position.eval < alpha {
@@ -678,10 +687,7 @@ fn quiescence_search(
         }
     }
 
-    let capture_moves: Vec<Move> = game_state
-        .position
-        .moves
-        .clone()
+    let capture_moves: Vec<Move> = generate_moves_for_board(game_state.position.board)
         .into_iter()
         .filter(|m| !m.is_quiet())
         .collect();

@@ -1,6 +1,6 @@
 use crate::{
     match_state::game_state::GameState,
-    r#move::Move,
+    r#move::{Move, move_generation::generate_moves_for_board},
     shared::{
         board_utils::{char_from_file, get_coords_from_index, get_file, get_rank},
         piece_type::{get_piece_char, PieceType},
@@ -40,7 +40,7 @@ impl GameState {
         }
 
         let mut moves_targeting_square = Vec::new();
-        for c_m in &self.position.moves {
+        for c_m in generate_moves_for_board(self.position.board) {
             let cm_to = c_m.to();
             let cm_from = c_m.from();
             let cm_piece = self.position.board.get_piece_type_at_index(cm_from);
@@ -92,7 +92,7 @@ impl GameState {
         }
 
         let mut moves_targeting_square = Vec::new();
-        for c_m in &self.position.moves {
+        for c_m in generate_moves_for_board(self.position.board) {
             let cm_to = c_m.to();
             let cm_from = c_m.from();
             let cm_piece = self.position.board.get_piece_type_at_index(cm_from);

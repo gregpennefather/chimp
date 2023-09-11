@@ -1,8 +1,8 @@
-use std::time::{Duration, Instant, SystemTime};
+use std::{time::{Duration, Instant, SystemTime}, mem::size_of, vec};
 
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
-    engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine},
+    engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine, search::{AB_MIN, AB_MAX}},
     evaluation::pawn_structure::build_pawn_frontspan_board,
     match_state::game_state::{self, GameState, MatchResultState},
     shared::board_utils::get_index_from_file_and_rank,
@@ -39,7 +39,6 @@ fn main() {
 
     // assert_eq!(new_state, None);
 
-    //perfts();
     //let magic_table = MagicTable::new();
     // //println!("{}", Bitboard::new(magic_table.get_bishop_attacks(4, 18446462598732906495)));
     // //generate_blocker_patterns(rook_mask_generation(0));
@@ -170,10 +169,63 @@ fn main() {
     //println!("{r:?}");
 
     //timed_depth_test();
-    //target_depth_test();
+    // target_depth_test();
 
-    park_table();
+    // test_ab_search();
+    test_it_deep_search();
+
+
+    //perfts();
+    //park_table();
     //test_engine();
+}
+
+fn test_ab_search() {
+    let stdout = ConsoleAppender::builder().build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let timer = Instant::now();
+
+    let mut engine = ChimpEngine::new();
+    let mut i: u8 = 1;
+    while i <= 8 as u8 {
+        let timeout = Instant::now()
+            .checked_add(Duration::from_secs(30))
+            .unwrap();
+        let cutoff = || { Instant::now() > timeout };
+        let (eval, moves)= engine.alpha_beta_search(engine.current_game_state, &cutoff, i, AB_MIN, AB_MAX);
+        let dur = timer.elapsed();
+        println!("{i}: {eval} \t{:?} \t {moves:?}", dur);
+        i += 1;
+    }
+}
+
+fn test_it_deep_search() {
+    let stdout = ConsoleAppender::builder().build();
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let timer = Instant::now();
+
+    let mut engine = ChimpEngine::new();
+    let mut i: u8 = 1;
+    while i <= 8 as u8 {
+        let timeout = Instant::now()
+            .checked_add(Duration::from_secs(5))
+            .unwrap();
+        let cutoff = || { Instant::now() > timeout };
+        let (eval, moves)= engine.iterative_deepening(&cutoff, vec![]);
+        let dur = timer.elapsed();
+        println!("{i}: {eval} \t{:?} \t {moves:?}", dur);
+        i += 1;
+    }
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {

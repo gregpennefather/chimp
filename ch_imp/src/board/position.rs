@@ -1,6 +1,10 @@
 use crate::{
     evaluation::{self},
-    r#move::{move_generation::{generate_moves, MoveGenerationEvalMetrics}, move_segment::MoveSegment, Move},
+    r#move::{
+        move_generation::{generate_moves, generate_threat_board, MoveGenerationEvalMetrics},
+        move_segment::MoveSegment,
+        Move,
+    },
     search::zorb_set_precomputed::ZORB_SET,
 };
 use std::fmt::Debug;
@@ -9,14 +13,13 @@ use super::{board_rep::BoardRep, king_position_analysis::*};
 
 pub type MoveSegmentArray = [MoveSegment; 6];
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Position {
     pub board: BoardRep,
     pub white_in_check: bool,
     pub black_in_check: bool,
     pub legal: bool,
     pub eval: i32,
-    pub moves: Vec<Move>,
 }
 
 impl Position {
@@ -60,7 +63,6 @@ impl Position {
                 black_in_check: false,
                 legal: false,
                 eval: 0,
-                moves: Vec::new(),
             };
         }
         let white_king_analysis = analyze_king_position(
@@ -90,19 +92,17 @@ impl Position {
             !board.black_turn,
         );
         let mut eval = 0;
-        let mut moves = Vec::new();
-        let mut move_gen_metrics = MoveGenerationEvalMetrics::default();
 
         let legal = !((board.black_turn && white_king_analysis.check)
             || (!board.black_turn && black_king_analysis.check));
 
         if legal {
-            (moves, move_gen_metrics) = if board.black_turn {
-                generate_moves(&black_king_analysis, &white_king_analysis, board)
-            } else {
-                generate_moves(&white_king_analysis, &black_king_analysis, board)
+            let move_gen_metrics = MoveGenerationEvalMetrics {
+                white_threatboard: generate_threat_board(false, board.white_occupancy, board),
+                black_threatboard: generate_threat_board(true, board.black_occupancy, board),
+                white_pinned: white_king_analysis.pins,
+                black_pinned: black_king_analysis.pins,
             };
-
             eval = evaluation::calculate(board, move_gen_metrics);
         }
         Self {
@@ -111,41 +111,9 @@ impl Position {
             black_in_check: black_king_analysis.check,
             legal,
             eval,
-            moves,
         }
     }
 }
-
-// fn set_position_moves_and_meta(mut position: Position) -> (Position, Vec<Move>) {
-//     let (
-//         white_moves,
-//         black_moves,
-//         white_threatboard,
-//         black_threatboard,
-//         white_mobility_board,
-//         black_mobility_board,
-//     ) = MOVE_DATA.generate_moves_old(position);
-
-//     // Sort moves
-//     let mut active_colour_moves = if position.black_turn {
-//         black_moves.clone()
-//     } else {
-//         white_moves.clone()
-//     };
-//     active_colour_moves.sort();
-
-//     position.white_threatboard = white_threatboard;
-//     position.black_threatboard = black_threatboard;
-//     position.white_mobility_board = white_mobility_board;
-//     position.black_mobility_board = black_mobility_board;
-
-//     position.white_in_check = black_threatboard.occupied(position.white_king_position);
-//     position.black_in_check = white_threatboard.occupied(position.black_king_position);
-
-//     position.eval = evaluation::calculate(position, &white_moves, &black_moves);
-
-//     (position, active_colour_moves)
-// }
 
 impl Debug for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -160,14 +128,12 @@ impl Default for Position {
     fn default() -> Self {
         let board = BoardRep::default();
 
-        let king_analysis = KingPositionAnalysis {
-            check: false,
-            double_check: false,
-            threat_source: None,
-            pins: Vec::new(),
+        let eval_metrics = MoveGenerationEvalMetrics {
+            white_threatboard: generate_threat_board(false, board.white_occupancy, board),
+            black_threatboard: generate_threat_board(true, board.black_occupancy, board),
+            white_pinned: vec![],
+            black_pinned: vec![],
         };
-        let (moves, eval_metrics) = generate_moves(&king_analysis, &king_analysis, board);
-
         let eval = evaluation::calculate(board, eval_metrics);
 
         Self {
@@ -176,7 +142,6 @@ impl Default for Position {
             white_in_check: false,
             legal: true,
             eval,
-            moves,
         }
     }
 }
