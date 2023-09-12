@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::{
     match_state::game_state::{self, GameState},
     r#move::{move_generation::generate_moves_for_board, Move},
@@ -7,9 +9,57 @@ use crate::{
 pub const AB_MIN: i16 = -32767;
 pub const AB_MAX: i16 = 32767;
 
-use super::ChimpEngine;
+use super::{move_orderer, ChimpEngine};
 
 impl ChimpEngine {
+    fn make(&mut self, game_state: GameState, m: Move) -> Option<GameState> {
+        let (new_zorb, move_segments) = game_state.position.board.zorb_key_after_move(m);
+
+        let lookup_result = self.position_cache.lookup(new_zorb);
+
+        let position = match lookup_result {
+            Some(r) => r,
+            None => {
+                let new_pos = game_state.position.apply_segments(move_segments, new_zorb);
+                self.position_cache.record(new_zorb, new_pos);
+                new_pos
+            }
+        };
+
+        game_state.after_position(position, m)
+    }
+
+    fn get_moves(
+        &mut self,
+        game_state: GameState,
+        ply: u8,
+        priority_line: &Vec<Move>,
+        quiet: bool,
+    ) -> Vec<Move> {
+        let moves = if quiet {
+            generate_moves_for_board(game_state.position.board)
+        } else {
+            let lookup_result = self.moves_cache.lookup(game_state.position.board.zorb_key);
+            let mut moves = match lookup_result {
+                Some(r) => r,
+                None => {
+                    let moves = generate_moves_for_board(game_state.position.board);
+                    self.moves_cache
+                        .record(game_state.position.board.zorb_key, moves.clone());
+                    moves
+                }
+            };
+
+            match priority_line.iter().nth(ply as usize) {
+                Some(r) => moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r)),
+                None => {}
+            }
+            moves
+        };
+
+        moves
+    }
+
     pub fn iterative_deepening<CutoffFunc>(
         &mut self,
         cutoff: &CutoffFunc,
@@ -22,12 +72,26 @@ impl ChimpEngine {
 
         let mut output = (0, vec![]);
 
+        let timer = Instant::now();
+
         while !cutoff() && depth < 12 {
             depth += 1;
 
             // TODO: Add priority line
-            output =
-                self.alpha_beta_search(self.current_game_state, cutoff, depth, AB_MIN, AB_MAX);
+            output = self.alpha_beta_search(
+                self.current_game_state,
+                cutoff,
+                depth,
+                0,
+                AB_MIN,
+                AB_MAX,
+                &priority_line,
+            );
+
+            priority_line = output.1.clone();
+
+            let dur = timer.elapsed();
+            println!("{depth}: {} \t{:?} \t {:?}", output.0, dur, output.1);
 
             // TODO: Add mate detection
         }
@@ -39,8 +103,10 @@ impl ChimpEngine {
         game_state: GameState,
         cutoff: &CutoffFunc,
         depth: u8,
+        ply: u8,
         mut alpha: i16,
         beta: i16,
+        priority_line: &Vec<Move>,
     ) -> (i16, Vec<Move>)
     where
         CutoffFunc: Fn() -> bool,
@@ -76,15 +142,22 @@ impl ChimpEngine {
         let mut node_type = NodeType::AllNode;
         let mut line = vec![];
 
-        let legal_moves = generate_moves_for_board(game_state.position.board);
+        let legal_moves = self.get_moves(game_state, ply, priority_line, false);
         for m in legal_moves {
-            let new_game_state = match game_state.make(m) {
+            let new_game_state = match self.make(game_state, m) {
                 Some(s) => s,
                 None => continue,
             };
 
-            let (opponent_val, moves) =
-                self.alpha_beta_search(new_game_state, cutoff, depth - 1, -beta, -alpha);
+            let (opponent_val, moves) = self.alpha_beta_search(
+                new_game_state,
+                cutoff,
+                depth - 1,
+                ply + 1,
+                -beta,
+                -alpha,
+                priority_line,
+            );
             let val = opponent_val * -1;
 
             // Fail high, this move is too good and must be cut
@@ -141,13 +214,13 @@ impl ChimpEngine {
         }
 
         let mut line = vec![];
-        let moves = generate_moves_for_board(game_state.position.board); // Add a quiet flag
+        let moves = self.get_moves(game_state, 0, &vec![], true);
         for m in moves {
             if m.is_quiet() {
                 continue;
             }
 
-            let new_game_state = match game_state.make(m) {
+            let new_game_state = match self.make(game_state, m) {
                 Some(gs) => gs,
                 None => continue,
             };

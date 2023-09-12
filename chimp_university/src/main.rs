@@ -1,8 +1,18 @@
-use std::{time::{Duration, Instant, SystemTime}, mem::size_of, vec};
+use std::{
+    mem::size_of,
+    time::{Duration, Instant, SystemTime},
+    vec,
+};
 
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
-    engine::{ab_search, iterative_deepening, perft::perft, san::build_san, ChimpEngine, search::{AB_MIN, AB_MAX}},
+    engine::{
+        ab_search, iterative_deepening,
+        perft::perft,
+        san::build_san,
+        search::{AB_MAX, AB_MIN},
+        ChimpEngine,
+    },
     evaluation::pawn_structure::build_pawn_frontspan_board,
     match_state::game_state::{self, GameState, MatchResultState},
     shared::board_utils::get_index_from_file_and_rank,
@@ -171,9 +181,8 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-    // test_ab_search();
+    //test_ab_search();
     test_it_deep_search();
-
 
     //perfts();
     //park_table();
@@ -192,16 +201,30 @@ fn test_ab_search() {
 
     let mut engine = ChimpEngine::new();
     let mut i: u8 = 1;
-    while i <= 8 as u8 {
-        let timeout = Instant::now()
-            .checked_add(Duration::from_secs(30))
-            .unwrap();
-        let cutoff = || { Instant::now() > timeout };
-        let (eval, moves)= engine.alpha_beta_search(engine.current_game_state, &cutoff, i, AB_MIN, AB_MAX);
+    while i <= 7 as u8 {
+        let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
+        let cutoff = || Instant::now() > timeout;
+        let (eval, moves) = engine.alpha_beta_search(
+            engine.current_game_state,
+            &cutoff,
+            i,
+            0,
+            AB_MIN,
+            AB_MAX,
+            &vec![],
+        );
         let dur = timer.elapsed();
         println!("{i}: {eval} \t{:?} \t {moves:?}", dur);
         i += 1;
     }
+    println!(
+        "Position:\n- hits: {}\n- misses: {}",
+        engine.position_cache.hits, engine.position_cache.misses
+    );
+    println!(
+        "Moves:\n- hits: {}\n- misses: {}",
+        engine.moves_cache.hits, engine.moves_cache.misses
+    );
 }
 
 fn test_it_deep_search() {
@@ -212,20 +235,15 @@ fn test_it_deep_search() {
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
-    let timer = Instant::now();
-
     let mut engine = ChimpEngine::new();
-    let mut i: u8 = 1;
-    while i <= 8 as u8 {
-        let timeout = Instant::now()
-            .checked_add(Duration::from_secs(5))
-            .unwrap();
-        let cutoff = || { Instant::now() > timeout };
-        let (eval, moves)= engine.iterative_deepening(&cutoff, vec![]);
-        let dur = timer.elapsed();
-        println!("{i}: {eval} \t{:?} \t {moves:?}", dur);
-        i += 1;
-    }
+    let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
+    let cutoff = || Instant::now() > timeout;
+    let o = engine.iterative_deepening(&cutoff, vec![]);
+    println!("{o:?}");
+    println!(
+        "hits: {}\nmisses: {}",
+        engine.position_cache.hits, engine.position_cache.misses
+    );
 }
 
 fn debug_evals(fen_1: String, fen_2: String) {

@@ -115,6 +115,47 @@ impl GameState {
         })
     }
 
+    pub fn after_position(&self, position: Position, m: Move) -> Option<GameState> {
+        if !position.legal {
+            return None;
+        }
+
+        let mut half_moves = self.half_moves;
+        let mut full_moves = self.full_moves;
+
+        if m.is_capture() || m.piece_type() == PieceType::Pawn {
+            half_moves = 0;
+        } else {
+            half_moves += 1;
+        }
+
+        if self.position.board.black_turn {
+            full_moves += 1;
+        }
+
+        let recent_moves = [
+            m,
+            self.recent_moves[0],
+            self.recent_moves[1],
+            self.recent_moves[2],
+            self.recent_moves[3],
+            self.recent_moves[4],
+        ];
+
+        let result_state = result_state(half_moves, recent_moves, &position); // TODO: Might need to add in some extra logic here
+        let subjective_eval = get_subjective_eval(&position);
+
+        Some(Self {
+            position: position,
+            half_moves,
+            full_moves,
+            recent_moves,
+            result_state,
+            entry_move: m,
+            subjective_eval,
+        })
+    }
+
     pub fn to_fen(&self) -> String {
         let mut result = self.position.board.to_fen();
 

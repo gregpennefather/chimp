@@ -5,6 +5,7 @@ use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
 use crate::r#move::move_generation::{generate_moves, generate_moves_for_board};
 use crate::shared::board_utils::get_rank;
+use crate::shared::cache::{PositionCache, MovesCache};
 use crate::shared::piece_type::PieceType;
 use crate::shared::transposition_table::TranspositionTable;
 use crate::{
@@ -27,6 +28,8 @@ pub struct ChimpEngine {
     moves: Vec<Move>,
     previous_best_line: Vec<Move>,
     pub(super) transposition_table: TranspositionTable,
+    pub position_cache: PositionCache,
+    pub moves_cache: MovesCache
 }
 
 impl ChimpEngine {
@@ -38,6 +41,8 @@ impl ChimpEngine {
             moves,
             previous_best_line: Vec::new(),
             transposition_table: TranspositionTable::new(),
+            position_cache: PositionCache::new(),
+            moves_cache: MovesCache::new()
         }
     }
 
@@ -49,6 +54,8 @@ impl ChimpEngine {
             moves,
             previous_best_line: Vec::new(),
             transposition_table: TranspositionTable::new(),
+            position_cache: PositionCache::new(),
+            moves_cache: MovesCache::new()
         }
     }
 
