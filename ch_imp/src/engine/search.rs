@@ -1,5 +1,7 @@
 use std::time::Instant;
 
+use log::{info, debug, trace};
+
 use crate::{
     match_state::game_state::{self, GameState},
     r#move::{move_generation::generate_moves_for_board, Move},
@@ -64,7 +66,7 @@ impl ChimpEngine {
         &mut self,
         cutoff: &CutoffFunc,
         mut priority_line: Vec<Move>,
-    ) -> (i16, Vec<Move>)
+    ) -> Vec<Move>
     where
         CutoffFunc: Fn() -> bool,
     {
@@ -77,7 +79,6 @@ impl ChimpEngine {
         while !cutoff() && depth < 12 {
             depth += 1;
 
-            // TODO: Add priority line
             output = self.alpha_beta_search(
                 self.current_game_state,
                 cutoff,
@@ -91,11 +92,11 @@ impl ChimpEngine {
             priority_line = output.1.clone();
 
             let dur = timer.elapsed();
-            println!("{depth}: {} \t{:?} \t {:?}", output.0, dur, output.1);
+            debug!("{depth}: {} \t{:?} \t {:?}", output.0, dur, output.1);
 
             // TODO: Add mate detection
         }
-        output
+        output.1
     }
 
     pub fn alpha_beta_search<CutoffFunc>(
@@ -135,7 +136,7 @@ impl ChimpEngine {
         }
 
         if cutoff() {
-            panic!("cutoff!")
+            return (AB_MIN, vec![]);
         }
 
         // We need to evaluate this node
@@ -159,6 +160,10 @@ impl ChimpEngine {
                 priority_line,
             );
             let val = opponent_val * -1;
+
+            if line.len() != 0 && cutoff() {
+                break;
+            }
 
             // Fail high, this move is too good and must be cut
             if val >= beta {

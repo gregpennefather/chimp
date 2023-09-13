@@ -181,25 +181,25 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-    //test_ab_search();
-    test_it_deep_search();
+    //test_ab_search("rnbqkbnr/pp1p1pp1/2p1p3/7p/2B1P2P/8/PPPP1PP1/RNBQK1NR w KQkq - 0 4".to_string());
+    //test_it_deep_search();
 
     //perfts();
-    //park_table();
+    park_table();
     //test_engine();
 }
 
-fn test_ab_search() {
+fn test_ab_search(fen: String) {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Trace))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
     let timer = Instant::now();
 
-    let mut engine = ChimpEngine::new();
+    let mut engine = ChimpEngine::from_position(fen);
     let mut i: u8 = 1;
     while i <= 7 as u8 {
         let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
@@ -376,11 +376,13 @@ fn target_depth_test() {
 }
 
 fn park_table() {
-    let stdout = ConsoleAppender::builder().build();
-    let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{d(%H%M%S)} {l} {m}{n}")))
+        .build();
+    let chimp_logs: FileAppender = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{d(%H%M%S)} {l} {m}{n}")))
         .build(format!(
-            "log/chimp_v0.0.0.6_{:?}.log",
+            "log/chimp_{:?}.log",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -395,7 +397,7 @@ fn park_table() {
             Root::builder()
                 .appender("stdout")
                 .appender("chimp")
-                .build(LevelFilter::Info),
+                .build(LevelFilter::Debug),
         )
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
@@ -410,7 +412,7 @@ fn park_table() {
     let mut black_ms = 10000;
     let inc_ms = 2000;
     info!("Park Table:");
-    for _i in 0..50 {
+    for _i in 0..30 {
         let timer = Instant::now();
         if white_turn {
             w_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());

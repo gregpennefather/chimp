@@ -5,7 +5,7 @@ use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
 use crate::r#move::move_generation::{generate_moves, generate_moves_for_board};
 use crate::shared::board_utils::get_rank;
-use crate::shared::cache::{PositionCache, MovesCache};
+use crate::shared::cache::{MovesCache, PositionCache};
 use crate::shared::piece_type::PieceType;
 use crate::shared::transposition_table::TranspositionTable;
 use crate::{
@@ -29,7 +29,7 @@ pub struct ChimpEngine {
     previous_best_line: Vec<Move>,
     pub(super) transposition_table: TranspositionTable,
     pub position_cache: PositionCache,
-    pub moves_cache: MovesCache
+    pub moves_cache: MovesCache,
 }
 
 impl ChimpEngine {
@@ -42,7 +42,7 @@ impl ChimpEngine {
             previous_best_line: Vec::new(),
             transposition_table: TranspositionTable::new(),
             position_cache: PositionCache::new(),
-            moves_cache: MovesCache::new()
+            moves_cache: MovesCache::new(),
         }
     }
 
@@ -55,7 +55,7 @@ impl ChimpEngine {
             previous_best_line: Vec::new(),
             transposition_table: TranspositionTable::new(),
             position_cache: PositionCache::new(),
-            moves_cache: MovesCache::new()
+            moves_cache: MovesCache::new(),
         }
     }
 
@@ -156,10 +156,21 @@ impl ChimpEngine {
             Vec::new()
         };
 
-        let eval_result =
-            iterative_deepening(self.current_game_state.clone(), timeout, previous_line);
-        self.previous_best_line = eval_result.2;
-        (eval_result.0, eval_result.1)
+        let cutoff = || Instant::now() > timeout;
+
+        let eval_result = self.iterative_deepening(&cutoff, previous_line);
+        let num_priority_moves = eval_result.len();
+        self.previous_best_line = eval_result[1..num_priority_moves].to_vec();
+
+        info!(
+            "go {:?} path:{:?}\n",
+            eval_result[0],
+            eval_result
+        );
+
+        let ponder = if eval_result.len() > 1 { Some (eval_result[1] ) } else { None };
+
+        (eval_result[0], ponder)
     }
 
     pub fn go_post_ponder(
