@@ -111,6 +111,7 @@ impl ZorbSet {
     pub fn shift(&self, zorb: u64, move_segment: MoveSegment) -> u64 {
         match move_segment.segment_type {
             MoveSegmentType::Pickup | MoveSegmentType::Place => {
+                assert!(move_segment.piece_type != PieceType::None, "{move_segment:?}");
                 let piece_zorb_id = (((move_segment.piece_type as usize) - 1) * 2)
                     + if move_segment.black_piece { 1 } else { 0 };
                 zorb ^ self.table[move_segment.index as usize][piece_zorb_id]

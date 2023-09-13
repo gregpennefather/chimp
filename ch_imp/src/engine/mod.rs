@@ -144,21 +144,20 @@ impl ChimpEngine {
         let previous_line = if self.previous_best_line.len() > 0
             && self.moves.iter().last() == self.previous_best_line.iter().nth(0)
         {
-            info!("line hit! : {:?}", self.previous_best_line);
             let num_priority_moves = self.previous_best_line.len();
             self.previous_best_line[1..num_priority_moves].to_vec()
         } else {
-            info!(
-                "line miss! {:?} vs  {:?}",
-                self.moves.iter().last(),
-                self.previous_best_line
-            );
             Vec::new()
         };
 
         let cutoff = || Instant::now() > timeout;
 
         let eval_result = self.iterative_deepening(&cutoff, previous_line);
+
+        if (eval_result.len()) == 0 {
+            return (Move::default(), None)
+        }
+
         let num_priority_moves = eval_result.len();
         self.previous_best_line = eval_result[1..num_priority_moves].to_vec();
 

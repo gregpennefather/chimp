@@ -5,9 +5,10 @@ use log::{info, debug, trace};
 use crate::{
     match_state::game_state::{self, GameState},
     r#move::{move_generation::generate_moves_for_board, Move},
-    shared::transposition_table::NodeType,
+    shared::{transposition_table::NodeType, board_utils::get_rank, piece_type::PieceType},
 };
 
+const MAX_EXTENSIONS: u8 = 12;
 pub const AB_MIN: i16 = -32767;
 pub const AB_MAX: i16 = 32767;
 
@@ -87,6 +88,7 @@ impl ChimpEngine {
                 AB_MIN,
                 AB_MAX,
                 &priority_line,
+                0
             );
 
             priority_line = output.1.clone();
@@ -94,7 +96,9 @@ impl ChimpEngine {
             let dur = timer.elapsed();
             debug!("{depth}: {} \t{:?} \t {:?}", output.0, dur, output.1);
 
-            // TODO: Add mate detection
+            if output.0 == AB_MAX || output.0 == AB_MIN {
+                break;
+            }
         }
         output.1
     }
@@ -108,6 +112,7 @@ impl ChimpEngine {
         mut alpha: i16,
         beta: i16,
         priority_line: &Vec<Move>,
+        total_extensions: u8
     ) -> (i16, Vec<Move>)
     where
         CutoffFunc: Fn() -> bool,
@@ -142,6 +147,7 @@ impl ChimpEngine {
         // We need to evaluate this node
         let mut node_type = NodeType::AllNode;
         let mut line = vec![];
+        let mut has_legal_move = false;
 
         let legal_moves = self.get_moves(game_state, ply, priority_line, false);
         for m in legal_moves {
@@ -149,17 +155,22 @@ impl ChimpEngine {
                 Some(s) => s,
                 None => continue,
             };
+            has_legal_move = true;
+
+            let extension = get_extensions(new_game_state, m, total_extensions);
 
             let (opponent_val, moves) = self.alpha_beta_search(
                 new_game_state,
                 cutoff,
-                depth - 1,
+                depth - 1 + extension,
                 ply + 1,
                 -beta,
                 -alpha,
                 priority_line,
+                total_extensions + extension
             );
             let val = opponent_val * -1;
+
 
             if line.len() != 0 && cutoff() {
                 break;
@@ -174,7 +185,7 @@ impl ChimpEngine {
                     NodeType::CutNode,
                     m,
                 );
-                return (beta, vec![game_state.entry_move]);
+                return (beta, vec![m]);
             }
 
             // This move is inside the alpha-beta window and is thus considered a PV node
@@ -185,6 +196,12 @@ impl ChimpEngine {
                 line.extend(moves)
             }
         }
+
+        if !has_legal_move {
+            alpha = if game_state.position.black_in_check | game_state.position.white_in_check { AB_MIN } else { 0 };
+            line = vec![game_state.entry_move];
+        }
+
         self.transposition_table.record(
             game_state.position.board.zorb_key,
             depth,
@@ -247,4 +264,25 @@ impl ChimpEngine {
 
         (alpha, line)
     }
+}
+
+
+
+fn get_extensions(new_state: GameState, test_move: Move, total_extensions: u8) -> u8 {
+    if total_extensions >= MAX_EXTENSIONS {
+        return 0;
+    }
+    if new_state.position.black_in_check || new_state.position.white_in_check {
+        return 1;
+    }
+
+    if test_move.is_promotion() {
+        return 1;
+    }
+
+    let m_rank = get_rank(test_move.to());
+    if test_move.piece_type() == PieceType::Pawn && (m_rank == 1 || m_rank == 6) {
+        return 1;
+    }
+    return 0;
 }
