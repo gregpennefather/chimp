@@ -163,9 +163,16 @@ fn main() {
     //     "rnbqkbnr/pp2pppp/2Pp4/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(),
     //     "rnbqkbnr/p2ppppp/2p5/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(),
     // );
-    //debug_evals("rnbqkbnr/p3pppp/8/1pp5/8/1B2PN2/PP1P1PPP/RNBQK2R w KQkq - 0 6".into(), "rnbqkbnr/p3pppp/8/1pp5/8/1B2PN2/PP1P1PPP/RNBQ1K1R b kq - 1 6".into());
+    // debug_evals(
+    //     "rnb1kbnr/pppp1ppp/8/4Q3/4Pq2/5N2/PPPP1PPP/RNB1KB1R b KQkq - 0 4".into(),
+    //     "rnb1kbnr/pppp1ppp/8/1B2p2Q/4Pq2/5N2/PPPP1PPP/RNB1K2R b KQkq - 5 4".into(),
+    // );
 
-    //GameState::new("rnb1kb1r/1p4p1/1qp1B3/4PQBp/3P3P/2N5/PPP3P1/R3K1NR b KQ - 0 15".into());
+    //let gs = GameState::new("rnb1kbnr/pppp1ppp/8/1B2p2Q/4Pq2/5N2/PPPP1PPP/RNB1K2R b KQkq - 5 4".into());
+
+    // let mut engine = ChimpEngine::new();
+
+    // println!("{:?}", engine.quiescence_search(gs, &|| false, AB_MIN, AB_MAX));
 
     //debug_deepening("rn1qkb1r/pbppnppp/1p6/1P6/P3p2P/5NP1/2PPPPB1/RNBQK2R b KQkq - 0 7".into(), 1000);
 
@@ -181,19 +188,22 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-    //test_ab_search("rnbqkbnr/pp1p1pp1/2p1p3/7p/2B1P2P/8/PPPP1PP1/RNBQK1NR w KQkq - 0 4".to_string());
-    //test_it_deep_search();
+     test_ab_search(
+         "rnbqkbnr/pp1p2pp/2p2p2/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR b KQkq - 1 4".to_string(),
+         4,
+     );
+    //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
 
     //perfts();
-    park_table();
+    // park_table();
     //test_engine();
 }
 
-fn test_ab_search(fen: String) {
+fn test_ab_search(fen: String, depth: u8) {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Trace))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
@@ -201,7 +211,7 @@ fn test_ab_search(fen: String) {
 
     let mut engine = ChimpEngine::from_position(fen);
     let mut i: u8 = 1;
-    while i <= 7 as u8 {
+    while i <= depth {
         let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
         let cutoff = || Instant::now() > timeout;
         let (eval, moves) = engine.alpha_beta_search(
@@ -212,10 +222,14 @@ fn test_ab_search(fen: String) {
             AB_MIN,
             AB_MAX,
             &vec![],
+            0,
         );
         let dur = timer.elapsed();
         println!("{i}: {eval} \t{:?} \t {moves:?}", dur);
         i += 1;
+        if eval == AB_MAX || eval == AB_MIN {
+            break;
+        }
     }
     println!(
         "Position:\n- hits: {}\n- misses: {}",
@@ -227,7 +241,7 @@ fn test_ab_search(fen: String) {
     );
 }
 
-fn test_it_deep_search() {
+fn test_it_deep_search(fen: String) {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
@@ -235,7 +249,7 @@ fn test_it_deep_search() {
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 
-    let mut engine = ChimpEngine::new();
+    let mut engine = ChimpEngine::from_position(fen);
     let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
     let cutoff = || Instant::now() > timeout;
     let o = engine.iterative_deepening(&cutoff, vec![]);
@@ -408,11 +422,11 @@ fn park_table() {
     let mut white_turn = true;
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 10000;
-    let mut black_ms = 10000;
-    let inc_ms = 2000;
+    let mut white_ms = 5000;
+    let mut black_ms = 5000;
+    let inc_ms = 1000;
     info!("Park Table:");
-    for _i in 0..30 {
+    for _i in 0..10 {
         let timer = Instant::now();
         if white_turn {
             w_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());

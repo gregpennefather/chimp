@@ -84,7 +84,7 @@ impl Move {
     }
 
     pub fn is_quiet(&self) -> bool {
-        self.3 == 0
+        self.3 <= 0
     }
 
     pub fn see(&self) -> i8 {

@@ -3,7 +3,8 @@ use colored::Colorize;
 
 use crate::{engine::ChimpEngine, match_state::game_state::GameState};
 
-const TEST_SUITES: [(&str, usize); 3] = [ ("AH_Endgames-250.epd", 5000),("bk_test.txt", 5000),("KaufmanTestSuite.txt", 5000)];
+// const TEST_SUITES: [(&str, usize); 3] = [ ("AH_Endgames-250.epd", 5000),("bk_test.txt", 5000),("KaufmanTestSuite.txt", 5000)];
+const TEST_SUITES: [(&str, usize); 1] = [("KaufmanTestSuite.txt", 20000)];
 
 #[derive(Debug)]
 enum CommandType {

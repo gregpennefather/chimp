@@ -169,7 +169,7 @@ pub fn calculate(
     for white_pin in white_pinned {
         if white_pin.reveal_attack == false {
             let piece: PieceType = board.get_piece_type_at_index(white_pin.at);
-            eval -= MATERIAL_VALUES[piece as usize] / 2
+            eval -= MATERIAL_VALUES[piece as usize - 1] / 2
         } else {
             eval -= 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
         }
@@ -178,7 +178,7 @@ pub fn calculate(
 
         if black_pin.reveal_attack == false {
             let piece = board.get_piece_type_at_index(black_pin.at);
-            eval += MATERIAL_VALUES[piece as usize] / 2
+            eval += MATERIAL_VALUES[piece as usize - 1] / 2
         } else {
             eval += 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
         }

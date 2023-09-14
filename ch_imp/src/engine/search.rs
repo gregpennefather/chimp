@@ -1,11 +1,11 @@
 use std::time::Instant;
 
-use log::{info, debug, trace};
+use log::{debug, info, trace};
 
 use crate::{
     match_state::game_state::{self, GameState},
     r#move::{move_generation::generate_moves_for_board, Move},
-    shared::{transposition_table::NodeType, board_utils::get_rank, piece_type::PieceType},
+    shared::{board_utils::get_rank, piece_type::PieceType, transposition_table::NodeType},
 };
 
 const MAX_EXTENSIONS: u8 = 12;
@@ -37,29 +37,22 @@ impl ChimpEngine {
         game_state: GameState,
         ply: u8,
         priority_line: &Vec<Move>,
-        quiet: bool,
     ) -> Vec<Move> {
-        let moves = if quiet {
-            generate_moves_for_board(game_state.position.board)
-        } else {
-            let lookup_result = self.moves_cache.lookup(game_state.position.board.zorb_key);
-            let mut moves = match lookup_result {
-                Some(r) => r,
-                None => {
-                    let moves = generate_moves_for_board(game_state.position.board);
-                    self.moves_cache
-                        .record(game_state.position.board.zorb_key, moves.clone());
-                    moves
-                }
-            };
-
-            match priority_line.iter().nth(ply as usize) {
-                Some(r) => moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r)),
-                None => {}
+        let lookup_result = self.moves_cache.lookup(game_state.position.board.zorb_key);
+        let mut moves = match lookup_result {
+            Some(r) => r,
+            None => {
+                let moves = generate_moves_for_board(game_state.position.board);
+                self.moves_cache
+                    .record(game_state.position.board.zorb_key, moves.clone());
+                moves
             }
-            moves
         };
 
+        match priority_line.iter().nth(ply as usize) {
+            Some(r) => moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r)),
+            None => {}
+        }
         moves
     }
 
@@ -73,32 +66,32 @@ impl ChimpEngine {
     {
         let mut depth = priority_line.len() as u8;
 
-        let mut output = (0, vec![]);
+        let mut output = (0, priority_line);
 
         let timer = Instant::now();
 
         while !cutoff() && depth < 12 {
             depth += 1;
 
-            output = self.alpha_beta_search(
+            let result = self.alpha_beta_search(
                 self.current_game_state,
                 cutoff,
                 depth,
                 0,
                 AB_MIN,
                 AB_MAX,
-                &priority_line,
-                0
+                &output.1,
+                0,
             );
 
-            priority_line = output.1.clone();
+            if result.1.len() == 0 {
+                break;
+            }
+
+            output = result;
 
             let dur = timer.elapsed();
             debug!("{depth}: {} \t{:?} \t {:?}", output.0, dur, output.1);
-
-            if output.0 == AB_MAX || output.0 == AB_MIN {
-                break;
-            }
         }
         output.1
     }
@@ -112,7 +105,7 @@ impl ChimpEngine {
         mut alpha: i16,
         beta: i16,
         priority_line: &Vec<Move>,
-        total_extensions: u8
+        total_extensions: u8,
     ) -> (i16, Vec<Move>)
     where
         CutoffFunc: Fn() -> bool,
@@ -134,7 +127,7 @@ impl ChimpEngine {
                 depth,
                 q_result.0,
                 crate::shared::transposition_table::NodeType::PVNode,
-                game_state.entry_move,
+                Some(game_state.entry_move),
             );
 
             return q_result;
@@ -149,7 +142,7 @@ impl ChimpEngine {
         let mut line = vec![];
         let mut has_legal_move = false;
 
-        let legal_moves = self.get_moves(game_state, ply, priority_line, false);
+        let legal_moves = self.get_moves(game_state, ply, priority_line);
         for m in legal_moves {
             let new_game_state = match self.make(game_state, m) {
                 Some(s) => s,
@@ -159,6 +152,8 @@ impl ChimpEngine {
 
             let extension = get_extensions(new_game_state, m, total_extensions);
 
+            // TODO: Add late move reduction
+
             let (opponent_val, moves) = self.alpha_beta_search(
                 new_game_state,
                 cutoff,
@@ -167,10 +162,9 @@ impl ChimpEngine {
                 -beta,
                 -alpha,
                 priority_line,
-                total_extensions + extension
+                total_extensions + extension,
             );
             let val = opponent_val * -1;
-
 
             if line.len() != 0 && cutoff() {
                 break;
@@ -183,7 +177,7 @@ impl ChimpEngine {
                     depth,
                     beta,
                     NodeType::CutNode,
-                    m,
+                    Some(m),
                 );
                 return (beta, vec![m]);
             }
@@ -193,23 +187,25 @@ impl ChimpEngine {
                 node_type = NodeType::PVNode;
                 alpha = val;
                 line = vec![m];
-                line.extend(moves)
+                line.extend(moves);
             }
         }
 
         if !has_legal_move {
-            alpha = if game_state.position.black_in_check | game_state.position.white_in_check { AB_MIN } else { 0 };
-            line = vec![game_state.entry_move];
+            alpha = if game_state.position.black_in_check | game_state.position.white_in_check {
+                AB_MIN
+            } else {
+                0
+            };
+        } else {
+            self.transposition_table.record(
+                game_state.position.board.zorb_key,
+                depth,
+                alpha,
+                node_type,
+                if node_type == NodeType::AllNode { None } else { Some(line[0])},
+            );
         }
-
-        self.transposition_table.record(
-            game_state.position.board.zorb_key,
-            depth,
-            alpha,
-            node_type,
-            game_state.entry_move,
-        );
-
         return (alpha, line);
     }
 
@@ -236,7 +232,7 @@ impl ChimpEngine {
         }
 
         let mut line = vec![];
-        let moves = self.get_moves(game_state, 0, &vec![], true);
+        let moves = self.get_moves(game_state, 0, &vec![]);
         for m in moves {
             if m.is_quiet() {
                 continue;
@@ -265,8 +261,6 @@ impl ChimpEngine {
         (alpha, line)
     }
 }
-
-
 
 fn get_extensions(new_state: GameState, test_move: Move, total_extensions: u8) -> u8 {
     if total_extensions >= MAX_EXTENSIONS {
