@@ -4,12 +4,11 @@ use log::{debug, info, trace};
 
 use crate::{
     match_state::game_state::{self, GameState},
-    r#move::{move_generation::generate_moves_for_board, Move},
     shared::{
         board_utils::{get_rank, index_from_coords},
         piece_type::PieceType,
         transposition_table::NodeType,
-    },
+    }, r#move::Move, move_generation::generate_moves_for_board,
 };
 
 const MAX_EXTENSIONS: u8 = 12;

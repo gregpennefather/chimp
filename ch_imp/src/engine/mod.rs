@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
-use crate::r#move::move_generation::{generate_moves, generate_moves_for_board};
+use crate::move_generation::generate_moves_for_board;
 use crate::shared::board_utils::get_rank;
 use crate::shared::cache::{MovesCache, PositionCache};
 use crate::shared::piece_type::PieceType;

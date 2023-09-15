@@ -13,6 +13,7 @@ pub mod r#move;
 pub mod search;
 pub mod shared;
 pub mod testing;
+pub mod move_generation;
 
 #[macro_use]
 extern crate lazy_static;

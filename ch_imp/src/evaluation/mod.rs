@@ -1,9 +1,7 @@
 use log::trace;
 
 use crate::{
-    board::board_rep::BoardRep, evaluation::pawn_structure::get_pawn_structure_eval,
-    r#move::move_generation::MoveGenerationEvalMetrics,
-};
+    board::board_rep::BoardRep, evaluation::pawn_structure::get_pawn_structure_eval, move_generation::MoveGenerationEvalMetrics};
 
 use self::{eval_precomputed_data::PHASE_MATERIAL_VALUES, utils::piece_aggregate_score};
 

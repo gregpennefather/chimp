@@ -2,11 +2,10 @@ use crate::{
     board::{
         bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision,
     },
-    r#move::move_generation::generate_queen_moves,
     shared::{
         board_utils::{get_file, get_rank},
         piece_type::PieceType,
-    },
+    }, move_generation::sliding::queen::generate_queen_moves,
 };
 
 use super::{

@@ -2,10 +2,7 @@ use std::time::Instant;
 
 use log::info;
 
-use crate::{
-    match_state::game_state::GameState,
-    r#move::{move_generation::generate_moves_for_board, Move},
-};
+use crate::{match_state::game_state::GameState, r#move::Move, move_generation::generate_moves_for_board};
 
 pub fn perft(name: String, fen: String, counts: Vec<usize>) {
     info!("--- {name} ---");
@@ -51,7 +48,9 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
                     }
                     match game_state.make(m) {
                         Some(new_state) => new_edge_states.push(new_state),
-                        None => panic!("illegal move {m} at {}", game_state.position.board.to_fen()),
+                        None => {
+                            panic!("illegal move {m} at {}", game_state.position.board.to_fen())
+                        }
                     }
                 }
             }

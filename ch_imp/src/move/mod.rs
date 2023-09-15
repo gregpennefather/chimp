@@ -12,14 +12,13 @@ use core::fmt::Debug;
 use std::{cmp::Ordering, fmt::Display};
 
 pub mod move_data;
-pub mod move_generation;
 pub mod move_magic_bitboards;
 pub mod move_segment;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct Move(u16, PieceType, bool, i8);
 
-fn calculate_see(a: PieceType, b: PieceType) -> i8 {
+pub fn calculate_see(a: PieceType, b: PieceType) -> i8 {
     PIECE_TYPE_EXCHANGE_VALUE[b as usize] - PIECE_TYPE_EXCHANGE_VALUE[a as usize]
 }
 

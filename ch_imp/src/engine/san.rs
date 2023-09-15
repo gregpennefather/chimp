@@ -1,10 +1,10 @@
 use crate::{
     match_state::game_state::GameState,
-    r#move::{Move, move_generation::generate_moves_for_board},
+    r#move::{Move},
     shared::{
         board_utils::{char_from_file, get_coords_from_index, get_file, get_rank},
         piece_type::{get_piece_char, PieceType},
-    },
+    }, move_generation::generate_moves_for_board,
 };
 
 pub fn build_san(moves: Vec<Move>) -> String {
