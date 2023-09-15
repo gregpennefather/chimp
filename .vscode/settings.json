@@ -5,7 +5,8 @@
         ".\\ucichimp\\Cargo.toml",
         ".\\park-table\\Cargo.toml",
         ".\\ch_imp\\Cargo.toml",
-        ".\\chimp_university\\Cargo.toml"
+        ".\\chimp_university\\Cargo.toml",
+        ".\\chimp_exams\\Cargo.toml"
     ],
     "cSpell.words": [
         "bitboard",
