@@ -9,7 +9,7 @@ use crate::shared::{
     piece_type::{get_piece_char, PieceType, PIECE_TYPE_EXCHANGE_VALUE},
 };
 use core::fmt::Debug;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Display};
 
 pub mod move_data;
 pub mod move_generation;
@@ -84,7 +84,7 @@ impl Move {
     }
 
     pub fn is_quiet(&self) -> bool {
-        self.3 <= 0
+        self.3 == 0
     }
 
     pub fn see(&self) -> i8 {
@@ -117,6 +117,28 @@ impl Move {
 }
 
 impl Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut m_info = String::default();
+        m_info += &format!("{}", get_piece_char(self.piece_type(), self.is_black()));
+        m_info += match self.flags() {
+            MF_EP_CAPTURE | MF_CAPTURE => "+",
+            MF_KING_CASTLING => "o-o",
+            MF_QUEEN_CASTLING => "o-o-o",
+            MF_KNIGHT_PROMOTION | MF_KNIGHT_CAPTURE_PROMOTION => "n",
+            MF_BISHOP_PROMOTION | MF_BISHOP_CAPTURE_PROMOTION => "b",
+            MF_ROOK_PROMOTION | MF_ROOK_CAPTURE_PROMOTION => "r",
+            MF_QUEEN_PROMOTION | MF_QUEEN_CAPTURE_PROMOTION => "q",
+            MF_DOUBLE_PAWN_PUSH => "dpp",
+            _ => "",
+        };
+
+        f.debug_tuple("Move")
+            .field(&format!("{}-{}", self.uci(), m_info))
+            .finish()
+    }
+}
+
+impl Display for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut m_info = String::default();
         m_info += &format!("{}", get_piece_char(self.piece_type(), self.is_black()));

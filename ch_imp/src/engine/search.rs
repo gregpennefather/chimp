@@ -5,7 +5,11 @@ use log::{debug, info, trace};
 use crate::{
     match_state::game_state::{self, GameState},
     r#move::{move_generation::generate_moves_for_board, Move},
-    shared::{board_utils::get_rank, piece_type::PieceType, transposition_table::NodeType},
+    shared::{
+        board_utils::{get_rank, index_from_coords},
+        piece_type::PieceType,
+        transposition_table::NodeType,
+    },
 };
 
 const MAX_EXTENSIONS: u8 = 12;
@@ -59,7 +63,7 @@ impl ChimpEngine {
     pub fn iterative_deepening<CutoffFunc>(
         &mut self,
         cutoff: &CutoffFunc,
-        mut priority_line: Vec<Move>,
+        priority_line: Vec<Move>,
     ) -> Vec<Move>
     where
         CutoffFunc: Fn() -> bool,
@@ -143,7 +147,8 @@ impl ChimpEngine {
         let mut has_legal_move = false;
 
         let legal_moves = self.get_moves(game_state, ply, priority_line);
-        for m in legal_moves {
+        for move_index in 0..legal_moves.len() {
+            let m = legal_moves[move_index];
             let new_game_state = match self.make(game_state, m) {
                 Some(s) => s,
                 None => continue,
@@ -152,19 +157,46 @@ impl ChimpEngine {
 
             let extension = get_extensions(new_game_state, m, total_extensions);
 
-            // TODO: Add late move reduction
+            // Reduce late moves if possible
+            let shallow_eval = if extension == 0 && depth > 2 && move_index > 3 && m.is_quiet() {
+                let (opponent_val, moves) = self.alpha_beta_search(
+                    new_game_state,
+                    cutoff,
+                    depth - 2,
+                    ply + 1,
+                    -beta,
+                    -alpha,
+                    priority_line,
+                    total_extensions + extension,
+                );
+                let val = opponent_val * -1;
+                // if val > alpha then we need a full search, else use this shallow eval
+                if val > alpha {
+                    None
+                } else {
+                    Some((val, moves))
+                }
+            }
+            else {
+                None
+            };
 
-            let (opponent_val, moves) = self.alpha_beta_search(
-                new_game_state,
-                cutoff,
-                depth - 1 + extension,
-                ply + 1,
-                -beta,
-                -alpha,
-                priority_line,
-                total_extensions + extension,
-            );
-            let val = opponent_val * -1;
+            let (val, moves) = match shallow_eval {
+                Some(eval_pair) => eval_pair,
+                None => {
+                    let (opponent_val, moves) = self.alpha_beta_search(
+                        new_game_state,
+                        cutoff,
+                        depth - 1 + extension,
+                        ply + 1,
+                        -beta,
+                        -alpha,
+                        priority_line,
+                        total_extensions + extension,
+                    );
+                    (opponent_val * -1, moves)
+                }
+            };
 
             if line.len() != 0 && cutoff() {
                 break;
@@ -179,7 +211,7 @@ impl ChimpEngine {
                     NodeType::CutNode,
                     Some(m),
                 );
-                return (beta, vec![m]);
+                return (beta, vec![]);
             }
 
             // This move is inside the alpha-beta window and is thus considered a PV node
@@ -203,7 +235,11 @@ impl ChimpEngine {
                 depth,
                 alpha,
                 node_type,
-                if node_type == NodeType::AllNode { None } else { Some(line[0])},
+                if node_type == NodeType::AllNode {
+                    None
+                } else {
+                    Some(line[0])
+                },
             );
         }
         return (alpha, line);

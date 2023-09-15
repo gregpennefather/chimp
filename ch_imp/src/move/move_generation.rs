@@ -114,6 +114,7 @@ pub fn generate_moves(
         friendly_threat_board,
         opponent_threat_board,
     );
+    moves.sort();
     (moves, metrics)
 }
 
@@ -787,7 +788,7 @@ fn moveboard_to_moves(
     while m_b != 0 {
         let lsb = m_b.trailing_zeros() as u8;
         if opponent_occupancy.occupied(lsb) {
-            let see = calculate_see(PieceType::Pawn, board.get_piece_type_at_index(lsb));
+            let see = calculate_see(piece_type, board.get_piece_type_at_index(lsb));
             generated_moves.push(Move::new(from_index, lsb, MF_CAPTURE, piece_type, is_black,see));
         } else if !occupancy.occupied(lsb) {
             generated_moves.push(Move::new(from_index, lsb, 0b0, piece_type, is_black, 0));
@@ -1286,6 +1287,52 @@ mod test {
             piece_type::PieceType::King,
             true,
             0
+        )));
+    }
+
+    #[test]
+    pub fn generate_moves_queen_check_bishop_can_capture() {
+        let board = BoardRep::from_fen(
+            "rnbqkbnr/pp4pp/2p1Qp2/3pp3/2B1P2P/8/PPPP1PP1/RNB1K1NR b KQkq - 1 5".into(),
+        );
+
+        let white_king_analysis = analyze_king_position(
+            board.white_king_position,
+            false,
+            board.occupancy,
+            board.white_occupancy,
+            board.black_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            board.black_turn,
+        );
+
+        let black_king_analysis = analyze_king_position(
+            board.black_king_position,
+            true,
+            board.occupancy,
+            board.black_occupancy,
+            board.white_occupancy,
+            board.pawn_bitboard,
+            board.knight_bitboard,
+            board.bishop_bitboard,
+            board.rook_bitboard,
+            board.queen_bitboard,
+            !board.black_turn,
+        );
+
+        let moves = generate_moves_for_board(board);
+        assert_eq!(moves.len(), 4);
+        assert!(moves.contains(&Move::new(
+            index_from_coords("c8"),
+            index_from_coords("e6"),
+            MF_CAPTURE,
+            piece_type::PieceType::Bishop,
+            true,
+            calculate_see(PieceType::Bishop, PieceType::Queen)
         )));
     }
 

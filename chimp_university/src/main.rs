@@ -159,10 +159,10 @@ fn main() {
     // let game_state = GameState::new("8/5p2/8/p1p3P1/P1P5/7P/1P6/8 w - - 0 1".into());
     // println!("{:?}", game_state.result_state());
 
-    // debug_evals(
-    //     "rnbqkbnr/pp2pppp/2Pp4/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(),
-    //     "rnbqkbnr/p2ppppp/2p5/8/B7/4PN2/PP3PPP/RNBQ1K1R w kq - 2 7".into(),
-    // );
+    //  debug_evals(
+    //      "rnbqk1nr/pp4bp/2p2p2/3pp3/2B1P2P/8/PPPP1PP1/RNB1K1NR w KQkq - 0 6".into(),
+    //      "rnbqkbnr/pp4Qp/2p2p2/4p3/2p1P2P/8/PPPP1PP1/RNB1K1NR w KQkq - 0 6".into(),
+    //  );
     // debug_evals(
     //     "rnb1kbnr/pppp1ppp/8/4Q3/4Pq2/5N2/PPPP1PPP/RNB1KB1R b KQkq - 0 4".into(),
     //     "rnb1kbnr/pppp1ppp/8/1B2p2Q/4Pq2/5N2/PPPP1PPP/RNB1K2R b KQkq - 5 4".into(),
@@ -188,14 +188,18 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-     test_ab_search(
-         "rnbqkbnr/pp1p2pp/2p2p2/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR b KQkq - 1 4".to_string(),
-         4,
-     );
+    // test_ab_search(
+    //     "rnbqkbnr/pp1p2pp/2p2p2/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR b KQkq - 1 4".to_string(),
+    //     4,
+    // );
+    //    test_ab_search(
+    //       "rnbqkbnr/pp1p3p/2p2pp1/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5".to_string(),
+    //       5,
+    //   );
     //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
 
     //perfts();
-    // park_table();
+    park_table();
     //test_engine();
 }
 
@@ -208,11 +212,13 @@ fn test_ab_search(fen: String, depth: u8) {
     let _handle = log4rs::init_config(config).unwrap();
 
     let timer = Instant::now();
-
+    let mut priority_line = vec![];
     let mut engine = ChimpEngine::from_position(fen);
-    let mut i: u8 = 1;
+    let mut i: u8 = 3;
     while i <= depth {
-        let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
+        let timeout = Instant::now()
+            .checked_add(Duration::from_secs(3600))
+            .unwrap();
         let cutoff = || Instant::now() > timeout;
         let (eval, moves) = engine.alpha_beta_search(
             engine.current_game_state,
@@ -221,11 +227,12 @@ fn test_ab_search(fen: String, depth: u8) {
             0,
             AB_MIN,
             AB_MAX,
-            &vec![],
+            &priority_line,
             0,
         );
         let dur = timer.elapsed();
         println!("{i}: {eval} \t{:?} \t {moves:?}", dur);
+        priority_line = moves.clone();
         i += 1;
         if eval == AB_MAX || eval == AB_MIN {
             break;
@@ -422,11 +429,11 @@ fn park_table() {
     let mut white_turn = true;
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 5000;
-    let mut black_ms = 5000;
-    let inc_ms = 1000;
+    let mut white_ms = 300000;
+    let mut black_ms = 300000;
+    let inc_ms = 5000;
     info!("Park Table:");
-    for _i in 0..10 {
+    for _i in 0..200 {
         let timer = Instant::now();
         if white_turn {
             w_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
