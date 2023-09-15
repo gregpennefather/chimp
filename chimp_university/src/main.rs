@@ -7,7 +7,6 @@ use std::{
 use ch_imp::{
     board::{bitboard::Bitboard, position::Position},
     engine::{
-        ab_search, iterative_deepening,
         perft::perft,
         san::build_san,
         search::{AB_MAX, AB_MIN},
@@ -198,8 +197,8 @@ fn main() {
     //   );
     //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
 
-    perfts();
-    //park_table();
+    //perfts();
+    park_table();
     //test_engine();
 }
 
@@ -281,120 +280,80 @@ fn debug_evals(fen_1: String, fen_2: String) {
     println!("{} vs {}", p1.eval, p2.eval)
 }
 
-fn debug_deepening(fen_1: String, ms: u64) {
-    let stdout = ConsoleAppender::builder().build();
-    let config = Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
-        .unwrap();
-    let _handle = log4rs::init_config(config).unwrap();
+// fn timed_depth_test() {
+//     let stdout = ConsoleAppender::builder().build();
+//     let chimp_logs = FileAppender::builder()
+//         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+//         .build(format!(
+//             "log/timed_depth/{:?}.log",
+//             SystemTime::now()
+//                 .duration_since(SystemTime::UNIX_EPOCH)
+//                 .unwrap()
+//                 .as_secs()
+//         ))
+//         .unwrap();
 
-    let timer = Instant::now();
-    let game_state = GameState::new(fen_1);
-    let timeout = Instant::now()
-        .checked_add(Duration::from_millis(ms))
-        .unwrap();
-    iterative_deepening(game_state, timeout, vec![]);
-    let dur = timer.elapsed();
-    println!("dur: {dur:?}");
-}
+//     let config = Config::builder()
+//         .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
+//         .appender(Appender::builder().build("stdout", Box::new(stdout)))
+//         .build(
+//             Root::builder()
+//                 .appender("stdout")
+//                 .appender("chimp")
+//                 .build(LevelFilter::Info),
+//         )
+//         .unwrap();
+//     let _handle = log4rs::init_config(config).unwrap();
 
-fn debug_search(fen_1: String, depth: u8) {
-    let stdout = ConsoleAppender::builder().build();
-    let config = Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
-        .unwrap();
-    let _handle = log4rs::init_config(config).unwrap();
+//     let game_state = GameState::default();
+//     let timeout = Instant::now()
+//         .checked_add(Duration::from_secs(120))
+//         .unwrap();
+//     info!("Timed depth test: 120s");
+//     iterative_deepening(game_state, timeout, vec![]);
+// }
 
-    let timer = Instant::now();
+// fn target_depth_test() {
+//     let stdout = ConsoleAppender::builder().build();
+//     let chimp_logs = FileAppender::builder()
+//         .encoder(Box::new(PatternEncoder::new("{m}{n}")))
+//         .build(format!(
+//             "log/target_depth/{:?}.log",
+//             SystemTime::now()
+//                 .duration_since(SystemTime::UNIX_EPOCH)
+//                 .unwrap()
+//                 .as_secs()
+//         ))
+//         .unwrap();
 
-    let game_state = GameState::new(fen_1);
-    let mut i: i8 = 1;
-    while i <= depth as i8 {
-        let timeout = Instant::now().checked_add(Duration::from_secs(30)).unwrap();
+//     let config = Config::builder()
+//         .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
+//         .appender(Appender::builder().build("stdout", Box::new(stdout)))
+//         .build(
+//             Root::builder()
+//                 .appender("stdout")
+//                 .appender("chimp")
+//                 .build(LevelFilter::Info),
+//         )
+//         .unwrap();
+//     let _handle = log4rs::init_config(config).unwrap();
 
-        let r = ab_search(&game_state, &vec![], i, 0, timeout, 0, i32::MIN, i32::MAX).unwrap();
-        let dur = timer.elapsed();
-        println!("{i}:{:?} {:?}", r, dur);
-        i += 1;
-    }
-}
+//     let game_state = GameState::default();
+//     let depth = 8;
+//     info!("Target depth test: 8");
+//     let mut i = 0;
+//     let timer = Instant::now();
+//     while i <= depth {
+//         let timeout = Instant::now()
+//             .checked_add(Duration::from_secs(300))
+//             .unwrap();
 
-fn timed_depth_test() {
-    let stdout = ConsoleAppender::builder().build();
-    let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
-        .build(format!(
-            "log/timed_depth/{:?}.log",
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        ))
-        .unwrap();
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(
-            Root::builder()
-                .appender("stdout")
-                .appender("chimp")
-                .build(LevelFilter::Info),
-        )
-        .unwrap();
-    let _handle = log4rs::init_config(config).unwrap();
-
-    let game_state = GameState::default();
-    let timeout = Instant::now()
-        .checked_add(Duration::from_secs(120))
-        .unwrap();
-    info!("Timed depth test: 120s");
-    iterative_deepening(game_state, timeout, vec![]);
-}
-
-fn target_depth_test() {
-    let stdout = ConsoleAppender::builder().build();
-    let chimp_logs = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{m}{n}")))
-        .build(format!(
-            "log/target_depth/{:?}.log",
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        ))
-        .unwrap();
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("chimp", Box::new(chimp_logs)))
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(
-            Root::builder()
-                .appender("stdout")
-                .appender("chimp")
-                .build(LevelFilter::Info),
-        )
-        .unwrap();
-    let _handle = log4rs::init_config(config).unwrap();
-
-    let game_state = GameState::default();
-    let depth = 8;
-    info!("Target depth test: 8");
-    let mut i = 0;
-    let timer = Instant::now();
-    while i <= depth {
-        let timeout = Instant::now()
-            .checked_add(Duration::from_secs(300))
-            .unwrap();
-
-        let r = ab_search(&game_state, &vec![], i, 0, timeout, 0, i32::MIN, i32::MAX).unwrap();
-        let dur = timer.elapsed();
-        info!("{i}:{:?} {:?}", r, dur);
-        i += 1;
-    }
-}
+//         let r = ab_search(&game_state, &vec![], i, 0, timeout, 0, i32::MIN, i32::MAX).unwrap();
+//         let dur = timer.elapsed();
+//         info!("{i}:{:?} {:?}", r, dur);
+//         i += 1;
+//     }
+// }
 
 fn park_table() {
     let stdout = ConsoleAppender::builder()
@@ -429,9 +388,9 @@ fn park_table() {
     let mut white_turn = true;
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 300000;
-    let mut black_ms = 300000;
-    let inc_ms = 5000;
+    let mut white_ms = 30000;
+    let mut black_ms = 30000;
+    let inc_ms = 1000;
     info!("Park Table:");
     for _i in 0..200 {
         let timer = Instant::now();

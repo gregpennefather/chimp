@@ -73,9 +73,9 @@ fn run() -> bool {
                 "go" => {
                     let (should_ponder, time_info) = get_go_params(split_string);
                     last_time_info = time_info;
-                    if should_ponder {
-                        ponder_handler = Some(engine.ponder());
-                    } else {
+                    // if should_ponder {
+                    //     ponder_handler = Some(engine.ponder());
+                    // } else {
                         let (bestmove, ponder) = engine.go(
                             last_time_info.wtime,
                             last_time_info.btime,
@@ -83,34 +83,36 @@ fn run() -> bool {
                             last_time_info.binc,
                         );
                         handle_go_result(bestmove, ponder);
-                    }
+                    // }
                 }
                 "ponderhit" => {
-                    engine.ponder_hit();
-                    let ponder_result = await_ponder_handler_result(ponder_handler);
-                    let (bestmove, ponder) = engine.go_post_ponder(
-                        last_time_info.wtime,
-                        last_time_info.btime,
-                        last_time_info.winc,
-                        last_time_info.binc,
-                        ponder_result,
-                    );
-                    handle_go_result(bestmove, ponder);
-                    ponder_handler = None;
-                }
-                "pondermiss" | "stop" => {
-                    info!("stop ponder");
-                    engine.ponder_miss();
-                    let _ponder_result = await_ponder_handler_result(ponder_handler);
-                    info!("stop ponder_result: {_ponder_result:?}");
-                    // let (bestmove, ponder) = engine.go(
+                    panic!("Pondering disabled!")
+                    // engine.ponder_hit();
+                    // let ponder_result = await_ponder_handler_result(ponder_handler);
+                    // let (bestmove, ponder) = engine.go_post_ponder(
                     //     last_time_info.wtime,
                     //     last_time_info.btime,
                     //     last_time_info.winc,
                     //     last_time_info.binc,
+                    //     ponder_result,
                     // );
-                    handle_go_result(_ponder_result[0], None);
-                    ponder_handler = None;
+                    // handle_go_result(bestmove, ponder);
+                    // ponder_handler = None;
+                }
+                "pondermiss" | "stop" => {
+                    panic!("Pondering disabled!")
+                    // info!("stop ponder");
+                    // engine.ponder_miss();
+                    // let _ponder_result = await_ponder_handler_result(ponder_handler);
+                    // info!("stop ponder_result: {_ponder_result:?}");
+                    // // let (bestmove, ponder) = engine.go(
+                    // //     last_time_info.wtime,
+                    // //     last_time_info.btime,
+                    // //     last_time_info.winc,
+                    // //     last_time_info.binc,
+                    // // );
+                    // handle_go_result(_ponder_result[0], None);
+                    // ponder_handler = None;
                 }
                 "quit" => break,
                 _ => {
