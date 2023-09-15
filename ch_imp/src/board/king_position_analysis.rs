@@ -23,16 +23,17 @@ pub struct ThreatRaycastCollision {
     pub at: u8,
     pub reveal_attack: bool,
     pub threat_type: ThreatType,
+    pub threat_ray_mask: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ThreatSource {
     pub from: u8,
     pub threat_type: ThreatType,
-    pub threat_path_mask: u64,
+    pub threat_ray_mask: u64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct KingPositionAnalysis {
     pub check: bool,
     pub double_check: bool, // In double check only a king move can escape check so we can generate less moves
@@ -51,7 +52,7 @@ pub fn analyze_king_position(
     bishop_bitboard: u64,
     rook_bitboard: u64,
     queen_bitboard: u64,
-    shallow: bool
+    shallow: bool,
 ) -> KingPositionAnalysis {
     let mut check = false;
     let mut double_check = false;
@@ -164,81 +165,6 @@ pub fn analyze_king_position(
     }
 }
 
-pub fn analyze_king_position_shallow(
-    king_pos: u8,
-    black_king: bool,
-    occupancy: u64,
-    opponent_occupancy: u64,
-    pawn_bitboard: u64,
-    knight_bitboard: u64,
-    bishop_bitboard: u64,
-    rook_bitboard: u64,
-    queen_bitboard: u64,
-) -> KingPositionAnalysis {
-    let knights: u64 = knight_bitboard & opponent_occupancy;
-    if knights.count_ones() > 0 {
-        let (c, dc, ts) = in_check_from_knights(king_pos, knights, true);
-
-        if dc {
-            return KingPositionAnalysis {
-                check: true,
-                double_check: false,
-                threat_source: None,
-                pins: Vec::new(),
-            };
-        }
-    }
-
-    let diagonal_threats = (bishop_bitboard | queen_bitboard) & opponent_occupancy;
-    if diagonal_threats.count_ones() > 0 {
-        let (c, dc, ts, p) = in_sliding_check(king_pos, true, diagonal_threats, occupancy, 0, true);
-
-        if dc {
-            return KingPositionAnalysis {
-                check: true,
-                double_check: false,
-                threat_source: None,
-                pins: Vec::new(),
-            };
-        }
-    }
-
-    let orthogonal_threats = (rook_bitboard | queen_bitboard) & opponent_occupancy;
-
-    if orthogonal_threats.count_ones() > 0 {
-        let (c, dc, ts, p) =
-            in_sliding_check(king_pos, false, orthogonal_threats, occupancy, 0, true);
-        if dc {
-            return KingPositionAnalysis {
-                check: true,
-                double_check: false,
-                threat_source: None,
-                pins: Vec::new(),
-            };
-        }
-    }
-
-    let pawn_threats: u64 = pawn_bitboard & opponent_occupancy;
-    if pawn_threats.count_ones() > 0 {
-        let (c, dc, ts) = is_pawn_check(king_pos, black_king, pawn_threats, true);
-        if dc {
-            return KingPositionAnalysis {
-                check: true,
-                double_check: false,
-                threat_source: None,
-                pins: Vec::new(),
-            };
-        }
-    }
-
-    KingPositionAnalysis {
-        check: false,
-        double_check: false,
-        threat_source: None,
-        pins: Vec::new(),
-    }
-}
-
 fn is_pawn_check(
     king_pos: u8,
     black_king: bool,
@@ -267,7 +193,7 @@ fn is_pawn_check(
     let threat = ThreatSource {
         from: lsb,
         threat_type: ThreatType::Pawn,
-        threat_path_mask: 0
+        threat_ray_mask: 0,
     };
 
     (check, double_check, Some(threat))
@@ -304,7 +230,7 @@ fn in_check_from_knights(
             threat = Some(ThreatSource {
                 from: knight_pos as u8,
                 threat_type: ThreatType::Knight,
-                threat_path_mask: 0
+                threat_ray_mask: 0,
             })
         }
         knights ^= 1 << knight_pos;
@@ -395,7 +321,7 @@ fn walk_slide(
                         Some(ThreatSource {
                             from: check_pos as u8,
                             threat_type,
-                            threat_path_mask: slide_path
+                            threat_ray_mask: slide_path,
                         }),
                         None,
                     );
@@ -408,6 +334,7 @@ fn walk_slide(
                         at: potential_pin,
                         reveal_attack: !friendlies.occupied(potential_pin),
                         threat_type,
+                        threat_ray_mask: slide_path,
                     };
                     return (None, Some(pin));
                 }
@@ -469,7 +396,7 @@ mod test {
             Some(ThreatSource {
                 from: 9,
                 threat_type: ThreatType::Knight,
-                threat_path_mask: 0
+                threat_ray_mask: 0
             })
         );
     }
@@ -496,7 +423,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("d5"),
                 threat_type: ThreatType::DiagonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         );
     }
@@ -516,7 +443,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("a4"),
                 threat_type: ThreatType::DiagonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         );
     }
@@ -572,13 +499,18 @@ mod test {
             from: index_from_coords("g1"),
             at: index_from_coords("c5"),
             reveal_attack: false,
-            threat_type: ThreatType::DiagonalSlide
+            threat_type: ThreatType::DiagonalSlide,
+            threat_ray_mask: (1 << index_from_coords("f2"))
+                | (1 << index_from_coords("e3"))
+                | (1 << index_from_coords("d4"))
+                | (1 << index_from_coords("c5"))
         }));
         assert!(result.3.contains(&ThreatRaycastCollision {
             from: index_from_coords("d8"),
             at: index_from_coords("c7"),
             reveal_attack: true,
-            threat_type: ThreatType::DiagonalSlide
+            threat_type: ThreatType::DiagonalSlide,
+            threat_ray_mask: (1 << index_from_coords("c7"))
         }));
     }
 
@@ -608,7 +540,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("a5"),
                 threat_type: ThreatType::DiagonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             }),
             "Threat should a threat from a5"
         );
@@ -621,7 +553,8 @@ mod test {
             at: index_from_coords("f2"),
             from: index_from_coords("h4"),
             reveal_attack: false,
-            threat_type: ThreatType::DiagonalSlide
+            threat_type: ThreatType::DiagonalSlide,
+            threat_ray_mask: (1 << index_from_coords("g3")) | (1 << index_from_coords("f2"))
         }));
     }
 
@@ -650,7 +583,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("e3"),
                 threat_type: ThreatType::OrthogonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             }),
             "Threat should a threat from e3"
         );
@@ -717,7 +650,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("h6"),
                 threat_type: ThreatType::DiagonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         );
         assert_eq!(new_pins.len(), 0);
@@ -739,7 +672,8 @@ mod test {
                 from: index_from_coords("f6"),
                 at: index_from_coords("e5"),
                 reveal_attack: true,
-                threat_type: ThreatType::DiagonalSlide
+                threat_type: ThreatType::DiagonalSlide,
+                threat_ray_mask: (1 << index_from_coords("e5")) | (1 << index_from_coords("d4"))
             })
         )
     }
@@ -760,7 +694,11 @@ mod test {
                 from: index_from_coords("c8"),
                 at: index_from_coords("e8"),
                 reveal_attack: false,
-                threat_type: ThreatType::OrthogonalSlide
+                threat_type: ThreatType::OrthogonalSlide,
+                threat_ray_mask: (1 << index_from_coords("d8"))
+                    | (1 << index_from_coords("e8"))
+                    | (1 << index_from_coords("f8"))
+                    | (1 << index_from_coords("g8"))
             })
         )
     }
@@ -780,7 +718,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("e3"),
                 threat_type: ThreatType::OrthogonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         );
         assert_eq!(result.1, None, "There are no pins")
@@ -799,7 +737,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("d4"),
                 threat_type: ThreatType::Pawn,
-                threat_path_mask: 0
+                threat_ray_mask: 0
             })
         );
     }
@@ -820,7 +758,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
@@ -843,7 +781,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
@@ -853,7 +791,7 @@ mod test {
             Some(ThreatSource {
                 from: 3,
                 threat_type: ThreatType::Knight,
-                threat_path_mask: 0
+                threat_ray_mask: 0
             })
         );
     }
@@ -876,7 +814,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
@@ -888,7 +826,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("h6"),
                 threat_type: ThreatType::DiagonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         );
     }
@@ -910,7 +848,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
@@ -921,7 +859,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("e1"),
                 threat_type: ThreatType::OrthogonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         );
         assert_eq!(result.pins.len(), 2);
@@ -929,13 +867,18 @@ mod test {
             from: index_from_coords("h6"),
             at: index_from_coords("h2"),
             reveal_attack: false,
-            threat_type: ThreatType::OrthogonalSlide
+            threat_type: ThreatType::OrthogonalSlide,
+            threat_ray_mask: (1 << index_from_coords("h2"))
+                | (1 << index_from_coords("h3"))
+                | (1 << index_from_coords("h4"))
+                | (1 << index_from_coords("h5"))
         }));
         assert!(result.pins.contains(&ThreatRaycastCollision {
             from: index_from_coords("e4"),
             at: index_from_coords("f3"),
             reveal_attack: false,
-            threat_type: ThreatType::DiagonalSlide
+            threat_type: ThreatType::DiagonalSlide,
+            threat_ray_mask: (1 << index_from_coords("f3")) | (1 << index_from_coords("g2"))
         }));
     }
 
@@ -956,7 +899,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
@@ -979,7 +922,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
@@ -990,7 +933,7 @@ mod test {
             Some(ThreatSource {
                 from: index_from_coords("d3"),
                 threat_type: ThreatType::Pawn,
-                threat_path_mask: 0
+                threat_ray_mask: 0
             })
         )
     }
@@ -1012,19 +955,19 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            false
+            false,
         );
 
         assert_eq!(result.check, true);
         assert_eq!(result.double_check, false);
         assert_eq!(result.pins.len(), 0);
-        let expected_mask: u64 = (1<<index_from_coords("e3")) |(1<<index_from_coords("f2"));
+        let expected_mask: u64 = (1 << index_from_coords("e3")) | (1 << index_from_coords("f2"));
         assert_eq!(
             result.threat_source,
             Some(ThreatSource {
                 from: index_from_coords("d4"),
                 threat_type: ThreatType::DiagonalSlide,
-                threat_path_mask: expected_mask
+                threat_ray_mask: expected_mask
             })
         )
     }
@@ -1046,7 +989,7 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            true
+            true,
         );
 
         assert!(result.check);
@@ -1067,11 +1010,9 @@ mod test {
             board.bishop_bitboard,
             board.rook_bitboard,
             board.queen_bitboard,
-            true
+            true,
         );
 
         assert!(result.check);
     }
-
-
 }

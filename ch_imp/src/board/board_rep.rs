@@ -8,7 +8,7 @@ use crate::{
     }, PAWN_ZORB,
 };
 
-use super::{bitboard::Bitboard, position::MoveSegmentArray};
+use super::{bitboard::Bitboard, position::MoveSegmentArray, king_position_analysis::{analyze_king_position, KingPositionAnalysis}};
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct BoardRep {
@@ -668,6 +668,38 @@ impl BoardRep {
             zorb_key,
             king_pawn_zorb,
         }
+    }
+
+    pub(crate) fn get_white_king_analysis(&self) -> KingPositionAnalysis {
+        analyze_king_position(
+            self.white_king_position,
+            false,
+            self.occupancy,
+            self.white_occupancy,
+            self.black_occupancy,
+            self.pawn_bitboard,
+            self.knight_bitboard,
+            self.bishop_bitboard,
+            self.rook_bitboard,
+            self.queen_bitboard,
+            self.black_turn,
+        )
+    }
+
+    pub(crate) fn get_black_king_analysis(&self) -> KingPositionAnalysis {
+        analyze_king_position(
+            self.black_king_position,
+            true,
+            self.occupancy,
+            self.black_occupancy,
+            self.white_occupancy,
+            self.pawn_bitboard,
+            self.knight_bitboard,
+            self.bishop_bitboard,
+            self.rook_bitboard,
+            self.queen_bitboard,
+            !self.black_turn,
+        )
     }
 }
 

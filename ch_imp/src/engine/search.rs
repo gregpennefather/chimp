@@ -151,7 +151,10 @@ impl ChimpEngine {
             let m = legal_moves[move_index];
             let new_game_state = match self.make(game_state, m) {
                 Some(s) => s,
-                None => continue,
+                None => {
+                    debug!("Illegal move {m} from {}", game_state.position.board.to_fen());
+                    continue;
+                },
             };
             has_legal_move = true;
 

@@ -51,7 +51,7 @@ pub fn perft(name: String, fen: String, counts: Vec<usize>) {
                     }
                     match game_state.make(m) {
                         Some(new_state) => new_edge_states.push(new_state),
-                        None => continue,
+                        None => panic!("illegal move {m} at {}", game_state.position.board.to_fen()),
                     }
                 }
             }
