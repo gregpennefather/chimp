@@ -26,7 +26,6 @@ pub struct PositionCache {
 
 impl PositionCache {
     pub fn new() -> Self {
-        info!("PositionCache size: {POSITION_CACHE_SIZE}");
         // https://stackoverflow.com/a/56426372
         let table = {
             let mut v: Vec<Option<Position>> = Vec::with_capacity(POSITION_CACHE_SIZE);
@@ -73,7 +72,6 @@ pub struct MovesCache {
 }
 impl MovesCache {
     pub fn new() -> Self {
-        info!("MovesCache size: {MOVES_CACHE_SIZE}");
         // https://stackoverflow.com/a/56426372
         let table = {
             let mut v: Vec<Option<MoveCacheEntry>> = Vec::with_capacity(MOVES_CACHE_SIZE);

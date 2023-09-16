@@ -98,7 +98,6 @@ impl ChimpEngine {
 
     pub fn go(&mut self, wtime: i32, btime: i32, winc: i32, binc: i32) -> (Move, Option<Move>) {
         let ms = if winc == -1 || binc == -1 {
-            info!("go movetime {wtime}");
             wtime
         } else if self.current_game_state.position.board.black_turn {
             if btime < binc {

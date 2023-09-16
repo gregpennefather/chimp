@@ -1,3 +1,5 @@
+use std::f32::consts::E;
+
 use crate::{
     match_state::game_state::GameState,
     move_generation::generate_moves_for_board,
@@ -25,6 +27,8 @@ impl GameState {
     pub fn to_san(&self, m: Move) -> String {
         let piece_type = m.piece_type();
         let piece_letter = get_piece_char(m.piece_type(), false);
+        let from_file = get_file(m.from());
+        let from_rank = get_rank(m.from()) + 1;
 
         let mut r = if !piece_letter.eq(&'P') {
             format!("{}", piece_letter)
@@ -40,22 +44,32 @@ impl GameState {
             }
         }
 
-        let mut moves_targeting_square = Vec::new();
+        let mut duplicate_piece_type = false;
+        let mut duplicate_files = false;
+        let mut duplicate_pawns = false;
+
         for c_m in generate_moves_for_board(self.position.board) {
             let cm_to = c_m.to();
-            let cm_from = c_m.from();
-            let cm_piece = self.position.board.get_piece_type_at_index(cm_from);
-            if cm_to == m.to() && (cm_piece == piece_type || piece_type == PieceType::Pawn) {
-                moves_targeting_square.push(c_m);
+            if cm_to == m.to() {
+                let cm_from = c_m.from();
+                if cm_from == from_file {
+                    duplicate_files = true;
+                }
+                let cm_piece = self.position.board.get_piece_type_at_index(cm_from);
+                if cm_piece == piece_type {
+                    duplicate_piece_type = true;
+                    if piece_type == PieceType::Pawn {
+                        duplicate_pawns = true;
+                    }
+                }
             }
         }
 
-        // let from_file = char_from_file(get_file(m.from()));
-        // r = format!("{r}{from_file}");
-        if moves_targeting_square.len() > 1 && piece_type != PieceType::Pawn {
-            let from_rank = get_rank(m.from()) + 1;
-            r = format!("{r}{from_rank}");
-        }
+        match (duplicate_files, duplicate_pawns, duplicate_piece_type) {
+            (true, false, true) => r = format!("{r}{}", from_rank),
+            (false, true, true) => r = format!("{r}{}", char_from_file(from_file)),
+            _ => {}
+        };
 
         if m.is_capture() {
             r = format!("{r}x");

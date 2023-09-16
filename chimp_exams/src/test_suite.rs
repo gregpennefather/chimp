@@ -141,9 +141,13 @@ fn get_id(s: &str) -> String {
 }
 
 fn trim_id(id: String) -> String {
-    let space_pos = id.find("\"").unwrap() + 1;
-    let len = id.len();
-    id[space_pos..len - 3].into()
+    let start = id.find("\"").unwrap() + 1;
+    let ss = id[start..].to_string();
+    let end = start + match ss.find("\"") {
+        None => ss.len(),
+        Some(pos) => pos
+    };
+    id[start..end].into()
 }
 
 fn get_result_scores(comment: &String, expected_move: &String) -> Vec<ResultScore> {
@@ -173,7 +177,7 @@ fn get_result_scores(comment: &String, expected_move: &String) -> Vec<ResultScor
 
 fn get_result_score(s: &str) -> ResultScore {
     let e = s.find("=").unwrap();
-    let m = s[..e].to_string();
+    let m = s[..e].trim().to_string();
     let score = str::parse::<usize>(&s[e+1..]).unwrap();
     ResultScore { m, score }
 }
