@@ -20,6 +20,7 @@ mod knight;
 mod pawn;
 pub(crate) mod sliding;
 mod tests;
+pub mod legal_move;
 
 #[derive(Clone, Default)]
 pub struct MoveGenerationEvalMetrics {

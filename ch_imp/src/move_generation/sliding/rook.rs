@@ -29,3 +29,8 @@ pub fn generate_rook_moves(
         board,
     )
 }
+
+
+pub fn is_legal_rook_move(m: Move, board: BoardRep) -> bool {
+    return false;
+}

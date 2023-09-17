@@ -701,6 +701,22 @@ impl BoardRep {
             !self.black_turn,
         )
     }
+
+    pub(crate) fn get_opponent_occupancy(&self) -> u64 {
+        if self.black_turn {
+            self.white_occupancy
+        } else {
+            self.black_occupancy
+        }
+    }
+
+    pub(crate) fn get_friendly_occupancy(&self) -> u64 {
+        if !self.black_turn {
+            self.white_occupancy
+        } else {
+            self.black_occupancy
+        }
+    }
 }
 
 impl Default for BoardRep {

@@ -113,6 +113,7 @@ pub struct MoveData {
     pub king_moves: [u64; 64],
     pub diagonal_threat_boards: [u64; 64],
     pub orthogonal_threat_board: [u64; 64],
+    pub slide_inbetween: [u64; 64*65/2]
 }
 
 impl MoveData {
@@ -124,7 +125,7 @@ impl MoveData {
         let king_moves = generate_king_moves();
         let diagonal_threat_boards = diagonal_mask_generation();
         let horizontal_threat_board = horizontal_mask_generation();
-
+        let (slide_inbetween, slide_legal)= generate_slide_data();
         Self {
             magic_bitboard_table,
             white_pawn_moves,
@@ -135,6 +136,7 @@ impl MoveData {
             king_moves,
             diagonal_threat_boards,
             orthogonal_threat_board: horizontal_threat_board,
+            slide_inbetween
         }
     }
 }
@@ -275,4 +277,26 @@ fn generate_king_moves() -> [u64; 64] {
     }
 
     king_moves
+}
+
+fn calculate_triangular_index(mut a: u8, mut b: u8) -> usize {
+    let mut d = a - b;
+    d &= d.wrapping_shr(31);
+    b += d;
+    a -= d;
+    b *= b;
+    return ((b>>1) + a) as usize;
+}
+
+fn generate_slide_data() -> ([u64; 2080], [(bool,bool); 2080]) {
+    let mut slide_data = [0; 2080];
+    let mut slide_legal = [(false,false); 2080];
+
+    for from in 0..64 {
+        for to in 0..64 {
+            let index = calculate_triangular_index(from, to);
+        }
+    }
+
+    (slide_data, slide_legal)
 }

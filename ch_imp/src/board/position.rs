@@ -111,6 +111,10 @@ impl Position {
             eval,
         }
     }
+
+    pub fn current_in_check(&self) -> bool {
+        return (self.board.black_turn && self.black_in_check) || (!self.board.black_turn && self.white_in_check)
+    }
 }
 
 impl Debug for Position {

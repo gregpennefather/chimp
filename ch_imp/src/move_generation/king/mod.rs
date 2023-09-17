@@ -101,3 +101,7 @@ fn generate_king_castling_move(
     }
     None
 }
+
+pub fn is_legal_king_move(m: Move, board: BoardRep) -> bool {
+    return false;
+}

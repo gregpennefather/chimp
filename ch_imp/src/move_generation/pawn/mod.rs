@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod tests;
+pub(super) mod legal_move;
 
 pub(super) fn generate_pawn_moves(
     board: BoardRep,
@@ -152,7 +153,7 @@ pub(super) fn generate_pawn_moves(
     moves
 }
 
-fn ep_leads_to_orthogonal_check(
+pub fn ep_leads_to_orthogonal_check(
     board: BoardRep,
     pawn_position: u8,
     captured_pawn_position: u8,

@@ -35,3 +35,8 @@ pub(crate) fn generate_queen_moves(
         board,
     )
 }
+
+
+pub fn is_legal_queen_move(m: Move, board: BoardRep) -> bool {
+    return false;
+}

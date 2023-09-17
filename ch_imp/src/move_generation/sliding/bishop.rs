@@ -29,3 +29,9 @@ pub fn generate_bishop_moves(
         board,
     )
 }
+
+
+
+pub fn is_legal_bishop_move(m: Move, board: BoardRep) -> bool {
+    return false;
+}
