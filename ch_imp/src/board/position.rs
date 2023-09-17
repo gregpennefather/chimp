@@ -15,7 +15,7 @@ pub struct Position {
     pub board: BoardRep,
     pub white_in_check: bool,
     pub black_in_check: bool,
-    pub legal: bool,
+    pub double_check: bool,
     pub eval: i32,
 }
 
@@ -54,13 +54,10 @@ impl Position {
 
     fn build(board: BoardRep) -> Self {
         if board.black_king_position == 255 || board.white_king_position == 255 {
-            return Self {
-                board,
-                white_in_check: false,
-                black_in_check: false,
-                legal: false,
-                eval: 0,
-            };
+            panic!(
+                "Invalid king position {} / {}",
+                board.black_king_position, board.white_king_position
+            )
         }
         let white_king_analysis = analyze_king_position(
             board.white_king_position,
@@ -106,7 +103,11 @@ impl Position {
             board,
             white_in_check: white_king_analysis.check,
             black_in_check: black_king_analysis.check,
-            legal,
+            double_check: if board.black_turn {
+                black_king_analysis.double_check
+            } else {
+                white_king_analysis.double_check
+            },
             eval,
         }
     }
@@ -137,7 +138,7 @@ impl Default for Position {
             board,
             black_in_check: false,
             white_in_check: false,
-            legal: true,
+            double_check: false,
             eval,
         }
     }

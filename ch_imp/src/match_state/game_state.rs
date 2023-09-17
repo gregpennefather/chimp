@@ -66,21 +66,10 @@ impl GameState {
         }
     }
 
-    pub fn legal(&self) -> bool {
-        self.position.legal
-    }
-
     pub fn make(&self, m: Move) -> Self {
         let (new_zorb, move_segments) = self.position.board.zorb_key_after_move(m);
 
         let new_position = self.position.apply_segments(move_segments, new_zorb);
-
-        if !new_position.legal {
-            panic!(
-                "unexpected illegal position after {m:?} at {}",
-                self.position.board.to_fen()
-            );
-        }
 
         let mut half_moves = self.half_moves;
         let mut full_moves = self.full_moves;
@@ -119,10 +108,6 @@ impl GameState {
     }
 
     pub fn after_position(&self, position: Position, m: Move) -> Option<GameState> {
-        if !position.legal {
-            return None;
-        }
-
         let mut half_moves = self.half_moves;
         let mut full_moves = self.full_moves;
 

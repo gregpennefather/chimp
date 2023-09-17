@@ -197,8 +197,8 @@ fn main() {
     //   );
     //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
 
-    //perfts();
-    park_table();
+    perfts();
+    //park_table();
     //test_engine();
 }
 
