@@ -20,7 +20,7 @@ extern crate lazy_static;
 
 lazy_static! {
     static ref PAWN_ZORB: PawnZorb = PawnZorb::new();
-    static ref MOVE_DATA: MoveData = MoveData::new();
+    pub static ref MOVE_DATA: MoveData = MoveData::new();
     static ref PONDERING: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
     static ref PONDERING_RESULT: Arc<Mutex<Option<Vec<Move>>>> = Arc::new(Mutex::new(None));

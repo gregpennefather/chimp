@@ -1,3 +1,5 @@
+use crate::shared::board_utils::{get_rank, get_file};
+
 use super::move_magic_bitboards::MagicTable;
 
 pub const KING_CASTLING_CLEARANCE: u64 = 0b110;
@@ -113,7 +115,8 @@ pub struct MoveData {
     pub king_moves: [u64; 64],
     pub diagonal_threat_boards: [u64; 64],
     pub orthogonal_threat_board: [u64; 64],
-    pub slide_inbetween: [u64; 64*65/2]
+    pub slide_inbetween: [u64; 64 * 65 / 2],
+    pub slide_legal: [(bool, bool); 64 * 65 / 2],
 }
 
 impl MoveData {
@@ -125,7 +128,7 @@ impl MoveData {
         let king_moves = generate_king_moves();
         let diagonal_threat_boards = diagonal_mask_generation();
         let horizontal_threat_board = horizontal_mask_generation();
-        let (slide_inbetween, slide_legal)= generate_slide_data();
+        let (slide_inbetween, slide_legal) = generate_slide_data();
         Self {
             magic_bitboard_table,
             white_pawn_moves,
@@ -136,9 +139,23 @@ impl MoveData {
             king_moves,
             diagonal_threat_boards,
             orthogonal_threat_board: horizontal_threat_board,
-            slide_inbetween
+            slide_inbetween,
+            slide_legal
         }
     }
+
+    pub fn is_slide_legal(&self, from: u8, to: u8) -> (bool,bool) {
+        let index = calculate_triangular_index(from.into(), to.into());
+        println!("{from},{to}=>{index}");
+        self.slide_legal[index]
+    }
+
+    pub fn get_slide_inbetween(&self, from: u8, to: u8) -> u64 {
+        let index = calculate_triangular_index(from.into(), to.into());
+        println!("{from},{to}=>{index}");
+        self.slide_inbetween[index]
+    }
+
 }
 
 fn generate_pawn_moves() -> ([u64; 64], [u64; 64]) {
@@ -279,24 +296,73 @@ fn generate_king_moves() -> [u64; 64] {
     king_moves
 }
 
-fn calculate_triangular_index(mut a: u8, mut b: u8) -> usize {
+fn calculate_triangular_index(mut a: i32, mut b: i32) -> usize {
     let mut d = a - b;
     d &= d.wrapping_shr(31);
     b += d;
     a -= d;
-    b *= b;
-    return ((b>>1) + a) as usize;
+    b *= b ^ 127;
+    return ((b >> 1) + a) as usize;
 }
 
-fn generate_slide_data() -> ([u64; 2080], [(bool,bool); 2080]) {
+fn generate_slide_data() -> ([u64; 2080], [(bool, bool); 2080]) {
     let mut slide_data = [0; 2080];
-    let mut slide_legal = [(false,false); 2080];
+    let mut slide_psudolegal = [(false, false); 2080];
 
     for from in 0..64 {
         for to in 0..64 {
             let index = calculate_triangular_index(from, to);
+            slide_psudolegal[index] = get_slide_psudolegal(from, to);
+             slide_data[index] = match slide_psudolegal[index] {
+                (true, false) => get_slide_data(from, to),
+                (false, true) => get_slide_data(from, to),
+                _ => 0
+            }
+            // println!("{from}->{to}={index} {:?}", slide_psudolegal[index]);
         }
     }
 
-    (slide_data, slide_legal)
+    (slide_data, slide_psudolegal)
+}
+
+fn get_slide_data(from: i32, to: i32) -> u64 {
+    let mut r = 0u64;
+    let fr = get_rank(from as u8) as i8;
+    let ff = get_file(from as u8) as i8;
+    let tr = get_rank(to as u8) as i8;
+    let tf = get_file(to as u8) as i8;
+    let mut dr = tr - fr;
+    let mut df = ff - tf;
+
+    // println!("fr:{fr},ff:{ff},tr:{tr},tf:{tf}");
+
+    dr = if dr != 0 { dr / i8::abs(dr) } else { 0 };
+    df = if df != 0 {df / i8::abs(df)} else { 0 };
+
+    // println!("dr:{dr},df:{df}");
+
+    let mut i = from as i8;
+    while i != to as i8 && i < 64 {
+        i += (dr*8) + df;
+        // println!("{i}");
+
+        r |= 1<<i;
+    }
+
+    r
+}
+
+fn get_slide_psudolegal(from: i32, to: i32) -> (bool, bool) {
+    let fr = get_rank(from as u8);
+    let ff = get_file(from as u8);
+    let tr = get_rank(to as u8);
+    let tf = get_file(to as u8);
+    let orthag = fr == tr || ff == tf;
+    if orthag {
+        return (orthag, false)
+    }
+
+    let diag = u8::abs_diff(fr, tr) == u8::abs_diff(ff, tf);
+
+    (false, diag)
 }

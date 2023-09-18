@@ -14,8 +14,10 @@ use ch_imp::{
     },
     evaluation::pawn_structure::build_pawn_frontspan_board,
     match_state::game_state::{self, GameState, MatchResultState},
-    shared::board_utils::get_index_from_file_and_rank,
+    r#move::move_data::MoveData,
+    shared::board_utils::{get_index_from_file_and_rank, index_from_coords},
     testing::test_engine,
+    MOVE_DATA,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -197,7 +199,14 @@ fn main() {
     //   );
     //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
 
-    perfts();
+    println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
+    println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
+    println!("{:?}", MOVE_DATA.is_slide_legal(1, 9));
+    println!("{}", MOVE_DATA.get_slide_inbetween(1, 17).to_board_format());
+    println!("{}", MOVE_DATA.get_slide_inbetween(1, 28).to_board_format());
+    println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
+
+    //perfts();
     //park_table();
     //test_engine();
 }
