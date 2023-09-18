@@ -1,4 +1,4 @@
-use crate::shared::board_utils::{get_rank, get_file};
+use crate::shared::board_utils::{get_file, get_rank};
 
 use super::move_magic_bitboards::MagicTable;
 
@@ -140,11 +140,11 @@ impl MoveData {
             diagonal_threat_boards,
             orthogonal_threat_board: horizontal_threat_board,
             slide_inbetween,
-            slide_legal
+            slide_legal,
         }
     }
 
-    pub fn is_slide_legal(&self, from: u8, to: u8) -> (bool,bool) {
+    pub fn is_slide_legal(&self, from: u8, to: u8) -> (bool, bool) {
         let index = calculate_triangular_index(from.into(), to.into());
         println!("{from},{to}=>{index}");
         self.slide_legal[index]
@@ -155,7 +155,6 @@ impl MoveData {
         println!("{from},{to}=>{index}");
         self.slide_inbetween[index]
     }
-
 }
 
 fn generate_pawn_moves() -> ([u64; 64], [u64; 64]) {
@@ -313,10 +312,10 @@ fn generate_slide_data() -> ([u64; 2080], [(bool, bool); 2080]) {
         for to in 0..64 {
             let index = calculate_triangular_index(from, to);
             slide_psudolegal[index] = get_slide_psudolegal(from, to);
-             slide_data[index] = match slide_psudolegal[index] {
+            slide_data[index] = match slide_psudolegal[index] {
                 (true, false) => get_slide_data(from, to),
                 (false, true) => get_slide_data(from, to),
-                _ => 0
+                _ => 0,
             }
             // println!("{from}->{to}={index} {:?}", slide_psudolegal[index]);
         }
@@ -337,16 +336,14 @@ fn get_slide_data(from: i32, to: i32) -> u64 {
     // println!("fr:{fr},ff:{ff},tr:{tr},tf:{tf}");
 
     dr = if dr != 0 { dr / i8::abs(dr) } else { 0 };
-    df = if df != 0 {df / i8::abs(df)} else { 0 };
+    df = if df != 0 { df / i8::abs(df) } else { 0 };
 
     // println!("dr:{dr},df:{df}");
 
-    let mut i = from as i8;
+    let mut i = from as i8 + (dr * 8) + df;
     while i != to as i8 && i < 64 {
-        i += (dr*8) + df;
-        // println!("{i}");
-
-        r |= 1<<i;
+        r |= 1 << i;
+        i += (dr * 8) + df;
     }
 
     r
@@ -359,7 +356,7 @@ fn get_slide_psudolegal(from: i32, to: i32) -> (bool, bool) {
     let tf = get_file(to as u8);
     let orthag = fr == tr || ff == tf;
     if orthag {
-        return (orthag, false)
+        return (orthag, false);
     }
 
     let diag = u8::abs_diff(fr, tr) == u8::abs_diff(ff, tf);

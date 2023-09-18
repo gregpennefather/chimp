@@ -6,7 +6,7 @@ use crate::{
         position::Position,
     },
     r#move::Move,
-    shared::{board_utils::get_file, constants::MF_EP_CAPTURE, piece_type::PieceType},
+    shared::{board_utils::get_file, constants::{MF_EP_CAPTURE, MF_CAPTURE}, piece_type::PieceType},
 };
 
 use super::{pawn::{ep_leads_to_orthogonal_check, legal_move::is_legal_pawn_move}, knight::is_legal_knight_move, sliding::{bishop::is_legal_bishop_move, rook::is_legal_rook_move, queen::is_legal_queen_move}, king::is_legal_king_move};
@@ -24,9 +24,20 @@ impl Position {
             self.board.white_occupancy
         };
 
-        // If we dont have a piece on the form square this cant be a legal move
-        if !friendly_occupancy.occupied(m.from()) {
+        // If we dont have a piece of the correct type on the from square for the correct colour this cant be a legal move
+        if !friendly_occupancy.occupied(m.from()) || self.board.get_piece_type_at_index(m.from()) == m.piece_type() {
             return false;
+        }
+
+        let opponent_occupancy = self.board.get_opponent_occupancy();
+        // If its a capture (not EP capture) but theres no opponent in the to square
+        if m.flags() == MF_CAPTURE && !opponent_occupancy.occupied(m.to()) {
+            return false
+        }
+
+        // If EP Capture and not a legal ep move
+        if m.flags() == MF_EP_CAPTURE && m.to() != self.board.ep_index {
+            return false
         }
 
         // Is double check only king moves are legal
@@ -52,7 +63,6 @@ impl Position {
 
         // Move is not EP Capture resulting in check
         if m.flags() == MF_EP_CAPTURE {
-            let opponent_occupancy = self.board.get_opponent_occupancy();
             let captured_pawn_position = (m.from() as i8
                 + if get_file(m.to()) > get_file(m.from()) {
                     -1
