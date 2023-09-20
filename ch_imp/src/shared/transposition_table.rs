@@ -84,6 +84,21 @@ impl TranspositionTable {
         }
     }
 
+    pub fn get(&self, zorb_key: u64) -> Option<Move> {
+        let index = (zorb_key as usize) % TRANSPOSITION_TABLE_SIZE;
+        let option = self.table[index];
+        match option {
+            Some(entry) => {
+                if entry.zorb_key == zorb_key {
+                    entry.m
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
+    }
+
     pub fn record(&mut self, zorb_key: u64, depth: u8, value: i16, t: NodeType, m: Option<Move>) {
         let index = (zorb_key as usize) % TRANSPOSITION_TABLE_SIZE;
         self.table[index] = Some(TransTableEntry {

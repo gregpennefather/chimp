@@ -146,7 +146,8 @@ impl ChimpEngine {
         let mut has_legal_move = false;
 
         let pv = priority_line.iter().nth(ply as usize);
-        let hm = None;
+        let hm = self.transposition_table
+            .get(game_state.position.board.zorb_key);
         let move_orderer = MoveOrderer::new(pv, hm, game_state.position);
 
         let mut move_index = -1;
@@ -156,6 +157,7 @@ impl ChimpEngine {
             if !legal_moves.contains(&m) {
                 println!("position is {}", game_state.to_fen());
                 println!("pv at ply {ply} is {pv:?}");
+                println!("hm at ply {ply} is {hm:?}");
                 panic!("move {m:?} not in legal moves list {legal_moves:?}");
             }
             let new_game_state = match self.make(game_state, m) {

@@ -11,11 +11,11 @@ pub struct MoveOrderer {
 }
 
 impl MoveOrderer {
-    pub fn new(pv: Option<&Move>, hm: Option<&Move>, position: Position) -> Self {
+    pub fn new(pv: Option<&Move>, hm: Option<Move>, position: Position) -> Self {
         Self {
             index: 0,
             principal_variation: match pv { Some(&m) => Some(m), None => None},
-            hash_move: match hm { Some(&m) => Some(m), None => None},
+            hash_move: hm,
             position: position,
             moves: None
         }
