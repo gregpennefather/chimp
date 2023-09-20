@@ -22,6 +22,7 @@ use super::{move_orderer, ChimpEngine};
 
 impl ChimpEngine {
     fn make(&mut self, game_state: GameState, m: Move) -> Option<GameState> {
+        assert!(!m.is_empty());
         let (new_zorb, move_segments) = game_state.position.board.zorb_key_after_move(m);
 
         let lookup_result = self.position_cache.lookup(new_zorb);
@@ -127,9 +128,9 @@ impl ChimpEngine {
         let pv = priority_line.iter().nth(ply as usize);
         let hm = self
             .transposition_table
-            .get(game_state.position.board.zorb_key);
+            .get_move(game_state.position.board.zorb_key);
         let board = game_state.position.board;
-        let move_orderer = MoveOrderer::new(pv, hm, game_state.position);
+        let move_orderer = MoveOrderer::new(pv, hm, game_state.position, self.killer_store.get_ply(ply as usize));
 
         let mut move_index = -1;
         let legal_moves = get_moves(board);
@@ -208,6 +209,9 @@ impl ChimpEngine {
                     NodeType::CutNode,
                     Some(m),
                 );
+                if !m.is_capture() {
+                    self.killer_store.set(ply as usize, m);
+                }
                 return (beta, vec![]);
             }
 

@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::{str::SplitAsciiWhitespace, time::Duration, time::Instant};
 
+use crate::move_ordering::killer_store::KillerStore;
 use crate::shared::cache::{MovesCache, PositionCache};
 
 use crate::shared::transposition_table::TranspositionTable;
@@ -26,6 +27,7 @@ pub struct ChimpEngine {
     previous_best_line: Vec<Move>,
     pub(super) transposition_table: TranspositionTable,
     pub position_cache: PositionCache,
+    pub killer_store: KillerStore
 }
 
 impl ChimpEngine {
@@ -37,7 +39,8 @@ impl ChimpEngine {
             moves,
             previous_best_line: Vec::new(),
             transposition_table: TranspositionTable::new(),
-            position_cache: PositionCache::new()
+            position_cache: PositionCache::new(),
+            killer_store: KillerStore::default()
         }
     }
 
@@ -49,7 +52,8 @@ impl ChimpEngine {
             moves,
             previous_best_line: Vec::new(),
             transposition_table: TranspositionTable::new(),
-            position_cache: PositionCache::new()
+            position_cache: PositionCache::new(),
+            killer_store: KillerStore::default()
         }
     }
 

@@ -2,6 +2,8 @@ use std::{cell::OnceCell, sync::Mutex};
 
 use crate::{board::position::Position, r#move::Move, shared::cache::MovesCache};
 
+use super::killer_store::PlyKillers;
+
 lazy_static! {
     pub static ref MOVE_CACHE: Mutex<MovesCache> = Mutex::<MovesCache>::new(MovesCache::new());
 }
@@ -10,12 +12,13 @@ pub struct MoveOrderer {
     index: usize,
     principal_variation: Option<Move>,
     hash_move: Option<Move>,
+    ply_killers: PlyKillers,
     position: Position,
     moves: OnceCell<Vec<Move>>,
 }
 
 impl MoveOrderer {
-    pub fn new(pv: Option<&Move>, hm: Option<Move>, position: Position) -> Self {
+    pub fn new(pv: Option<&Move>, hm: Option<Move>, position: Position, ply_killers: PlyKillers) -> Self {
         Self {
             index: 0,
             principal_variation: match pv {
@@ -23,6 +26,7 @@ impl MoveOrderer {
                 None => None,
             },
             hash_move: hm,
+            ply_killers,
             position: position,
             moves: OnceCell::new(),
         }
@@ -68,9 +72,23 @@ impl Iterator for MoveOrderer {
                     None => None,
                 };
             }
+            // If this is the 3rd-5th move try our killer moves
+            else if self.index < 5 {
+                let killer_move = self.ply_killers.get(self.index-2);
+                result = match killer_move {
+                    Some(km) => {
+                        if self.position.is_legal_move(km) {
+                            Some(km)
+                        } else {
+                            None
+                        }
+                    },
+                    None => None
+                }
+            }
             // Not the PV or HM so lets generate the moves (if we haven't already) and find the next move that isn't the PV or HM
             else {
-                let arr_pos = self.index - 2;
+                let arr_pos = self.index - 5;
                 let moves = self.get_moves();
 
                 if arr_pos >= moves.len() {
