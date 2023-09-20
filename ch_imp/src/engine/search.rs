@@ -8,7 +8,7 @@ use crate::{
         board_utils::{get_rank, index_from_coords},
         piece_type::PieceType,
         transposition_table::NodeType,
-    }, r#move::Move, move_generation::generate_moves_for_board,
+    }, r#move::Move, move_generation::generate_moves_for_board, move_ordering::move_orderer::MoveOrderer,
 };
 
 const MAX_EXTENSIONS: u8 = 12;
@@ -145,9 +145,19 @@ impl ChimpEngine {
         let mut line = vec![];
         let mut has_legal_move = false;
 
+        let pv = priority_line.iter().nth(ply as usize);
+        let hm = None;
+        let move_orderer = MoveOrderer::new(pv, hm, game_state.position);
+
+        let mut move_index = -1;
         let legal_moves = self.get_moves(game_state, ply, priority_line);
-        for move_index in 0..legal_moves.len() {
-            let m = legal_moves[move_index];
+        for m in move_orderer {
+            move_index += 1;
+            if !legal_moves.contains(&m) {
+                println!("position is {}", game_state.to_fen());
+                println!("pv at ply {ply} is {pv:?}");
+                panic!("move {m:?} not in legal moves list {legal_moves:?}");
+            }
             let new_game_state = match self.make(game_state, m) {
                 Some(s) => s,
                 None => {

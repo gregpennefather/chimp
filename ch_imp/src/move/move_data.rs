@@ -146,13 +146,11 @@ impl MoveData {
 
     pub fn is_slide_legal(&self, from: u8, to: u8) -> (bool, bool) {
         let index = calculate_triangular_index(from.into(), to.into());
-        println!("{from},{to}=>{index}");
         self.slide_legal[index]
     }
 
     pub fn get_slide_inbetween(&self, from: u8, to: u8) -> u64 {
         let index = calculate_triangular_index(from.into(), to.into());
-        println!("{from},{to}=>{index}");
         self.slide_inbetween[index]
     }
 }

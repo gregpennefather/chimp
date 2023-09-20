@@ -19,6 +19,8 @@ use crate::{
     MOVE_DATA,
 };
 
+mod tests;
+
 use super::{generate_threat_board, moveboard_to_moves};
 
 pub(super) fn generate_king_moves(
@@ -127,7 +129,7 @@ fn is_legal_move(m: Move, board: BoardRep, king_position_analysis: &KingPosition
     }
     let opponent_threatboard =
         generate_threat_board(!m.is_black(), board.get_opponent_occupancy(), board);
-    is_in_check(m.to(), opponent_threatboard, king_position_analysis)
+    !is_in_check(m.to(), opponent_threatboard, king_position_analysis)
 }
 
 fn is_legal_capture(
@@ -141,7 +143,7 @@ fn is_legal_capture(
     board.get_opponent_occupancy().occupied(m.to())
 }
 
-fn is_legal_castling(
+pub(super) fn is_legal_castling(
     king_side: bool,
     m: Move,
     board: BoardRep,
@@ -159,6 +161,16 @@ fn is_legal_castling(
         (false, true) => board.white_king_side_castling,
         (false, false) => board.white_queen_side_castling,
     } {
+        return false;
+    }
+
+    let clearance_mask = if king_side {
+        KING_CASTLING_CLEARANCE
+    } else {
+        QUEEN_CASTLING_CLEARANCE
+    } << (m.from() as i8 - 3);
+
+    if clearance_mask & board.occupancy != 0 {
         return false;
     }
 

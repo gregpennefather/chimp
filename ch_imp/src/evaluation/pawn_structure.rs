@@ -335,7 +335,6 @@ pub fn build_pawn_frontspan_board() {
             let mut b: u64 = 1 << sq;
             for p_count in 1..8 {
                 b |= 1 << sq + p_count + offset_1;
-                println!("{}", b.to_board_format())
             }
         }
     }

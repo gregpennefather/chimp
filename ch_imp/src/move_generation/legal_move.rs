@@ -6,10 +6,19 @@ use crate::{
         position::Position,
     },
     r#move::Move,
-    shared::{board_utils::get_file, constants::{MF_EP_CAPTURE, MF_CAPTURE}, piece_type::PieceType},
+    shared::{
+        board_utils::get_file,
+        constants::{MF_CAPTURE, MF_EP_CAPTURE},
+        piece_type::PieceType,
+    },
 };
 
-use super::{pawn::{ep_leads_to_orthogonal_check, legal_move::is_legal_pawn_move}, knight::is_legal_knight_move, sliding::{bishop::is_legal_bishop_move, rook::is_legal_rook_move, queen::is_legal_queen_move}, king::is_legal_king_move};
+use super::{
+    king::is_legal_king_move,
+    knight::is_legal_knight_move,
+    pawn::{ep_leads_to_orthogonal_check, legal_move::is_legal_pawn_move},
+    sliding::{bishop::is_legal_bishop_move, queen::is_legal_queen_move, rook::is_legal_rook_move},
+};
 
 impl Position {
     pub fn is_legal_move(&self, m: Move) -> bool {
@@ -25,19 +34,26 @@ impl Position {
         };
 
         // If we dont have a piece of the correct type on the from square for the correct colour this cant be a legal move
-        if !friendly_occupancy.occupied(m.from()) || self.board.get_piece_type_at_index(m.from()) == m.piece_type() {
+        if !friendly_occupancy.occupied(m.from())
+            || self.board.get_piece_type_at_index(m.from()) != m.piece_type()
+        {
             return false;
+        }
+
+        // Not a capture but square occupied
+        if !m.is_capture() && self.board.occupancy.occupied(m.to()) {
+            return false
         }
 
         let opponent_occupancy = self.board.get_opponent_occupancy();
         // If its a capture (not EP capture) but theres no opponent in the to square
         if m.flags() == MF_CAPTURE && !opponent_occupancy.occupied(m.to()) {
-            return false
+            return false;
         }
 
         // If EP Capture and not a legal ep move
         if m.flags() == MF_EP_CAPTURE && m.to() != self.board.ep_index {
-            return false
+            return false;
         }
 
         // Is double check only king moves are legal
@@ -52,8 +68,8 @@ impl Position {
         };
 
         // If in check see if this move removes check
-        if self.current_in_check() {
-            return move_removes_check(m, &king_analysis);
+        if self.current_in_check() && !move_removes_check(m, &king_analysis) {
+            return false;
         }
 
         // If not in check, ensure this move doesn't result in check by moving a pinned piece
@@ -69,7 +85,6 @@ impl Position {
                 } else {
                     1
                 }) as u8;
-            println!("{captured_pawn_position}");
             if ep_leads_to_orthogonal_check(
                 self.board,
                 m.from(),
@@ -93,7 +108,7 @@ impl Position {
             PieceType::Rook => is_legal_rook_move(m, self.board),
             PieceType::Queen => is_legal_queen_move(m, self.board),
             PieceType::King => is_legal_king_move(m, self.board, king_analysis),
-            _ => panic!("Move piece type unknown! {m:?}")
+            _ => panic!("Move piece type unknown! {m:?}"),
         }
     }
 }
@@ -102,29 +117,23 @@ fn move_removes_check(m: Move, king_analysis: &KingPositionAnalysis) -> bool {
     let pin = Option::<&ThreatRaycastCollision>::copied(
         king_analysis.pins.iter().find(|p| p.at == m.from()),
     );
-
     match pin {
-        None => {
-            // If not pinned then capturing or blocking removes check
-            match king_analysis.threat_source {
-                Some(threat) => {
-                    if m.to() == threat.from {
-                        return true;
-                    }
-                    if (1 << m.to()) & threat.threat_ray_mask != 0 {
-                        return true;
-                    }
+        // Can't capture threat if pinned
+        Some(_) => false,
+        // Must capture threat or move into threat ray to remove check
+        None => match king_analysis.threat_source {
+            Some(threat) => {
+                if m.to() == threat.from {
+                    return true;
                 }
-                None => panic!("Unexpected lack on threat {king_analysis:?}"),
+                if m.piece_type() != PieceType::King && (1 << m.to()) & threat.threat_ray_mask != 0 {
+                    return true;
+                }
+                false
             }
-        }
-        Some(p) => {
-            // If pinned, can only capture the threat source
-            return m.is_capture() && p.from == m.to();
+            None => panic!("Unexpected lack on threat {king_analysis:?}"),
         }
     }
-
-    false
 }
 
 fn is_legal_pinned_piece_move(m: Move, king_analysis: &KingPositionAnalysis) -> bool {
@@ -309,5 +318,57 @@ mod test {
             m,
             &position.board.get_black_king_analysis()
         ));
+    }
+
+    #[test]
+    fn is_legal_scenario_0() {
+        let position = Position::from_fen(
+            "rnbqkbnr/ppp1p1p1/8/3p1p1p/2B1P2P/8/PPPP1PP1/RNBQK1NR w KQkq d6 0 4".into(),
+        );
+        let m = Move::new(
+            index_from_coords("c4"),
+            index_from_coords("d5"),
+            MF_CAPTURE,
+            PieceType::Pawn,
+            false,
+            0,
+        );
+        assert!(!position.is_legal_move(m));
+    }
+
+    #[test]
+    fn is_legal_scenario_1() {
+        let position = Position::from_fen(
+            "rnbqkbnr/ppppppp1/8/7p/7P/8/PPPPPPP1/RNBQKBNR w KQkq h6 0 ".into(),
+        );
+        let m = Move::new(index_from_coords("f1"), index_from_coords("e2"), 0b0, PieceType::Bishop, false, 0);
+        assert!(!position.is_legal_move(m));
+    }
+
+    #[test]
+    fn is_legal_scenario_2() {
+        let position = Position::from_fen(
+            "r1bq1bnr/ppp1kppp/2np4/1B2Q3/4PP2/8/PPPP2PP/RNB1K1NR b KQ - 0 5".into(),
+        );
+        let m = Move::new(index_from_coords("e7"), index_from_coords("e6"), 0b0, PieceType::King, true, 0);
+        assert!(!position.is_legal_move(m));
+    }
+
+    #[test]
+    fn is_legal_scenario_3() {
+        let position = Position::from_fen(
+            "rn3b1r/ppp2kpp/3p4/8/P3P1nP/4q3/4K3/4R1NR w - - 6 21".into(),
+        );
+        let m = Move::new(index_from_coords("e1"), index_from_coords("e3"), MF_CAPTURE, PieceType::Rook, false, 0);
+        assert!(!position.is_legal_move(m));
+    }
+
+    #[test]
+    fn is_legal_scenario_4() {
+        let position = Position::from_fen(
+            "rn3b1r/ppp2kpp/3p1n2/8/P3P1bP/5P2/1BP5/R2Kq1NR w - - 1 15".into(),
+        );
+        let m = Move::new(index_from_coords("f3"), index_from_coords("g4"), MF_CAPTURE, PieceType::Pawn, false, 0);
+        assert!(!position.is_legal_move(m));
     }
 }

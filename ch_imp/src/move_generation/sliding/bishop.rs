@@ -34,8 +34,6 @@ pub fn generate_bishop_moves(
 
 pub fn is_legal_bishop_move(m: Move, board: BoardRep) -> bool {
     if MOVE_DATA.is_slide_legal(m.from(), m.to()).1 {
-        println!("occ:\n{}", board.occupancy.to_board_format());
-        println!("inbtwn:\n{}", MOVE_DATA.get_slide_inbetween(m.from(), m.to()).to_board_format());
         board.occupancy & MOVE_DATA.get_slide_inbetween(m.from(), m.to()) == 0
     } else {
         false

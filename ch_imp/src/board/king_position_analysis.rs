@@ -326,9 +326,6 @@ fn walk_slide(
                         None,
                     );
                 } else {
-                    if potential_pin > 63 {
-                        println!("p")
-                    }
                     let pin = ThreatRaycastCollision {
                         from: check_pos as u8,
                         at: potential_pin,

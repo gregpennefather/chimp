@@ -15,7 +15,7 @@ pub mod move_data;
 pub mod move_magic_bitboards;
 pub mod move_segment;
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, Eq)]
 pub struct Move(u16, PieceType, bool, i8);
 
 pub fn calculate_see(a: PieceType, b: PieceType) -> i8 {
@@ -131,6 +131,10 @@ impl Debug for Move {
             _ => "",
         };
 
+        if self.see() != 0 {
+            m_info += &format!("({})", self.see())
+        }
+
         f.debug_tuple("Move")
             .field(&format!("{}-{}", self.uci(), m_info))
             .finish()
@@ -206,6 +210,13 @@ impl Ord for Move {
         }
     }
 }
+
+impl PartialEq for Move {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1 && self.2 == other.2
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::{

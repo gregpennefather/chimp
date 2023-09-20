@@ -199,15 +199,15 @@ fn main() {
     //   );
     //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
 
-    println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
-    println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
-    println!("{:?}", MOVE_DATA.is_slide_legal(1, 9));
-    println!("{}", MOVE_DATA.get_slide_inbetween(1, 17).to_board_format());
-    println!("{}", MOVE_DATA.get_slide_inbetween(1, 28).to_board_format());
-    println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
+    // println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
+    // println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
+    // println!("{:?}", MOVE_DATA.is_slide_legal(1, 9));
+    // println!("{}", MOVE_DATA.get_slide_inbetween(1, 17).to_board_format());
+    // println!("{}", MOVE_DATA.get_slide_inbetween(1, 28).to_board_format());
+    // println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
 
     //perfts();
-    //park_table();
+    park_table();
     //test_engine();
 }
 
