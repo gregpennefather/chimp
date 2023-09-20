@@ -250,10 +250,6 @@ fn test_ab_search(fen: String, depth: u8) {
         "Position:\n- hits: {}\n- misses: {}",
         engine.position_cache.hits, engine.position_cache.misses
     );
-    println!(
-        "Moves:\n- hits: {}\n- misses: {}",
-        engine.moves_cache.hits, engine.moves_cache.misses
-    );
 }
 
 fn test_it_deep_search(fen: String) {

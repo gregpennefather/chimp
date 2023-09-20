@@ -1,14 +1,17 @@
-use std::time::Instant;
+use std::{cell::OnceCell, time::Instant};
 
 use log::{debug, info, trace};
 
 use crate::{
     match_state::game_state::{self, GameState},
+    move_generation::generate_moves_for_board,
+    move_ordering::move_orderer::{MoveOrderer, MOVE_CACHE},
+    r#move::Move,
     shared::{
         board_utils::{get_rank, index_from_coords},
         piece_type::PieceType,
         transposition_table::NodeType,
-    }, r#move::Move, move_generation::generate_moves_for_board, move_ordering::move_orderer::MoveOrderer,
+    }, board::board_rep::BoardRep,
 };
 
 const MAX_EXTENSIONS: u8 = 12;
@@ -33,30 +36,6 @@ impl ChimpEngine {
         };
 
         game_state.after_position(position, m)
-    }
-
-    fn get_moves(
-        &mut self,
-        game_state: GameState,
-        ply: u8,
-        priority_line: &Vec<Move>,
-    ) -> Vec<Move> {
-        let lookup_result = self.moves_cache.lookup(game_state.position.board.zorb_key);
-        let mut moves = match lookup_result {
-            Some(r) => r,
-            None => {
-                let moves = generate_moves_for_board(game_state.position.board);
-                self.moves_cache
-                    .record(game_state.position.board.zorb_key, moves.clone());
-                moves
-            }
-        };
-
-        match priority_line.iter().nth(ply as usize) {
-            Some(r) => moves.sort_by(|a: &Move, b| move_orderer::top_priority(a, b, &r)),
-            None => {}
-        }
-        moves
     }
 
     pub fn iterative_deepening<CutoffFunc>(
@@ -146,12 +125,14 @@ impl ChimpEngine {
         let mut has_legal_move = false;
 
         let pv = priority_line.iter().nth(ply as usize);
-        let hm = self.transposition_table
+        let hm = self
+            .transposition_table
             .get(game_state.position.board.zorb_key);
+        let board = game_state.position.board;
         let move_orderer = MoveOrderer::new(pv, hm, game_state.position);
 
         let mut move_index = -1;
-        let legal_moves = self.get_moves(game_state, ply, priority_line);
+        let legal_moves = get_moves(board);
         for m in move_orderer {
             move_index += 1;
             if !legal_moves.contains(&m) {
@@ -163,9 +144,12 @@ impl ChimpEngine {
             let new_game_state = match self.make(game_state, m) {
                 Some(s) => s,
                 None => {
-                    debug!("Illegal move {m} from {}", game_state.position.board.to_fen());
+                    debug!(
+                        "Illegal move {m} from {}",
+                        game_state.position.board.to_fen()
+                    );
                     continue;
-                },
+                }
             };
             has_legal_move = true;
 
@@ -190,8 +174,7 @@ impl ChimpEngine {
                 } else {
                     Some((val, moves))
                 }
-            }
-            else {
+            } else {
                 None
             };
 
@@ -282,7 +265,7 @@ impl ChimpEngine {
         }
 
         let mut line = vec![];
-        let moves = self.get_moves(game_state, 0, &vec![]);
+        let moves = get_moves(game_state.position.board);
         for m in moves {
             if m.is_quiet() {
                 continue;
@@ -310,6 +293,10 @@ impl ChimpEngine {
 
         (alpha, line)
     }
+}
+
+fn get_moves(board: BoardRep) -> Vec<Move> {
+    MOVE_CACHE.lock().unwrap().get_moves(board)
 }
 
 fn get_extensions(new_state: GameState, test_move: Move, total_extensions: u8) -> u8 {

@@ -1,24 +1,38 @@
-use crate::{
-    match_state::game_state::GameState, move_generation::generate_moves_for_board, r#move::Move, board::position::Position,
-};
+use std::{cell::OnceCell, sync::Mutex};
+
+use crate::{board::position::Position, r#move::Move, shared::cache::MovesCache};
+
+lazy_static! {
+    pub static ref MOVE_CACHE: Mutex<MovesCache> = Mutex::<MovesCache>::new(MovesCache::new());
+}
 
 pub struct MoveOrderer {
     index: usize,
     principal_variation: Option<Move>,
     hash_move: Option<Move>,
     position: Position,
-    moves: Option<Vec<Move>>,
+    moves: OnceCell<Vec<Move>>,
 }
 
 impl MoveOrderer {
     pub fn new(pv: Option<&Move>, hm: Option<Move>, position: Position) -> Self {
         Self {
             index: 0,
-            principal_variation: match pv { Some(&m) => Some(m), None => None},
+            principal_variation: match pv {
+                Some(&m) => Some(m),
+                None => None,
+            },
             hash_move: hm,
             position: position,
-            moves: None
+            moves: OnceCell::new(),
         }
+    }
+
+    fn get_moves(&mut self) -> &Vec<Move> {
+        let moves = self
+            .moves
+            .get_or_init(|| MOVE_CACHE.lock().unwrap().get_moves(self.position.board));
+        moves
     }
 }
 
@@ -56,12 +70,8 @@ impl Iterator for MoveOrderer {
             }
             // Not the PV or HM so lets generate the moves (if we haven't already) and find the next move that isn't the PV or HM
             else {
-                if self.moves == None {
-                    self.moves = Some(generate_moves_for_board(self.position.board))
-                };
-
                 let arr_pos = self.index - 2;
-                let moves = self.moves.as_ref().unwrap();
+                let moves = self.get_moves();
 
                 if arr_pos >= moves.len() {
                     break;

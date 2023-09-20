@@ -2,7 +2,11 @@ use std::mem::size_of;
 
 use log::info;
 
-use crate::{board::position::Position, r#move::Move};
+use crate::{
+    board::{board_rep::BoardRep, position::Position},
+    move_generation::generate_moves_for_board,
+    r#move::Move,
+};
 
 const POSITION_CACHE_MB_SIZE: usize = 256;
 const MOVES_CACHE_MB_SIZE: usize = 64;
@@ -101,9 +105,9 @@ impl MovesCache {
             Some(cache_entry) => {
                 if cache_entry.zorb_key == zorb_key {
                     self.hits += 1;
-                    return Some(cache_entry.moves.clone())
+                    return Some(cache_entry.moves.clone());
                 }
-            },
+            }
             None => {}
         }
         self.misses += 1;
@@ -112,5 +116,18 @@ impl MovesCache {
     pub fn record(&mut self, zorb_key: u64, e: Vec<Move>) {
         let index = (zorb_key as usize) % MOVES_CACHE_SIZE;
         self.table[index] = Some(MoveCacheEntry { zorb_key, moves: e })
+    }
+
+    pub fn get_moves(&mut self, board: BoardRep) -> Vec<Move> {
+        let lookup_result = self.lookup(board.zorb_key);
+        let mut moves = match lookup_result {
+            Some(r) => r,
+            None => {
+                let moves = generate_moves_for_board(board);
+                self.record(board.zorb_key, moves.clone());
+                moves
+            }
+        };
+        moves
     }
 }
