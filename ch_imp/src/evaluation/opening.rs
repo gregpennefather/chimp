@@ -3,7 +3,7 @@ use crate::{
         bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision,
     },
     shared::{
-        board_utils::{get_file, get_rank},
+        board_utils::{get_file, get_rank, chebyshev_distance},
         piece_type::PieceType,
     }, move_generation::sliding::queen::generate_queen_moves,
 };

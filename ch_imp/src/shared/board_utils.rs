@@ -80,6 +80,16 @@ pub fn get_direction_to_normalized(from: u8, to: u8) -> i8 {
     return (8*rank_delta) + file_delta;
 }
 
+pub fn chebyshev_distance(a:i8, b:i8) -> u8 {
+    let a_file = a & 7;
+    let a_rank = a >> 3;
+
+    let b_file = b & 7;
+    let b_rank = b >> 3;
+
+    u8::max(i8::abs(b_rank - a_rank) as u8, i8::abs(b_file - a_file) as u8)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

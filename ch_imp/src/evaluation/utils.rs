@@ -49,16 +49,6 @@ pub(super) fn distance_to_center(square : u8) -> i32 {
     (2 * ((CENTER_DISTANCE_BIT_1 >> square) & 1) + ((CENTER_DISTANCE_BIT_0 >> square) & 1)) as i32
 }
 
-pub(super) fn chebyshev_distance(a:i8, b:i8) -> u8 {
-    let a_file = a & 7;
-    let a_rank = a >> 3;
-
-    let b_file = b & 7;
-    let b_rank = b >> 3;
-
-    u8::max(i8::abs(b_rank - a_rank) as u8, i8::abs(b_file - a_file) as u8)
-}
-
 // https://www.chessprogramming.org/Center_Manhattan-Distance
 pub(super)  fn manhattan_distance_to_center(square: u8) -> i32 {
    let mut file  = (square as i32)  & 7;

@@ -53,11 +53,11 @@ impl Position {
 
         // If in check see if this move removes check
         if self.current_in_check() {
-            return move_removes_check(m, king_analysis);
+            return move_removes_check(m, &king_analysis);
         }
 
         // If not in check, ensure this move doesn't result in check by moving a pinned piece
-        if king_analysis.pins.len() > 0 && !is_legal_pinned_piece_move(m, king_analysis) {
+        if king_analysis.pins.len() > 0 && !is_legal_pinned_piece_move(m, &king_analysis) {
             return false;
         }
 
@@ -82,23 +82,23 @@ impl Position {
 
         // Move is not king move into check
 
-        return self.is_legal_piece_move(m);
+        return self.is_legal_piece_move(m, &king_analysis);
     }
 
-    fn is_legal_piece_move(&self, m: Move) -> bool {
+    fn is_legal_piece_move(&self, m: Move, king_analysis: &KingPositionAnalysis) -> bool {
         match m.piece_type() {
             PieceType::Pawn => is_legal_pawn_move(m, self.board),
             PieceType::Knight => is_legal_knight_move(m, self.board),
             PieceType::Bishop => is_legal_bishop_move(m, self.board),
             PieceType::Rook => is_legal_rook_move(m, self.board),
             PieceType::Queen => is_legal_queen_move(m, self.board),
-            PieceType::King => is_legal_king_move(m, self.board),
+            PieceType::King => is_legal_king_move(m, self.board, king_analysis),
             _ => panic!("Move piece type unknown! {m:?}")
         }
     }
 }
 
-fn move_removes_check(m: Move, king_analysis: KingPositionAnalysis) -> bool {
+fn move_removes_check(m: Move, king_analysis: &KingPositionAnalysis) -> bool {
     let pin = Option::<&ThreatRaycastCollision>::copied(
         king_analysis.pins.iter().find(|p| p.at == m.from()),
     );
@@ -127,7 +127,7 @@ fn move_removes_check(m: Move, king_analysis: KingPositionAnalysis) -> bool {
     false
 }
 
-fn is_legal_pinned_piece_move(m: Move, king_analysis: KingPositionAnalysis) -> bool {
+fn is_legal_pinned_piece_move(m: Move, king_analysis: &KingPositionAnalysis) -> bool {
     let pin = Option::<&ThreatRaycastCollision>::copied(
         king_analysis.pins.iter().find(|p| p.at == m.from()),
     );
@@ -194,7 +194,7 @@ mod test {
         );
         assert!(!move_removes_check(
             m,
-            position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis()
         ));
     }
 
@@ -211,7 +211,7 @@ mod test {
         );
         assert!(move_removes_check(
             m,
-            position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis()
         ));
     }
 
@@ -228,7 +228,7 @@ mod test {
         );
         assert!(!move_removes_check(
             m,
-            position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis()
         ));
     }
 
@@ -245,7 +245,7 @@ mod test {
         );
         assert!(!move_removes_check(
             m,
-            position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis()
         ));
     }
 
@@ -290,7 +290,7 @@ mod test {
         );
         assert!(is_legal_pinned_piece_move(
             m,
-            position.board.get_black_king_analysis()
+            &position.board.get_black_king_analysis()
         ));
     }
 
@@ -307,7 +307,7 @@ mod test {
         );
         assert!(is_legal_pinned_piece_move(
             m,
-            position.board.get_black_king_analysis()
+            &position.board.get_black_king_analysis()
         ));
     }
 }
