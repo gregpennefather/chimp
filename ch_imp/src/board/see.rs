@@ -37,8 +37,7 @@ pub fn see(
         let attacking_piece_value = PIECE_TYPE_EXCHANGE_VALUE[attacking_piece as usize];
         let defending_piece_value = PIECE_TYPE_EXCHANGE_VALUE[lvd as usize];
 
-        if (attacking_piece_value > defending_piece_value) {
-            println!("{attacking_piece:?} taking {attacked_piece:?} not performed as becomes en prise by {lvd:?}");
+        if attacking_piece_value > defending_piece_value {
             return None;
         }
 
@@ -51,13 +50,9 @@ pub fn see(
     }
 
     if capture_value < 0 {
-        println!(
-            "{attacking_piece:?} taking {attacked_piece:?} resulting in see of {capture_value} is a bad exchange so not performing"
-        );
         return None;
     }
 
-    println!("{attacking_piece:?} taking {attacked_piece:?} resulting in see of {capture_value}");
     Some(capture_value)
 }
 

@@ -279,7 +279,7 @@ fn get_neighbourhood_mask(king_pos: u8, is_black: bool) -> u64 {
 
     let rank = get_rank(king_pos);
 
-    if (is_black && rank <= 1) || (!is_black && rank >= 6) {
+    if (is_black && rank <= 4) || (!is_black && rank >= 5) {
         return neigbourhood;
     }
 

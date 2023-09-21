@@ -17,10 +17,10 @@ use crate::{
 
 mod king;
 mod knight;
+pub mod legal_move;
 mod pawn;
 pub(crate) mod sliding;
 mod tests;
-pub mod legal_move;
 
 #[derive(Clone, Default)]
 pub struct MoveGenerationEvalMetrics {
@@ -312,14 +312,18 @@ fn moveboard_to_moves(
     while m_b != 0 {
         let lsb = m_b.trailing_zeros() as u8;
         if opponent_occupancy.occupied(lsb) {
-            let see = calculate_see(piece_type, board.get_piece_type_at_index(lsb));
-            generated_moves.push(Move::new(
+            let attacked_piece_type = board.get_piece_type_at_index(lsb);
+            let attacked_by = board.get_attacked_by(lsb, board.black_turn);
+            let defended_by = board.get_attacked_by(lsb, !board.black_turn);
+
+            generated_moves.push(Move::capture_move(
                 from_index,
                 lsb,
-                MF_CAPTURE,
                 piece_type,
+                attacked_piece_type,
                 board.black_turn,
-                see,
+                attacked_by,
+                defended_by,
             ));
         } else if !occupancy.occupied(lsb) {
             generated_moves.push(Move::new(

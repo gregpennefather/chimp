@@ -393,8 +393,8 @@ fn park_table() {
     let mut white_turn = true;
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
-    let mut white_ms = 30000;
-    let mut black_ms = 30000;
+    let mut white_ms = 5000;
+    let mut black_ms = 5000;
     let inc_ms = 1000;
     info!("Park Table:");
     for _i in 0..200 {

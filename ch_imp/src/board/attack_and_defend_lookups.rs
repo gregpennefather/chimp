@@ -60,6 +60,7 @@ impl AttackedBy {
                 assert_ne!(self.queen, false);
                 self.queen = false;
             },
+            PieceType::King => {}
             _ => panic!("Unexpected piece type {piece_type:?}")
         }
     }
