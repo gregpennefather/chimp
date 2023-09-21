@@ -4,6 +4,7 @@ use super::{
     bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::get_pawn_threat_source,
 };
 
+#[derive(Clone, Copy, Debug)]
 pub struct AttackedBy {
     pub pawns: u8,
     pub knights: u8,
@@ -74,7 +75,7 @@ impl BoardRep {
         let pawns = get_pawn_threats(
             index,
             attacker_occupancy & self.pawn_bitboard,
-            self.black_turn,
+            !attacker_is_black,
         );
         let knights = get_knight_threat_count(index, attacker_occupancy & self.knight_bitboard);
         let bishop = has_bishop_threat(

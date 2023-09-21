@@ -199,16 +199,21 @@ fn is_pawn_check(
     (check, double_check, Some(threat))
 }
 
-pub(super) fn get_pawn_threat_source(king_pos: u8, black_king: bool) -> u64 {
-    let king_file = get_file(king_pos);
+pub(super) fn get_pawn_threat_source(pos: u8, piece_is_black: bool) -> u64 {
+    let rank = get_rank(pos);
+    if (rank == 0 && piece_is_black) || (rank == 7 && !piece_is_black) {
+        return 0
+    }
+
+    let king_file = get_file(pos);
 
     let mut r = 0;
     if king_file != 7 {
-        r |= 1 << (king_pos as i32 + if black_king { -9 } else { 7 });
+        r |= 1 << (pos as i32 + if piece_is_black { -9 } else { 7 });
     }
 
     if king_file != 0 {
-        r |= 1 << (king_pos as i32 + if black_king { -7 } else { 9 });
+        r |= 1 << (pos as i32 + if piece_is_black { -7 } else { 9 });
     }
     r
 }

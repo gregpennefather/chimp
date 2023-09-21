@@ -169,7 +169,7 @@ fn main() {
     //     "rnb1kbnr/pppp1ppp/8/1B2p2Q/4Pq2/5N2/PPPP1PPP/RNB1K2R b KQkq - 5 4".into(),
     // );
 
-    //let gs = GameState::new("rnb1kbnr/pppp1ppp/8/1B2p2Q/4Pq2/5N2/PPPP1PPP/RNB1K2R b KQkq - 5 4".into());
+    // let gs = GameState::new("rn2kbnr/pp1ppppp/2p5/q5b1/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1".into());
 
     // let mut engine = ChimpEngine::new();
 
