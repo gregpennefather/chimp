@@ -199,7 +199,7 @@ fn is_pawn_check(
     (check, double_check, Some(threat))
 }
 
-fn get_pawn_threat_source(king_pos: u8, black_king: bool) -> u64 {
+pub(super) fn get_pawn_threat_source(king_pos: u8, black_king: bool) -> u64 {
     let king_file = get_file(king_pos);
 
     let mut r = 0;

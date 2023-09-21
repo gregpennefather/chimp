@@ -1,12 +1,15 @@
-use crate::shared::{
-    board_utils::get_coords_from_index,
-    constants::{
-        MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
-        MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
-        MF_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
-        MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
+use crate::{
+    board::{attack_and_defend_lookups::AttackedBy, see::{see, see_from_capture}},
+    shared::{
+        board_utils::get_coords_from_index,
+        constants::{
+            MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
+            MF_EP_CAPTURE, MF_KING_CASTLING, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
+            MF_PROMOTION, MF_QUEEN_CAPTURE_PROMOTION, MF_QUEEN_CASTLING, MF_QUEEN_PROMOTION,
+            MF_ROOK_CAPTURE_PROMOTION, MF_ROOK_PROMOTION,
+        },
+        piece_type::{get_piece_char, PieceType, PIECE_TYPE_EXCHANGE_VALUE},
     },
-    piece_type::{get_piece_char, PieceType, PIECE_TYPE_EXCHANGE_VALUE},
 };
 use core::fmt::Debug;
 use std::{cmp::Ordering, fmt::Display};
@@ -35,6 +38,27 @@ impl Move {
         let t: u16 = to_index.into();
         let m: u16 = f << 10 | t << 4 | flags;
         Move(m, piece_type, is_black, see_value)
+    }
+
+    pub fn capture_move(
+        from_index: u8,
+        to_index: u8,
+        attacker_piece_type: PieceType,
+        attacked_piece_type: PieceType,
+        is_black: bool,
+        friendly_attacked_by: AttackedBy,
+        opponent_attacked_by: AttackedBy,
+    ) -> Self {
+        let f: u16 = from_index.into();
+        let t: u16 = to_index.into();
+        let m: u16 = f << 10 | t << 4 | MF_CAPTURE;
+        let see_value = see_from_capture(
+            attacker_piece_type,
+            friendly_attacked_by,
+            attacked_piece_type,
+            opponent_attacked_by,
+        );
+        Move(m, attacker_piece_type, is_black, see_value)
     }
 
     pub fn from(&self) -> u8 {
