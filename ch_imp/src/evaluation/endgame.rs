@@ -1,8 +1,17 @@
-use crate::{board::{position::Position, board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision}, r#move::Move, shared::piece_type::PieceType};
+use crate::{
+    board::{
+        board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision, position::Position,
+    },
+    r#move::Move,
+    shared::piece_type::PieceType,
+};
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
-    utils::{piece_aggregate_score, piece_square_score, distance_to_center, manhattan_distance_to_center, manhattan_distance},
+    utils::{
+        distance_to_center, manhattan_distance, manhattan_distance_to_center,
+        piece_aggregate_score, piece_square_score, sum_piece_safety_penalties,
+    }, PieceSafetyInfo,
 };
 
 const MATERIAL_VALUES: PieceValues = [
@@ -42,26 +51,46 @@ const KNIGHT_SQUARE_FACTOR: i32 = 2;
 
 const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
 
-pub fn calculate(board: BoardRep,
+pub fn calculate(
+    board: BoardRep,
     white_pinned: &Vec<ThreatRaycastCollision>,
-    black_pinned: &Vec<ThreatRaycastCollision>, pawn_structure: i16) -> i32 {
+    black_pinned: &Vec<ThreatRaycastCollision>,
+    pawn_structure: i16,
+    piece_safety_results: &Vec<PieceSafetyInfo>,
+) -> i32 {
     let mut eval = pawn_structure as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
     // Double Bishop reward
-    eval += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 { DOUBLE_BISHOP_REWARD } else { 0 };
-    eval -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 { DOUBLE_BISHOP_REWARD } else { 0 };
+    eval += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 {
+        DOUBLE_BISHOP_REWARD
+    } else {
+        0
+    };
+    eval -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 {
+        DOUBLE_BISHOP_REWARD
+    } else {
+        0
+    };
 
-    eval += piece_square_score(board.white_occupancy & board.pawn_bitboard, WHITE_PAWN_SQUARE_SCORE)
-        * PAWN_SQUARE_FACTOR;
-    eval -= piece_square_score(board.black_occupancy & board.pawn_bitboard, BLACK_PAWN_SQUARE_SCORE)
-        * PAWN_SQUARE_FACTOR;
+    eval += piece_square_score(
+        board.white_occupancy & board.pawn_bitboard,
+        WHITE_PAWN_SQUARE_SCORE,
+    ) * PAWN_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.pawn_bitboard,
+        BLACK_PAWN_SQUARE_SCORE,
+    ) * PAWN_SQUARE_FACTOR;
 
-    eval += piece_square_score(board.white_occupancy & board.knight_bitboard, KNIGHT_SQUARE_SCORE)
-        * KNIGHT_SQUARE_FACTOR;
-    eval -= piece_square_score(board.black_occupancy & board.knight_bitboard, KNIGHT_SQUARE_SCORE)
-        * KNIGHT_SQUARE_FACTOR;
+    eval += piece_square_score(
+        board.white_occupancy & board.knight_bitboard,
+        KNIGHT_SQUARE_SCORE,
+    ) * KNIGHT_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.knight_bitboard,
+        KNIGHT_SQUARE_SCORE,
+    ) * KNIGHT_SQUARE_FACTOR;
 
     eval += mop_up_score(board.white_king_position, board.black_king_position);
     eval -= mop_up_score(board.black_king_position, board.white_king_position);
@@ -84,6 +113,7 @@ pub fn calculate(board: BoardRep,
         }
     }
 
+    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES);
 
     eval
 }

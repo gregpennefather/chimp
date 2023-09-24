@@ -1,7 +1,7 @@
 use crate::{
     board::board_rep::BoardRep,
-    move_generation::pawn::{ep_leads_to_orthogonal_check, generate_pawn_moves},
-    shared::board_utils::index_from_coords,
+    move_generation::pawn::{ep_leads_to_orthogonal_check, generate_pawn_moves, legal_move::is_legal_pawn_move},
+    shared::{board_utils::index_from_coords, constants::MF_ROOK_CAPTURE_PROMOTION, piece_type::PieceType}, r#move::Move,
 };
 
 #[test]
@@ -44,4 +44,11 @@ pub fn ep_leads_to_orthogonal_check_left_true() {
         board.white_occupancy,
     );
     assert!(leads_to_check);
+}
+
+#[test]
+fn is_legal_capture_promotion_scenario_0() {
+    let board = BoardRep::from_fen("3n2k1/P4r1p/3qp1p1/1r1p4/1p3pP1/1Q3P1P/R4P2/2R2BK1 w - - 1 1".into());
+    let m = Move::new(index_from_coords("a7"), index_from_coords("b8"), MF_ROOK_CAPTURE_PROMOTION, PieceType::Pawn, false, 3);
+    assert!(!is_legal_pawn_move(m, board));
 }

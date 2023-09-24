@@ -2,7 +2,7 @@ use crate::r#move::Move;
 
 const KILLER_STORE_MAX_PLY: usize = 12;
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct PlyKillers {
     index: u8,
     moves: [Option<Move>; 3],

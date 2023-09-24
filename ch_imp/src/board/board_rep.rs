@@ -648,6 +648,7 @@ impl BoardRep {
             }
         }
 
+        assert!(white_king_position != 255 && black_king_position != 255, "Invalid king ({white_king_position},{black_king_position}) after {segments:?}");
         BoardRep {
             black_turn: !self.black_turn,
             occupancy,

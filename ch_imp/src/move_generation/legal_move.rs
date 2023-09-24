@@ -42,7 +42,15 @@ impl Position {
 
         // Not a capture but square occupied
         if !m.is_capture() && self.board.occupancy.occupied(m.to()) {
-            return false
+            return false;
+        }
+
+        // If its a capture (not EP capture) but the target is a king
+        if m.flags() == MF_CAPTURE
+            && (self.board.white_king_position == m.to()
+                || self.board.black_king_position == m.to())
+        {
+            return false;
         }
 
         let opponent_occupancy = self.board.get_opponent_occupancy();
@@ -68,7 +76,7 @@ impl Position {
         };
 
         // If in check see if this move removes check
-        if self.current_in_check() && !move_removes_check(m, &king_analysis) {
+        if self.current_in_check() && !move_removes_check(m, &king_analysis, self.board) {
             return false;
         }
 
@@ -113,7 +121,7 @@ impl Position {
     }
 }
 
-fn move_removes_check(m: Move, king_analysis: &KingPositionAnalysis) -> bool {
+fn move_removes_check(m: Move, king_analysis: &KingPositionAnalysis, board: BoardRep) -> bool {
     let pin = Option::<&ThreatRaycastCollision>::copied(
         king_analysis.pins.iter().find(|p| p.at == m.from()),
     );
@@ -126,13 +134,18 @@ fn move_removes_check(m: Move, king_analysis: &KingPositionAnalysis) -> bool {
                 if m.to() == threat.from {
                     return true;
                 }
-                if m.piece_type() != PieceType::King && (1 << m.to()) & threat.threat_ray_mask != 0 {
+                if m.piece_type() != PieceType::King && (1 << m.to()) & threat.threat_ray_mask != 0
+                {
                     return true;
                 }
                 false
             }
-            None => panic!("Unexpected lack on threat {king_analysis:?}"),
-        }
+            None =>  {
+                // Must be a double check - oof
+                let attacks_on_to = board.get_attacked_by(m.to(), !m.is_black());
+                attacks_on_to.any()
+            }
+        },
     }
 }
 
@@ -203,7 +216,8 @@ mod test {
         );
         assert!(!move_removes_check(
             m,
-            &position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis(),
+            position.board
         ));
     }
 
@@ -220,7 +234,8 @@ mod test {
         );
         assert!(move_removes_check(
             m,
-            &position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis(),
+            position.board
         ));
     }
 
@@ -237,7 +252,8 @@ mod test {
         );
         assert!(!move_removes_check(
             m,
-            &position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis(),
+            position.board
         ));
     }
 
@@ -254,7 +270,8 @@ mod test {
         );
         assert!(!move_removes_check(
             m,
-            &position.board.get_white_king_analysis()
+            &position.board.get_white_king_analysis(),
+            position.board
         ));
     }
 
@@ -338,10 +355,16 @@ mod test {
 
     #[test]
     fn is_legal_scenario_1() {
-        let position = Position::from_fen(
-            "rnbqkbnr/ppppppp1/8/7p/7P/8/PPPPPPP1/RNBQKBNR w KQkq h6 0 ".into(),
+        let position =
+            Position::from_fen("rnbqkbnr/ppppppp1/8/7p/7P/8/PPPPPPP1/RNBQKBNR w KQkq h6 0 ".into());
+        let m = Move::new(
+            index_from_coords("f1"),
+            index_from_coords("e2"),
+            0b0,
+            PieceType::Bishop,
+            false,
+            0,
         );
-        let m = Move::new(index_from_coords("f1"), index_from_coords("e2"), 0b0, PieceType::Bishop, false, 0);
         assert!(!position.is_legal_move(m));
     }
 
@@ -350,25 +373,44 @@ mod test {
         let position = Position::from_fen(
             "r1bq1bnr/ppp1kppp/2np4/1B2Q3/4PP2/8/PPPP2PP/RNB1K1NR b KQ - 0 5".into(),
         );
-        let m = Move::new(index_from_coords("e7"), index_from_coords("e6"), 0b0, PieceType::King, true, 0);
+        let m = Move::new(
+            index_from_coords("e7"),
+            index_from_coords("e6"),
+            0b0,
+            PieceType::King,
+            true,
+            0,
+        );
         assert!(!position.is_legal_move(m));
     }
 
     #[test]
     fn is_legal_scenario_3() {
-        let position = Position::from_fen(
-            "rn3b1r/ppp2kpp/3p4/8/P3P1nP/4q3/4K3/4R1NR w - - 6 21".into(),
+        let position =
+            Position::from_fen("rn3b1r/ppp2kpp/3p4/8/P3P1nP/4q3/4K3/4R1NR w - - 6 21".into());
+        let m = Move::new(
+            index_from_coords("e1"),
+            index_from_coords("e3"),
+            MF_CAPTURE,
+            PieceType::Rook,
+            false,
+            0,
         );
-        let m = Move::new(index_from_coords("e1"), index_from_coords("e3"), MF_CAPTURE, PieceType::Rook, false, 0);
         assert!(!position.is_legal_move(m));
     }
 
     #[test]
     fn is_legal_scenario_4() {
-        let position = Position::from_fen(
-            "rn3b1r/ppp2kpp/3p1n2/8/P3P1bP/5P2/1BP5/R2Kq1NR w - - 1 15".into(),
+        let position =
+            Position::from_fen("rn3b1r/ppp2kpp/3p1n2/8/P3P1bP/5P2/1BP5/R2Kq1NR w - - 1 15".into());
+        let m = Move::new(
+            index_from_coords("f3"),
+            index_from_coords("g4"),
+            MF_CAPTURE,
+            PieceType::Pawn,
+            false,
+            0,
         );
-        let m = Move::new(index_from_coords("f3"), index_from_coords("g4"), MF_CAPTURE, PieceType::Pawn, false, 0);
         assert!(!position.is_legal_move(m));
     }
 }

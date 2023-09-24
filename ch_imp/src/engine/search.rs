@@ -1,6 +1,6 @@
 use std::{cell::OnceCell, time::Instant};
 
-use log::{debug, info, trace};
+use log::{debug, info, trace, error};
 
 use crate::{
     match_state::game_state::{self, GameState},
@@ -10,7 +10,7 @@ use crate::{
     shared::{
         board_utils::{get_rank, index_from_coords},
         piece_type::PieceType,
-        transposition_table::NodeType,
+        transposition_table::NodeType, constants::MF_KNIGHT_CAPTURE_PROMOTION,
     }, board::board_rep::BoardRep,
 };
 
@@ -134,12 +134,17 @@ impl ChimpEngine {
 
         let mut move_index = -1;
         let legal_moves = get_moves(board);
+        // for &m in &legal_moves {
+        //     println!("{m:?}")
+        // }
         for m in move_orderer {
             move_index += 1;
             if !legal_moves.contains(&m) {
-                println!("position is {}", game_state.to_fen());
-                println!("pv at ply {ply} is {pv:?}");
-                println!("hm at ply {ply} is {hm:?}");
+                error!("position is {}", game_state.to_fen());
+                error!("pv at ply {ply} is {pv:?}");
+                error!("hm at ply {ply} is {hm:?}");
+                error!("killers: {:?}", self.killer_store.get_ply(ply as usize));
+                error!("move {m:?} not in legal moves list {legal_moves:?}");
                 panic!("move {m:?} not in legal moves list {legal_moves:?}");
             }
             let new_game_state = match self.make(game_state, m) {
@@ -152,6 +157,7 @@ impl ChimpEngine {
                     continue;
                 }
             };
+
             has_legal_move = true;
 
             let extension = get_extensions(new_game_state, m, total_extensions);
@@ -271,7 +277,7 @@ impl ChimpEngine {
         let mut line = vec![];
         let moves = get_moves(game_state.position.board);
         for m in moves {
-            if m.is_quiet() {
+            if m.see() <= 0 {
                 continue;
             }
 

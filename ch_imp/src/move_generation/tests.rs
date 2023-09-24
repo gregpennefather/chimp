@@ -299,35 +299,11 @@ pub fn move_generation_block_with_pawn_or_move_king() {
 #[test]
 pub fn move_generation_block_or_capture_with_bishop() {
     let board = BoardRep::from_fen(
-        "r3k2Q/p1ppqpb1/bn2pn2/3PN1p1/1p2P3/2N5/PPPBBPPP/R3K2R b KQq - 0 2".into(),
+        "r3k2R/p1ppqpb1/bn2pn2/3PN1p1/1p2P3/2N5/PPPBBPPP/R3K3 b Qq - 0 2".into(),
     );
-    let white_king_analysis = analyze_king_position(
-        board.white_king_position,
-        false,
-        board.occupancy,
-        board.white_occupancy,
-        board.black_occupancy,
-        board.pawn_bitboard,
-        board.knight_bitboard,
-        board.bishop_bitboard,
-        board.rook_bitboard,
-        board.queen_bitboard,
-        board.black_turn,
-    );
+    let white_king_analysis = board.get_white_king_analysis();
 
-    let black_king_analysis = analyze_king_position(
-        board.black_king_position,
-        true,
-        board.occupancy,
-        board.black_occupancy,
-        board.white_occupancy,
-        board.pawn_bitboard,
-        board.knight_bitboard,
-        board.bishop_bitboard,
-        board.rook_bitboard,
-        board.queen_bitboard,
-        !board.black_turn,
-    );
+    let black_king_analysis = board.get_black_king_analysis();
 
     let moves = generate_moves(&black_king_analysis, &white_king_analysis, board);
 
@@ -443,6 +419,13 @@ pub fn get_pawn_threatboard_no_wrap_around() {
     let r = get_pawn_threatboard(index_from_coords("a5"), false);
     println!("{}", r.to_board_format());
     assert_eq!(r, 1 << index_from_coords("b6"));
+}
+
+#[test]
+pub fn get_pawn_threatboard_white_rank_7() {
+    let r = get_pawn_threatboard(index_from_coords("b7"), false);
+    println!("{}", r.to_board_format());
+    assert_eq!(r, 1 << index_from_coords("c8") | 1 << index_from_coords("a8"));
 }
 
 #[test]

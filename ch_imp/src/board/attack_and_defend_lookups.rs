@@ -11,6 +11,7 @@ pub struct AttackedBy {
     pub bishop: bool,
     pub rooks: u8,
     pub queen: bool,
+    pub king: bool,
 }
 impl AttackedBy {
     pub(crate) fn pop_least_valuable(&mut self) -> PieceType {
@@ -39,6 +40,11 @@ impl AttackedBy {
             return PieceType::Queen;
         }
 
+        if self.king {
+            self.king = false;
+            return PieceType::King;
+        }
+
         PieceType::None
     }
 
@@ -47,22 +53,38 @@ impl AttackedBy {
             PieceType::Pawn => {
                 assert_ne!(self.pawns, 0);
                 self.pawns -= 1;
-            },PieceType::Knight => {
+            }
+            PieceType::Knight => {
                 assert_ne!(self.knights, 0);
                 self.knights -= 1;
-            },PieceType::Rook => {
+            }
+            PieceType::Rook => {
                 assert_ne!(self.rooks, 0);
                 self.rooks -= 1;
-            },PieceType::Bishop => {
+            }
+            PieceType::Bishop => {
                 assert_ne!(self.bishop, false);
                 self.bishop = false;
-            },PieceType::Queen => {
+            }
+            PieceType::Queen => {
                 assert_ne!(self.queen, false);
                 self.queen = false;
-            },
-            PieceType::King => {}
-            _ => panic!("Unexpected piece type {piece_type:?}")
+            }
+            PieceType::King => {
+                assert_ne!(self.king, false);
+                self.king = false;
+            }
+            _ => panic!("Unexpected piece type {piece_type:?}"),
         }
+    }
+
+    pub(crate) fn any(&self) -> bool {
+        self.queen
+            || self.bishop
+            || self.king
+            || self.rooks > 0
+            || self.knights > 0
+            || self.pawns > 0
     }
 }
 
@@ -94,13 +116,60 @@ impl BoardRep {
             attacker_occupancy & self.queen_bitboard,
             self.occupancy,
         );
+        let king = has_king_threat(
+            index,
+            if attacker_is_black {
+                self.black_king_position
+            } else {
+                self.white_king_position
+            },
+        );
         AttackedBy {
             pawns,
             knights,
             bishop,
             rooks,
             queen,
+            king,
         }
+    }
+
+    pub fn has_at_least_one_attacker(&self, index: u8, attacker_is_black: bool) -> bool {
+        let attacker_occupancy = if attacker_is_black {
+            self.black_occupancy
+        } else {
+            self.white_occupancy
+        };
+
+        (get_pawn_threats(
+            index,
+            attacker_occupancy & self.pawn_bitboard,
+            !attacker_is_black,
+        ) > 0)
+            || (get_knight_threat_count(index, attacker_occupancy & self.knight_bitboard) > 0)
+            || has_bishop_threat(
+                index,
+                attacker_occupancy & self.bishop_bitboard,
+                self.occupancy,
+            )
+            || (get_rook_threat_count(
+                index,
+                attacker_occupancy & self.rook_bitboard,
+                self.occupancy,
+            ) > 0)
+            || has_queen_threat(
+                index,
+                attacker_occupancy & self.queen_bitboard,
+                self.occupancy,
+            )
+            || has_king_threat(
+                index,
+                if attacker_is_black {
+                    self.black_king_position
+                } else {
+                    self.white_king_position
+                },
+            )
     }
 }
 
@@ -137,6 +206,11 @@ fn has_queen_threat(index: u8, att_q_occ: u64, occupancy: u64) -> bool {
             .magic_bitboard_table
             .get_rook_attacks(index as usize, occupancy);
     moveboard & att_q_occ != 0
+}
+
+fn has_king_threat(index: u8, a_king_pos: u8) -> bool {
+    let moveboard = MOVE_DATA.king_moves[a_king_pos as usize];
+    moveboard.occupied(index)
 }
 
 #[cfg(test)]
@@ -198,5 +272,18 @@ mod test {
         assert_eq!(r.bishop, false);
         assert_eq!(r.rooks, 2);
         assert_eq!(r.queen, false);
+    }
+
+    #[test]
+    pub fn unthreatened_square() {
+        let board = BoardRep::from_fen("1nb1kbnr/pp1rpppp/8/2p5/4PP2/8/PPPqK1PP/R4BNR w k - 0 1".into());
+        let r = board.get_attacked_by(index_from_coords("f3"), true);
+        assert_eq!(r.pawns, 0);
+        assert_eq!(r.knights, 0);
+        assert_eq!(r.bishop, false);
+        assert_eq!(r.rooks, 0);
+        assert_eq!(r.queen, false);
+        assert_eq!(r.king, false);
+        assert!(!board.has_at_least_one_attacker(index_from_coords("f3"), true));
     }
 }

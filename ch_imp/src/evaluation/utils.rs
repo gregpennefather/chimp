@@ -1,6 +1,9 @@
-use crate::board::{bitboard::Bitboard, board_rep::BoardRep, position::Position};
+use crate::{board::{bitboard::Bitboard, board_rep::BoardRep, position::Position}, shared::board_utils::get_coords_from_index};
 
-use super::eval_precomputed_data::{PieceValueBoard, PieceValues};
+use super::{
+    eval_precomputed_data::{PieceValueBoard, PieceValues},
+    PieceSafetyInfo,
+};
 
 const CENTER_DISTANCE_BIT_0: u64 = 0xFF81BDA5A5BD81FF;
 const CENTER_DISTANCE_BIT_1: u64 = 0xFFFFC3C3C3C3FFFF;
@@ -44,21 +47,40 @@ pub(super) fn piece_square_score(piece_bitboard: u64, piece_value_board: PieceVa
     r
 }
 
+pub fn sum_piece_safety_penalties(
+    piece_safety_results: &Vec<PieceSafetyInfo>,
+    piece_values: PieceValues,
+) -> i32 {
+    let mut r = 0;
+
+    for &result in piece_safety_results {
+        if result.score < 0 {
+            if result.is_black {
+                r += piece_values[result.piece_type as usize - 1] / 2;
+            } else {
+                r -= piece_values[result.piece_type as usize - 1] / 2;
+            }
+        }
+    }
+
+    r
+}
+
 // https://www.chessprogramming.org/Center_Distance
-pub(super) fn distance_to_center(square : u8) -> i32 {
+pub(super) fn distance_to_center(square: u8) -> i32 {
     (2 * ((CENTER_DISTANCE_BIT_1 >> square) & 1) + ((CENTER_DISTANCE_BIT_0 >> square) & 1)) as i32
 }
 
 // https://www.chessprogramming.org/Center_Manhattan-Distance
-pub(super)  fn manhattan_distance_to_center(square: u8) -> i32 {
-   let mut file  = (square as i32)  & 7;
-   let mut rank  = (square as i32) >> 3;
-   file ^= (file-4) >> 8;
-   rank ^= (rank-4) >> 8;
-   (file + rank) & 7
+pub(super) fn manhattan_distance_to_center(square: u8) -> i32 {
+    let mut file = (square as i32) & 7;
+    let mut rank = (square as i32) >> 3;
+    file ^= (file - 4) >> 8;
+    rank ^= (rank - 4) >> 8;
+    (file + rank) & 7
 }
 
-pub(super)  fn manhattan_distance(a: i8, b:i8) -> u8 {
+pub(super) fn manhattan_distance(a: i8, b: i8) -> u8 {
     let a_file = a & 7;
     let a_rank = a >> 3;
 

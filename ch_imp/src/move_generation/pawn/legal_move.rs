@@ -21,7 +21,7 @@ fn is_legal_move(m: Move, board: BoardRep) -> bool {
 fn is_legal_capture(m: Move, board: BoardRep) -> bool {
     let offset_file: i8 = if board.black_turn { -1 } else { 1 };
     let push_forward_square = (m.from() as i8 + (offset_file*8)) as u8;
-    (m.to() == push_forward_square + 1 || m.to() == push_forward_square - 1) && board.get_opponent_occupancy().occupied(m.to())
+    (push_forward_square < 63 && m.to() == push_forward_square + 1 || (push_forward_square > 0 && m.to() == push_forward_square - 1)) && board.get_opponent_occupancy().occupied(m.to())
 }
 
 fn is_legal_ddp(m: Move, board: BoardRep) -> bool {
@@ -44,7 +44,7 @@ fn is_legal_capture_promotion(m: Move, board: BoardRep) -> bool {
     if (m.is_black() && rank != 0) || (!m.is_black() && rank != 7) {
         return false
     }
-    !board.occupancy.occupied(m.to())
+    is_legal_capture(m, board)
 }
 
 fn is_legal_promotion(m: Move, board: BoardRep) -> bool {

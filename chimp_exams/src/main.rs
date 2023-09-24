@@ -1,4 +1,7 @@
-use std::{fs::read_to_string, time::{SystemTime, Instant, Duration}};
+use std::{
+    fs::read_to_string,
+    time::{Duration, Instant, SystemTime},
+};
 
 use ch_imp::engine::ChimpEngine;
 use log::{info, LevelFilter};
@@ -7,16 +10,18 @@ use log4rs::{
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
-use test_suite::{TestInstance, TestSuite, ResultScore};
+use test_suite::{ResultScore, TestInstance, TestSuite};
 
 mod test_suite;
 
+
+// https://www.chessprogramming.org/Strategic_Test_Suite
 const STRATEGIC_TEST_SUITE_FILES: [(&str, &str); 15] = [
+    ("Open Files and Diagonals", "STS2.epd"),
     ("Re-Capturing", "STS6.epd"),
     ("Activity of the King", "STS11.epd"),
     ("Center Control", "STS12.epd"),
     ("Pawn Play in the Center", "STS13.epd"),
-    ("Open Files and Diagonals", "STS2.epd"),
     ("Knight Outposts", "STS3.epd"),
     ("Undermining", "STS1.epd"),
     ("Avoid Pointless Exchange", "STS15.epd"),
@@ -30,9 +35,30 @@ const STRATEGIC_TEST_SUITE_FILES: [(&str, &str); 15] = [
 ];
 
 const RECORD: bool = true;
-const TEST_TIME_SECONDS: i32 = 5;
+const TEST_TIME_MILLISECONDS: i32 = 2500;
 
 fn main() {
+    full_exam();
+    // quick_test(STRATEGIC_TEST_SUITE_FILES[1]);
+}
+
+fn quick_test(test_suite_file_info: (&str, &str)) {
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{l} {m}{n}")))
+        .build();
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
+        .unwrap();
+    let _handle = log4rs::init_config(config).unwrap();
+
+    let test_suite = read_file(test_suite_file_info.0, test_suite_file_info.1);
+    run_suite(test_suite, 5000);
+}
+
+fn full_exam() {
+    let time_ms = TEST_TIME_MILLISECONDS;
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{l} {m}{n}")))
         .build();
@@ -42,7 +68,7 @@ fn main() {
             .encoder(Box::new(PatternEncoder::new("{l} {m}{n}")))
             .build(format!(
                 "reports/sts_report_{}s_{:?}.log",
-                TEST_TIME_SECONDS,
+                TEST_TIME_MILLISECONDS,
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -66,11 +92,20 @@ fn main() {
             .unwrap()
     };
     let _handle = log4rs::init_config(config).unwrap();
+    let mut total_score = 0;
+    let mut max_score = 0;
 
     for test_suite_file_info in STRATEGIC_TEST_SUITE_FILES {
         let test_suite = read_file(test_suite_file_info.0, test_suite_file_info.1);
-        run_suite(test_suite);
+        max_score += test_suite.max_score;
+        total_score += run_suite(test_suite, time_ms);
     }
+    info!(
+        ">> Final result {}/{} ({}%)",
+        total_score,
+        max_score,
+        (total_score as f32 / max_score as f32 * 100.0)
+    );
 }
 
 fn read_file(theme: &str, file_name: &str) -> TestSuite {
@@ -91,10 +126,9 @@ fn read_file(theme: &str, file_name: &str) -> TestSuite {
     };
 }
 
-fn run_suite(test_suite: TestSuite) -> usize {
+fn run_suite(test_suite: TestSuite, timems: i32) -> usize {
     let mut score = 0;
     info!("===== {} =====", test_suite.name);
-    let timems = TEST_TIME_SECONDS * 1000;
     for test in test_suite.tests {
         let mut engine = ChimpEngine::from_position(test.fen);
         let timeout = Instant::now()
@@ -103,7 +137,10 @@ fn run_suite(test_suite: TestSuite) -> usize {
         let result = engine.iterative_deepening(&|| Instant::now() > timeout, vec![]);
         let san = engine.current_game_state.to_san(result[0]);
         let score_change = handle_result(&test.result_scores, &san);
-        info!("'{}': {score_change}/10 M:{} BM:{} ({:?})", test.name, san, test.result_scores[0].m, result[0]);
+        info!(
+            "'{}': {score_change}/10 M:{} BM:{} ({:?})",
+            test.name, san, test.result_scores[0].m, result[0]
+        );
         score += score_change;
     }
     info!("===== {}/{} =====", score, test_suite.max_score);

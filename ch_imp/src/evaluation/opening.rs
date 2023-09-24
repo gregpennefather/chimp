@@ -16,6 +16,7 @@ use crate::{
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
     utils::*,
+    PieceSafetyInfo,
 };
 
 const MATERIAL_VALUES: PieceValues = [
@@ -25,15 +26,6 @@ const MATERIAL_VALUES: PieceValues = [
     500, // Rook
     900, // Queen
     0,   // King
-];
-
-const HANGING_PIECE_VALUE: PieceValues = [
-    MATERIAL_VALUES[0] / 2, // Pawn
-    MATERIAL_VALUES[1] / 2, // Knight
-    MATERIAL_VALUES[2] / 2, // Bishop
-    MATERIAL_VALUES[3] / 2, // Rook
-    MATERIAL_VALUES[4] / 2, // Queen
-    0,                      // King
 ];
 
 const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
@@ -96,6 +88,7 @@ pub fn calculate(
     white_threatboard: u64,
     black_threatboard: u64,
     pawn_structure_eval: i16,
+    piece_safety_results: &Vec<PieceSafetyInfo>,
 ) -> i32 {
     let mut eval = pawn_structure_eval as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
@@ -197,6 +190,8 @@ pub fn calculate(
             eval += 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
         }
     }
+
+    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES);
 
     eval
 }

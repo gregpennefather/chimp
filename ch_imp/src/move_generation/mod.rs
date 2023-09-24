@@ -67,7 +67,7 @@ fn generate_moves(
         king_pos,
         opponent_occupancy,
         board.occupancy,
-        king_analysis.check,
+        &king_analysis,
         board.black_turn,
         king_side_castling,
         queen_side_castling,
@@ -285,13 +285,13 @@ fn get_pawn_threatboard(piece_position: u8, is_black: bool) -> u64 {
 
         return r;
     } else {
-        let mut r = if piece_position < 54 && file != 0 {
+        let mut r = if piece_position <= 54 && file != 0 {
             1 << piece_position + 9
         } else {
             0
         };
 
-        if piece_position < 55 && file != 7 {
+        if piece_position <= 55 && file != 7 {
             r |= 1 << piece_position + 7
         }
 

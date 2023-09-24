@@ -1,5 +1,8 @@
 use crate::{
-    board::{attack_and_defend_lookups::AttackedBy, see::{see, see_from_capture}},
+    board::{
+        attack_and_defend_lookups::AttackedBy,
+        see::{see, see_from_capture},
+    },
     shared::{
         board_utils::get_coords_from_index,
         constants::{
@@ -189,16 +192,21 @@ impl Display for Move {
 
 impl PartialOrd for Move {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        // Better SEE
+        let see_result = other.see().cmp(&self.3);
+        if see_result != Ordering::Equal {
+            return Some(see_result);
+        }
+
+        // Captures should be LV first
+        if self.is_capture() {
+            return Some(self.1.cmp(&other.1))
+        }
+
         // Flag priority (Promotion Captures -> Promotions -> EP Capture -> Captures -> Castling -> DPP -> Quiet)
         let flags_result = other.flags().cmp(&self.flags());
         if flags_result != Ordering::Equal {
             return Some(flags_result);
-        }
-
-        // Better SEE
-        let see_result = self.3.cmp(&other.see());
-        if see_result != Ordering::Equal {
-            return Some(see_result);
         }
 
         // Check Pawn captures first
@@ -210,14 +218,6 @@ impl PartialOrd for Move {
         if other.piece_type() == PieceType::Pawn
             && (other.flags() == MF_CAPTURE || other.flags() == MF_EP_CAPTURE)
         {
-            return Some(Ordering::Less);
-        }
-
-        // Check king moves last
-        if self.piece_type() == PieceType::King {
-            if other.piece_type() == PieceType::King {
-                return Some(Ordering::Equal);
-            }
             return Some(Ordering::Less);
         }
 
@@ -285,28 +285,25 @@ mod test {
     }
 
     #[test]
-    pub fn order_moves_case_better_exchange_value_first() {
-        let pawn_takes_pawn = Move::new(
-            12,
-            19,
-            MF_CAPTURE,
-            PieceType::Pawn,
-            false,
-            calculate_see(PieceType::Pawn, PieceType::Pawn),
-        );
-        let pawn_takes_knight = Move::new(
-            12,
-            21,
-            MF_CAPTURE,
-            PieceType::Pawn,
-            false,
-            calculate_see(PieceType::Pawn, PieceType::Knight),
-        );
-        let mut moves = vec![pawn_takes_pawn, pawn_takes_knight];
+    pub fn order_moves_case_capture_with_higher_see_over_lower() {
+        let major_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 4);
+        let minor_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Queen, true, 1);
+        let mut moves = vec![minor_capture, major_capture];
 
         moves.sort();
-        assert_eq!(moves[0], pawn_takes_pawn);
-        assert_eq!(moves[1], pawn_takes_knight);
+        assert_eq!(moves[0], major_capture);
+        assert_eq!(moves[1], minor_capture);
+    }
+
+    #[test]
+    pub fn order_moves_case_equal_see_captures_check_least_valuable_piece_first() {
+        let rook_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Rook, true, 4);
+        let queen_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Queen, true, 4);
+        let mut moves = vec![queen_capture, rook_capture];
+
+        moves.sort();
+        assert_eq!(moves[0], rook_capture);
+        assert_eq!(moves[1], queen_capture);
     }
 
     #[test]

@@ -24,6 +24,17 @@ pub fn see_from_capture(
     }
 }
 
+pub fn piece_safety(piece_type: PieceType, mut attacked_by: AttackedBy, defended_by: AttackedBy) -> i8 {
+    let attacking_piece = attacked_by.pop_least_valuable();
+    match attacking_piece {
+        PieceType::None | PieceType::King => 0,
+        _ => match see(attacking_piece, attacked_by, piece_type, defended_by) {
+            Some(i) => -i,
+            None => 0
+        }
+    }
+}
+
 pub fn see(
     attacking_piece: PieceType,
     attacked_by: AttackedBy,
@@ -79,6 +90,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -87,6 +99,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -105,6 +118,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -113,6 +127,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -131,6 +146,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: true,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -139,6 +155,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -157,6 +174,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -165,6 +183,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -184,6 +203,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: true,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -192,6 +212,7 @@ mod test {
             rooks: 1,
             bishop: true,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -211,6 +232,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: true,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -219,6 +241,7 @@ mod test {
             rooks: 1,
             bishop: true,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -238,6 +261,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: true,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -246,6 +270,7 @@ mod test {
             rooks: 1,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         assert_eq!(
@@ -264,6 +289,7 @@ mod test {
             rooks: 0,
             bishop: false,
             queen: true,
+            king: false,
         };
 
         let opponent = AttackedBy {
@@ -272,6 +298,7 @@ mod test {
             rooks: 2,
             bishop: false,
             queen: false,
+            king: false,
         };
 
         assert_eq!(

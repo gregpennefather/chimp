@@ -189,15 +189,23 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-    // test_ab_search(
-    //     "rnbqkbnr/pp1p2pp/2p2p2/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR b KQkq - 1 4".to_string(),
-    //     4,
-    // );
+    test_ab_search(
+        "1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - -".to_string(),
+        5,
+    );
     //    test_ab_search(
     //       "rnbqkbnr/pp1p3p/2p2pp1/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5".to_string(),
     //       5,
     //   );
-    //test_it_deep_search("8/7Q/2p2p2/3p4/pp1P1Bk1/P2N4/1PP1K3/R7 b - - 1 55".into());
+
+    // println!("{}", Position::from_fen("6q1/5k2/8/4p3/3p4/4P1Q1/4K3/8 w - - 0 1".into()).eval);
+
+    // println!("Q takes: {}", Position::from_fen("1q2rnk1/5rb1/bp1p1np1/pNpP2Bp/P1P1PQ1P/3B2P1/4NRR1/7K b - - 0 1".into()).eval);
+    // println!("P takes: {}", Position::from_fen("1q2rnk1/5rb1/bp1p1np1/pNpP2Bp/P1P1PP1P/3B4/3QNRR1/7K b - - 0 1".into()).eval);
+
+    // println!("r takes: {}", Position::from_fen("1q3nk1/5rb1/bp1p1np1/pNpP2Bp/P1P1rQ1P/3B2P1/4NRR1/7K w - - 0 2".into()).eval);
+
+    // test_it_deep_search("1q2rnk1/5rb1/bp1p1np1/pNpP2Bp/P1P1Pp1P/3B2P1/3QNRR1/7K w - -".into());
 
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
@@ -207,7 +215,7 @@ fn main() {
     // println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
 
     //perfts();
-    park_table();
+    //park_table();
     //test_engine();
 }
 
@@ -222,7 +230,7 @@ fn test_ab_search(fen: String, depth: u8) {
     let timer = Instant::now();
     let mut priority_line = vec![];
     let mut engine = ChimpEngine::from_position(fen);
-    let mut i: u8 = 3;
+    let mut i: u8 = 0;
     while i <= depth {
         let timeout = Instant::now()
             .checked_add(Duration::from_secs(3600))
@@ -261,7 +269,8 @@ fn test_it_deep_search(fen: String) {
     let _handle = log4rs::init_config(config).unwrap();
 
     let mut engine = ChimpEngine::from_position(fen);
-    let timeout = Instant::now().checked_add(Duration::from_secs(90)).unwrap();
+    println!("Eval before: {}", engine.current_game_state.position.eval);
+    let timeout = Instant::now().checked_add(Duration::from_secs(2)).unwrap();
     let cutoff = || Instant::now() > timeout;
     let o = engine.iterative_deepening(&cutoff, vec![]);
     println!("{o:?}");

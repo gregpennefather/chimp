@@ -27,15 +27,22 @@ pub(super) fn generate_king_moves(
     index: u8,
     opponent_occupancy: u64,
     occupancy: u64,
-    in_check: bool,
+    king_analysis: &KingPositionAnalysis,
     is_black: bool,
     king_side_castling: bool,
     queen_side_castling: bool,
     threat_board: u64,
     board: BoardRep,
 ) -> Vec<Move> {
-    let mut moveboard = MOVE_DATA.king_moves[index as usize];
-    moveboard = moveboard & !threat_board;
+    // TODO this all needs to be fixed and optimized
+    // let mut moveboard = get_legal_moveboard(index, board, is_black) & !threat_board;
+    // match king_analysis.threat_source {
+    //     Some(threat) => {
+    //         moveboard &= !threat.threat_ray_mask;
+    //     }
+    //     None => {}
+    // }
+    let moveboard = MOVE_DATA.king_moves[index as usize] & !threat_board;
     let mut moves = moveboard_to_moves(
         index,
         PieceType::King,
@@ -45,7 +52,7 @@ pub(super) fn generate_king_moves(
         board,
     );
 
-    if !in_check {
+    if !king_analysis.check {
         if king_side_castling {
             match generate_king_castling_move(
                 index,
@@ -83,6 +90,20 @@ pub(super) fn generate_king_moves(
     }
 
     moves
+}
+
+fn get_legal_moveboard(index: u8, board: BoardRep, is_black: bool) -> u64 {
+    let mut moveboard = MOVE_DATA.king_moves[index as usize];
+    let mut r = moveboard;
+
+    while moveboard != 0 {
+        let lsb = moveboard.trailing_zeros();
+        if board.has_at_least_one_attacker(lsb as u8, !is_black) {
+            r ^= 1 << lsb;
+        }
+        moveboard ^= 1 << lsb;
+    }
+    r
 }
 
 fn generate_king_castling_move(
