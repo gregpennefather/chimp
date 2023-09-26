@@ -1,5 +1,6 @@
 use crate::{
     board::{
+        attack_and_defend_lookups::AttackAndDefendTable,
         bitboard::Bitboard,
         board_rep::BoardRep,
         king_position_analysis::{self, KingPositionAnalysis},
@@ -21,7 +22,7 @@ use crate::{
 
 mod tests;
 
-use super::{generate_threat_board, moveboard_to_moves};
+use super::moveboard_to_moves;
 
 pub(super) fn generate_king_moves(
     index: u8,
@@ -31,18 +32,10 @@ pub(super) fn generate_king_moves(
     is_black: bool,
     king_side_castling: bool,
     queen_side_castling: bool,
-    threat_board: u64,
     board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
 ) -> Vec<Move> {
-    // TODO this all needs to be fixed and optimized
-    // let mut moveboard = get_legal_moveboard(index, board, is_black) & !threat_board;
-    // match king_analysis.threat_source {
-    //     Some(threat) => {
-    //         moveboard &= !threat.threat_ray_mask;
-    //     }
-    //     None => {}
-    // }
-    let moveboard = MOVE_DATA.king_moves[index as usize] & !threat_board;
+    let moveboard = get_legal_moveboard(index, ad_table, board, is_black);
     let mut moves = moveboard_to_moves(
         index,
         PieceType::King,
@@ -50,6 +43,7 @@ pub(super) fn generate_king_moves(
         opponent_occupancy,
         occupancy,
         board,
+        ad_table,
     );
 
     if !king_analysis.check {
@@ -60,9 +54,9 @@ pub(super) fn generate_king_moves(
                 MF_KING_CASTLING,
                 is_black,
                 KING_CASTLING_CLEARANCE << (index - 3),
-                occupancy,
                 KING_CASTLING_CHECK << (index - 3),
-                threat_board,
+                board,
+                ad_table,
             ) {
                 Some(generated_move) => {
                     moves.push(generated_move);
@@ -77,9 +71,9 @@ pub(super) fn generate_king_moves(
                 MF_QUEEN_CASTLING,
                 is_black,
                 QUEEN_CASTLING_CLEARANCE << (index - 3),
-                occupancy,
                 QUEEN_CASTLING_CHECK << (index - 3),
-                threat_board,
+                board,
+                ad_table,
             ) {
                 Some(generated_move) => {
                     moves.push(generated_move);
@@ -92,13 +86,18 @@ pub(super) fn generate_king_moves(
     moves
 }
 
-fn get_legal_moveboard(index: u8, board: BoardRep, is_black: bool) -> u64 {
+fn get_legal_moveboard(
+    index: u8,
+    ad_table: &AttackAndDefendTable,
+    board: BoardRep,
+    is_black: bool,
+) -> u64 {
     let mut moveboard = MOVE_DATA.king_moves[index as usize];
     let mut r = moveboard;
 
     while moveboard != 0 {
         let lsb = moveboard.trailing_zeros();
-        if board.has_at_least_one_attacker(lsb as u8, !is_black) {
+        if ad_table.has_at_least_one_attacker(lsb as u8, !is_black, true, board) {
             r ^= 1 << lsb;
         }
         moveboard ^= 1 << lsb;
@@ -112,22 +111,31 @@ fn generate_king_castling_move(
     castling_flag: u16,
     is_black: bool,
     castling_clearance_board: u64,
-    occupancy: u64,
-    castling_check_board: u64,
-    threat_board: u64,
+    mut castling_check_board: u64,
+    board: BoardRep,
+    ad_table: &AttackAndDefendTable,
 ) -> Option<Move> {
-    if (castling_clearance_board & occupancy == 0) & (castling_check_board & threat_board == 0) {
-        let m = Move::new(
-            from_index,
-            to_index,
-            castling_flag,
-            PieceType::King,
-            is_black,
-            0,
-        );
-        return Some(m);
+    if castling_clearance_board & board.occupancy != 0 {
+        return None;
     }
-    None
+
+    while castling_check_board != 0 {
+        let lsb = castling_check_board.trailing_zeros();
+        if ad_table.has_at_least_one_attacker(lsb as u8, !is_black, true, board) {
+            return None;
+        }
+        castling_check_board = castling_check_board.flip(lsb as u8);
+    }
+
+    let m = Move::new(
+        from_index,
+        to_index,
+        castling_flag,
+        PieceType::King,
+        is_black,
+        0,
+    );
+    return Some(m);
 }
 
 pub fn is_legal_king_move(
@@ -148,9 +156,7 @@ fn is_legal_move(m: Move, board: BoardRep, king_position_analysis: &KingPosition
     if chebyshev_distance(m.from() as i8, m.to() as i8) != 1 {
         return false;
     }
-    let opponent_threatboard =
-        generate_threat_board(!m.is_black(), board.get_opponent_occupancy(), board);
-    !is_in_check(m.to(), opponent_threatboard, king_position_analysis)
+    !is_in_check(m.to(), board, king_position_analysis)
 }
 
 fn is_legal_capture(
@@ -170,9 +176,7 @@ pub(super) fn is_legal_castling(
     board: BoardRep,
     king_position_analysis: &KingPositionAnalysis,
 ) -> bool {
-    let opponent_threatboard =
-        generate_threat_board(!m.is_black(), board.get_opponent_occupancy(), board);
-    if is_in_check(m.from(), opponent_threatboard, king_position_analysis) {
+    if is_in_check(m.from(), board, king_position_analysis) {
         return false;
     }
 
@@ -201,15 +205,30 @@ pub(super) fn is_legal_castling(
         QUEEN_CASTLING_CHECK
     } << (m.from() as i8 - 3);
 
-    opponent_threatboard & check_mask == 0
+    !any_position_in_check(check_mask, board)
 }
 
-fn is_in_check(to: u8, threat_board: u64, king_position_analysis: &KingPositionAnalysis) -> bool {
-    if threat_board.occupied(to) {
+fn is_in_check(to: u8, board: BoardRep, king_position_analysis: &KingPositionAnalysis) -> bool {
+    if position_is_in_check(to, board) {
         return true;
     }
     match king_position_analysis.threat_source {
         Some(t) => t.threat_ray_mask.occupied(to),
         None => false,
     }
+}
+
+fn any_position_in_check(mut mask: u64, board: BoardRep) -> bool {
+    while mask != 0 {
+        let lsb = mask.trailing_zeros() as u8;
+        if position_is_in_check(lsb, board) {
+            return false;
+        }
+        mask = mask.flip(lsb);
+    }
+    false
+}
+
+fn position_is_in_check(index: u8, board: BoardRep) -> bool {
+    board.has_at_least_one_attacker(index, !board.black_turn, true)
 }

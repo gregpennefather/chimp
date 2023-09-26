@@ -2,7 +2,7 @@ use rand::seq::index;
 
 use crate::{
     board::{
-        self, attack_and_defend_lookups::AttackedBy, bitboard::Bitboard, board_rep::BoardRep,
+        self, attack_and_defend_lookups::{AttackedBy, AttackAndDefendTable}, bitboard::Bitboard, board_rep::BoardRep,
         king_position_analysis::ThreatRaycastCollision,
     },
     move_generation::sliding::queen::generate_queen_moves,
@@ -85,10 +85,9 @@ pub fn calculate(
     board: BoardRep,
     white_pinned: &Vec<ThreatRaycastCollision>,
     black_pinned: &Vec<ThreatRaycastCollision>,
-    white_threatboard: u64,
-    black_threatboard: u64,
     pawn_structure_eval: i16,
     piece_safety_results: &Vec<PieceSafetyInfo>,
+    ad_table: &mut AttackAndDefendTable
 ) -> i32 {
     let mut eval = pawn_structure_eval as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
@@ -143,20 +142,20 @@ pub fn calculate(
     eval += under_developed_penalty(board, board.white_occupancy);
     eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
 
-    eval += piece_square_score(
-        white_threatboard | board.white_occupancy,
-        BOARD_CONTROL_SQUARE_REWARD,
-    ) / BOARD_CONTROL_SQUARES_PER_POINT;
-    eval -= piece_square_score(
-        black_threatboard | board.black_occupancy,
-        BOARD_CONTROL_SQUARE_REWARD,
-    ) / BOARD_CONTROL_SQUARES_PER_POINT;
+    // eval += piece_square_score(
+    //     white_threatboard | board.white_occupancy,
+    //     BOARD_CONTROL_SQUARE_REWARD,
+    // ) / BOARD_CONTROL_SQUARES_PER_POINT;
+    // eval -= piece_square_score(
+    //     black_threatboard | board.black_occupancy,
+    //     BOARD_CONTROL_SQUARE_REWARD,
+    // ) / BOARD_CONTROL_SQUARES_PER_POINT;
 
     // eval += king_tropism(board.white_king_position, board.black_occupancy, board);
     // eval -= king_tropism(board.black_king_position, board.white_occupancy, board);
 
-    eval -= king_openness(board.white_king_position, board);
-    eval += king_openness(board.black_king_position, board);
+    eval -= king_openness(board.white_king_position, board, ad_table);
+    eval += king_openness(board.black_king_position, board, ad_table);
 
     eval -= king_neighbourhood_treat_level(board.white_king_position, false, board);
     eval += king_neighbourhood_treat_level(board.black_king_position, true, board);
@@ -242,9 +241,9 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
 // }
 
 // King openness is a penalty for each square the king could reach if they were a queen
-fn king_openness(king_pos: u8, board: BoardRep) -> i32 {
+fn king_openness(king_pos: u8, board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i32 {
     let possible_queen_moves =
-        generate_queen_moves(king_pos, board, 0, board.occupancy, None, None);
+        generate_queen_moves(king_pos, board, ad_table, 0, board.occupancy, None, None);
     possible_queen_moves.len() as i32
 }
 

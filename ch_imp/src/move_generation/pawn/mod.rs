@@ -1,10 +1,12 @@
 use crate::{
     board::{
+        attack_and_defend_lookups::AttackAndDefendTable,
         bitboard::Bitboard,
         board_rep::BoardRep,
         king_position_analysis::{ThreatRaycastCollision, ThreatSource},
+        see::{see_from_capture, piece_safety},
     },
-    r#move::{calculate_see, Move},
+    r#move::Move,
     shared::{
         board_utils::get_rank,
         constants::{
@@ -18,11 +20,12 @@ use crate::{
     MOVE_DATA,
 };
 
-mod tests;
 pub(super) mod legal_move;
+mod tests;
 
 pub(super) fn generate_pawn_moves(
     board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
     index: u8,
     opponent_occupancy: u64,
     king_threat: Option<ThreatSource>,
@@ -30,12 +33,12 @@ pub(super) fn generate_pawn_moves(
 ) -> Vec<Move> {
     if king_threat != None {
         let kt = king_threat.unwrap();
-        return generate_pawn_moves_when_threatened(index, kt.from, kt.threat_ray_mask, board);
+        return generate_pawn_moves_when_threatened(index, kt.from, kt.threat_ray_mask, board, ad_table);
     }
 
     if pin != None && pin.unwrap().reveal_attack == false {
         let pin = pin.unwrap();
-        return generate_pawn_moves_when_threatened(index, pin.from, pin.threat_ray_mask, board);
+        return generate_pawn_moves_when_threatened(index, pin.from, pin.threat_ray_mask, board, ad_table);
     }
 
     let mut moves = Vec::new();
@@ -51,7 +54,7 @@ pub(super) fn generate_pawn_moves(
                 0b0,
                 PieceType::Pawn,
                 board.black_turn,
-                0,
+                get_see(ad_table, board, to, false),
             ));
 
             if (board.black_turn && rank == 6) || (!board.black_turn && rank == 1) {
@@ -63,7 +66,7 @@ pub(super) fn generate_pawn_moves(
                         MF_DOUBLE_PAWN_PUSH,
                         PieceType::Pawn,
                         board.black_turn,
-                        0,
+                        get_see(ad_table, board, dpp, false),
                     ));
                 }
             }
@@ -73,7 +76,7 @@ pub(super) fn generate_pawn_moves(
                 to,
                 false,
                 board.black_turn,
-                0,
+                get_see(ad_table, board, to, false),
             ));
         }
     }
@@ -87,7 +90,7 @@ pub(super) fn generate_pawn_moves(
         let leads_to_ep_check =
             ep_leads_to_orthogonal_check(board, index, index + 1, opponent_occupancy);
         if !is_ep_capture || !leads_to_ep_check {
-            let see = calculate_see(PieceType::Pawn, board.get_piece_type_at_index(capture_a));
+            let see = get_see(ad_table, board, capture_a, true);
             if capture_a_rank == 0 || capture_a_rank == 7 {
                 moves.extend(generate_pawn_promotion_moves(
                     index,
@@ -123,7 +126,7 @@ pub(super) fn generate_pawn_moves(
             let leads_to_ep_check =
                 ep_leads_to_orthogonal_check(board, index, index - 1, opponent_occupancy);
             if !is_ep_capture || !leads_to_ep_check {
-                let see = calculate_see(PieceType::Pawn, board.get_piece_type_at_index(capture_b));
+                let see = get_see(ad_table, board, capture_b, true);
                 if capture_b_rank == 0 || capture_b_rank == 7 {
                     moves.extend(generate_pawn_promotion_moves(
                         index,
@@ -181,6 +184,7 @@ fn generate_pawn_moves_when_threatened(
     threat_source: u8,
     threat_ray_mask: u64,
     board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
 ) -> Vec<Move> {
     let mut moves = Vec::new();
     let offset_file: i8 = if board.black_turn { -1 } else { 1 };
@@ -189,6 +193,7 @@ fn generate_pawn_moves_when_threatened(
     if threat_ray_mask != 0 {
         let to: u8 = (index as i8 + (8 * offset_file)) as u8;
         if (1 << to) & threat_ray_mask != 0 {
+            let see = get_see(ad_table, board, to, false);
             if get_rank(to) != 0 && get_rank(to) != 7 {
                 moves.push(Move::new(
                     index,
@@ -214,13 +219,14 @@ fn generate_pawn_moves_when_threatened(
         {
             let dpp = (to as i8 + (8 * offset_file)) as u8;
             if (1 << dpp) & threat_ray_mask != 0 {
+                let see = get_see(ad_table, board, dpp, false);
                 moves.push(Move::new(
                     index,
                     dpp,
                     MF_DOUBLE_PAWN_PUSH,
                     PieceType::Pawn,
                     board.black_turn,
-                    0,
+                    see,
                 ));
             }
         }
@@ -233,7 +239,7 @@ fn generate_pawn_moves_when_threatened(
     {
         let capture_a_rank = get_rank(capture_a);
         if (rank as i8 + offset_file) as u8 == capture_a_rank {
-            let see = calculate_see(PieceType::Pawn, board.get_piece_type_at_index(capture_a));
+            let see = get_see(ad_table, board, capture_a, true);
             if capture_a_rank == 0 || capture_a_rank == 7 {
                 moves.extend(generate_pawn_promotion_moves(
                     index,
@@ -266,7 +272,7 @@ fn generate_pawn_moves_when_threatened(
         {
             let capture_b_rank = get_rank(capture_b);
             if (rank as i8 + offset_file) as u8 == capture_b_rank {
-                let see = calculate_see(PieceType::Pawn, board.get_piece_type_at_index(capture_b));
+                let see = get_see(ad_table, board, capture_b, true);
                 if capture_b_rank == 0 || capture_b_rank == 7 {
                     moves.extend(generate_pawn_promotion_moves(
                         index,
@@ -352,4 +358,25 @@ fn generate_pawn_promotion_moves(
             see,
         ), // Queen
     ];
+}
+
+fn get_see(
+    ad_table: &mut AttackAndDefendTable,
+    board: BoardRep,
+    index: u8,
+    is_capture: bool,
+) -> i8 {
+    let attacked_piece_type = board.get_piece_type_at_index(index);
+    let attacked_by = ad_table.get_attacked_by(index, board, board.black_turn);
+    let defended_by = ad_table.get_attacked_by(index, board, !board.black_turn);
+    if is_capture {
+        see_from_capture(
+            PieceType::Pawn,
+            attacked_by,
+            attacked_piece_type,
+            defended_by,
+        )
+    } else {
+        piece_safety(PieceType::Pawn, true, attacked_by, defended_by)
+    }
 }

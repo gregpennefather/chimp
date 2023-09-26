@@ -13,6 +13,7 @@ pub struct AttackedBy {
     pub queen: bool,
     pub king: bool,
 }
+
 impl AttackedBy {
     pub(crate) fn pop_least_valuable(&mut self) -> PieceType {
         if self.pawns > 0 {
@@ -67,7 +68,7 @@ impl AttackedBy {
                 self.bishop = false;
             }
             PieceType::Queen => {
-                assert_ne!(self.queen, false);
+                // No assert here as sometimes we pretend a King is a queen during evaluation, and this remove would fail when generating moves for it
                 self.queen = false;
             }
             PieceType::King => {
@@ -85,6 +86,55 @@ impl AttackedBy {
             || self.rooks > 0
             || self.knights > 0
             || self.pawns > 0
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct AttackAndDefendTable {
+    pub white: [Option<AttackedBy>; 64],
+    pub black: [Option<AttackedBy>; 64],
+}
+
+impl AttackAndDefendTable {
+    pub fn new() -> Self {
+        Self {
+            white: [None; 64],
+            black: [None; 64],
+        }
+    }
+
+    pub fn get_attacked_by(&mut self, index: u8, board: BoardRep, attacker_is_black: bool) -> AttackedBy {
+        let existing = if attacker_is_black {
+            self.black[index as usize]
+        } else {
+            self.white[index as usize]
+        };
+
+        match existing {
+            Some(e) => e,
+            None => {
+                let e = board.get_attacked_by(index, attacker_is_black);
+                if attacker_is_black {
+                    self.black[index as usize] = Some(e);
+                } else {
+                    self.white[index as usize] = Some(e);
+                }
+                e
+            }
+        }
+    }
+
+    pub fn has_at_least_one_attacker(self, index: u8, attacker_is_black: bool, exclude_king: bool, board: BoardRep) -> bool {
+        let existing = if attacker_is_black {
+            self.black[index as usize]
+        } else {
+            self.white[index as usize]
+        };
+
+        match existing {
+            None => board.has_at_least_one_attacker(index, attacker_is_black, exclude_king),
+            Some(e) => e.any()
+        }
     }
 }
 
@@ -134,12 +184,22 @@ impl BoardRep {
         }
     }
 
-    pub fn has_at_least_one_attacker(&self, index: u8, attacker_is_black: bool) -> bool {
+    pub fn has_at_least_one_attacker(&self, index: u8, attacker_is_black: bool, exclude_king: bool) -> bool {
         let attacker_occupancy = if attacker_is_black {
             self.black_occupancy
         } else {
             self.white_occupancy
         };
+
+        let mut occupancy = self.occupancy;
+
+        if exclude_king {
+             if attacker_is_black {
+                occupancy = occupancy.flip(self.white_king_position);
+            } else {
+                occupancy = occupancy.flip(self.black_king_position);
+            }
+        }
 
         (get_pawn_threats(
             index,
@@ -150,17 +210,17 @@ impl BoardRep {
             || has_bishop_threat(
                 index,
                 attacker_occupancy & self.bishop_bitboard,
-                self.occupancy,
+                occupancy,
             )
             || (get_rook_threat_count(
                 index,
                 attacker_occupancy & self.rook_bitboard,
-                self.occupancy,
+                occupancy,
             ) > 0)
             || has_queen_threat(
                 index,
                 attacker_occupancy & self.queen_bitboard,
-                self.occupancy,
+                occupancy,
             )
             || has_king_threat(
                 index,
@@ -267,7 +327,7 @@ mod test {
     pub fn stacked_rook_attackers() {
         let board = BoardRep::from_fen("k7/8/3p1pb1/4P3/4N3/8/3R4/K2R1Q2 w - - 0 1".into());
         let r = board.get_attacked_by(index_from_coords("d6"), false);
-        assert_eq!(r.pawns, 0);
+        assert_eq!(r.pawns, 1);
         assert_eq!(r.knights, 1);
         assert_eq!(r.bishop, false);
         assert_eq!(r.rooks, 2);
@@ -284,6 +344,6 @@ mod test {
         assert_eq!(r.rooks, 0);
         assert_eq!(r.queen, false);
         assert_eq!(r.king, false);
-        assert!(!board.has_at_least_one_attacker(index_from_coords("f3"), true));
+        assert!(!board.has_at_least_one_attacker(index_from_coords("f3"), true, true));
     }
 }

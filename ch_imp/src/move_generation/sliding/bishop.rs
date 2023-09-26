@@ -1,8 +1,9 @@
-use crate::{board::{board_rep::BoardRep, king_position_analysis::{ThreatSource, ThreatRaycastCollision}, bitboard::Bitboard}, r#move::Move, MOVE_DATA, move_generation::moveboard_to_moves, shared::piece_type::PieceType};
+use crate::{board::{board_rep::BoardRep, king_position_analysis::{ThreatSource, ThreatRaycastCollision}, bitboard::Bitboard, attack_and_defend_lookups::AttackAndDefendTable}, r#move::Move, MOVE_DATA, move_generation::moveboard_to_moves, shared::piece_type::PieceType};
 
 pub fn generate_bishop_moves(
     index: u8,
     board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
     opponent_occupancy: u64,
     occupancy: u64,
     king_threat: Option<ThreatSource>,
@@ -27,6 +28,7 @@ pub fn generate_bishop_moves(
         opponent_occupancy,
         occupancy,
         board,
+        ad_table
     )
 }
 
@@ -42,7 +44,7 @@ pub fn is_legal_bishop_move(m: Move, board: BoardRep) -> bool {
 
 #[cfg(test)]
 mod test {
-    use crate::{board::board_rep::BoardRep, shared::{board_utils::index_from_coords, constants::MF_CAPTURE, piece_type::PieceType}, r#move::Move, move_generation::sliding::bishop::is_legal_bishop_move};
+    use crate::{board::{board_rep::BoardRep, attack_and_defend_lookups::AttackAndDefendTable}, shared::{board_utils::index_from_coords, constants::MF_CAPTURE, piece_type::PieceType}, r#move::Move, move_generation::sliding::bishop::{is_legal_bishop_move, generate_bishop_moves}};
 
     #[test]
     fn is_legal_bishop_move_not_diagonal() {
@@ -58,5 +60,17 @@ mod test {
         let m = Move::new(index_from_coords("g6"), index_from_coords("e4"), MF_CAPTURE, PieceType::Bishop, true, 0);
 
         assert!(is_legal_bishop_move(m, board))
+    }
+
+    #[test]
+    fn generate_bishop_moves_should_have_two_moves_with_see_of_zero_as_they_are_unthreatened() {
+        let board = BoardRep::from_fen("1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - - 0 1".into());
+
+        let mut ad_table = AttackAndDefendTable::new();
+
+        let moves = generate_bishop_moves(index_from_coords("g2"), board, &mut ad_table, board.get_opponent_occupancy(), board.occupancy, None, None);
+
+        assert_eq!(moves[0].see(), 0, "{}", moves[0]);
+        assert_eq!(moves[1].see(), 0, "{}", moves[0]);
     }
 }

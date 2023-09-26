@@ -1,4 +1,4 @@
-pub(crate) const PIECE_TYPE_EXCHANGE_VALUE : [i8;7] = [0, 1, 3, 3, 4, 5, 25];
+pub(crate) const PIECE_TYPE_EXCHANGE_VALUE : [i8;7] = [0, 1, 3, 3, 4, 8, 25];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PieceType {

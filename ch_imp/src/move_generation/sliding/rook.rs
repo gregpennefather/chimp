@@ -1,8 +1,9 @@
-use crate::{board::{board_rep::BoardRep, king_position_analysis::{ThreatSource, ThreatRaycastCollision}, bitboard::Bitboard}, r#move::Move, MOVE_DATA, move_generation::moveboard_to_moves, shared::piece_type::PieceType};
+use crate::{board::{board_rep::BoardRep, king_position_analysis::{ThreatSource, ThreatRaycastCollision}, bitboard::Bitboard, attack_and_defend_lookups::AttackAndDefendTable}, r#move::Move, MOVE_DATA, move_generation::moveboard_to_moves, shared::piece_type::PieceType};
 
 pub fn generate_rook_moves(
     index: u8,
     board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
     opponent_occupancy: u64,
     occupancy: u64,
     king_threat: Option<ThreatSource>,
@@ -27,6 +28,7 @@ pub fn generate_rook_moves(
         opponent_occupancy,
         occupancy,
         board,
+        ad_table
     )
 }
 

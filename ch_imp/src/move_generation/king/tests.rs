@@ -1,4 +1,4 @@
-use crate::{board::{board_rep::BoardRep, bitboard::Bitboard}, r#move::Move, shared::{board_utils::index_from_coords, piece_type::PieceType, constants::MF_QUEEN_CASTLING}, move_generation::{king::{is_legal_king_move, is_legal_castling}, generate_threat_board}};
+use crate::{board::{board_rep::BoardRep, bitboard::Bitboard, attack_and_defend_lookups::AttackAndDefendTable}, r#move::Move, shared::{board_utils::index_from_coords, piece_type::PieceType, constants::MF_QUEEN_CASTLING}, move_generation::{king::{is_legal_king_move, is_legal_castling}}};
 
 use super::generate_king_moves;
 
@@ -26,9 +26,7 @@ fn generate_moves_illegal_move_scenario_0() {
 
     let king_analysis = board.get_black_king_analysis();
 
-    let opponent_threat_board = generate_threat_board(!board.black_turn, board.white_occupancy, board);
-
-    println!("{}", opponent_threat_board.to_board_format());
+    let mut ad_table = AttackAndDefendTable::new();
 
     let moves = generate_king_moves(
         board.black_king_position,
@@ -38,8 +36,8 @@ fn generate_moves_illegal_move_scenario_0() {
         board.black_turn,
         board.black_king_side_castling,
         board.black_queen_side_castling,
-        opponent_threat_board,
         board,
+        &mut ad_table,
     );
 
     let illegal_move = Move::new(board.black_king_position, index_from_coords("b8"), 0b0, PieceType::King, true, 0);

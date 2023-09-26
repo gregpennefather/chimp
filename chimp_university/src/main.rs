@@ -17,7 +17,7 @@ use ch_imp::{
     r#move::move_data::MoveData,
     shared::board_utils::{get_index_from_file_and_rank, index_from_coords},
     testing::test_engine,
-    MOVE_DATA,
+    MOVE_DATA, move_generation::generate_moves_for_board,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -189,10 +189,11 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-    test_ab_search(
-        "1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - -".to_string(),
-        5,
-    );
+
+    let pos = Position::from_fen("1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - -".into());
+    println!("{:? }", generate_moves_for_board(pos.board))
+
+
     //    test_ab_search(
     //       "rnbqkbnr/pp1p3p/2p2pp1/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5".to_string(),
     //       5,

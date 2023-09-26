@@ -1,5 +1,5 @@
 use crate::{
-    board::board_rep::BoardRep,
+    board::{board_rep::BoardRep, attack_and_defend_lookups::AttackAndDefendTable},
     move_generation::pawn::{ep_leads_to_orthogonal_check, generate_pawn_moves, legal_move::is_legal_pawn_move},
     shared::{board_utils::index_from_coords, constants::MF_ROOK_CAPTURE_PROMOTION, piece_type::PieceType}, r#move::Move,
 };
@@ -9,7 +9,7 @@ pub fn pawn_moves_scenario_0() {
     let board = BoardRep::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
     );
-    let moves = generate_pawn_moves(board, 9, board.black_occupancy, None, None);
+    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.black_occupancy, None, None);
     assert_eq!(moves.len(), 3);
 }
 
@@ -18,7 +18,7 @@ pub fn pawn_moves_scenario_1() {
     let board = BoardRep::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/1N1PN3/1p2P3/5Q2/PPPBBPpP/R3K2R b KQkq - 0 2".into(),
     );
-    let moves = generate_pawn_moves(board, 9, board.white_occupancy, None, None);
+    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.white_occupancy, None, None);
     assert_eq!(moves.len(), 8);
 }
 

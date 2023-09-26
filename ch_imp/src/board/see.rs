@@ -24,7 +24,11 @@ pub fn see_from_capture(
     }
 }
 
-pub fn piece_safety(piece_type: PieceType, mut attacked_by: AttackedBy, defended_by: AttackedBy) -> i8 {
+pub fn piece_safety(piece_type: PieceType, is_move: bool, mut attacked_by: AttackedBy, mut defended_by: AttackedBy) -> i8 {
+    // If this is a move we need to remove the moving piece from the defenders list if its not a pawn - as it cannot defend itself
+    if is_move && piece_type != PieceType::Pawn {
+        defended_by.remove(piece_type);
+    }
     let attacking_piece = attacked_by.pop_least_valuable();
     match attacking_piece {
         PieceType::None | PieceType::King => 0,
@@ -278,6 +282,7 @@ mod test {
             1
         )
     }
+
     #[test]
     fn see_from_capture_scenario_3() {
         // k3r3/4r3/8/4p3/8/5N2/4Q3/K7 w - - 0 1
@@ -304,6 +309,36 @@ mod test {
         assert_eq!(
             see_from_capture(PieceType::Knight, friendly, PieceType::Pawn, opponent),
             -2
+        )
+    }
+
+    #[test]
+    fn piece_safety_bishop_safe_move() {
+        // 1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - - 0 1
+        // retreating to h1
+        let board = BoardRep::from_fen("1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - - 0 1".into());
+
+        let friendly = board.get_attacked_by(0, false);
+        let opponent = board.get_attacked_by(0, true);
+
+        assert_eq!(
+            piece_safety(PieceType::Bishop, true, opponent, friendly),
+            0
+        )
+    }
+
+    #[test]
+    fn piece_safety_queen_unsafe_move() {
+        // 1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - - 0 1
+        // queen moving to unsafe c2 where a pawn can capture
+        let board = BoardRep::from_fen("1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - - 0 1".into());
+
+        let friendly = board.get_attacked_by(index_from_coords("c2"), false);
+        let opponent = board.get_attacked_by(index_from_coords("c2"), true);
+
+        assert_eq!(
+            piece_safety(PieceType::Queen, true, opponent, friendly),
+            -PIECE_TYPE_EXCHANGE_VALUE[5]
         )
     }
 }

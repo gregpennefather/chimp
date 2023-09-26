@@ -1,12 +1,11 @@
 use crate::{
     evaluation::{self},
-    move_generation::{generate_threat_board, MoveGenerationEvalMetrics},
-    r#move::{move_segment::MoveSegment, Move},
+    r#move::move_segment::MoveSegment,
     search::zorb_set_precomputed::ZORB_SET,
 };
 use std::fmt::Debug;
 
-use super::{board_rep::BoardRep, king_position_analysis::*};
+use super::board_rep::BoardRep;
 
 pub type MoveSegmentArray = [MoveSegment; 6];
 
@@ -59,46 +58,12 @@ impl Position {
                 board.black_king_position, board.white_king_position
             )
         }
-        let white_king_analysis = analyze_king_position(
-            board.white_king_position,
-            false,
-            board.occupancy,
-            board.white_occupancy,
-            board.black_occupancy,
-            board.pawn_bitboard,
-            board.knight_bitboard,
-            board.bishop_bitboard,
-            board.rook_bitboard,
-            board.queen_bitboard,
-            board.black_turn,
-        );
-        let black_king_analysis = analyze_king_position(
-            board.black_king_position,
-            true,
-            board.occupancy,
-            board.black_occupancy,
-            board.white_occupancy,
-            board.pawn_bitboard,
-            board.knight_bitboard,
-            board.bishop_bitboard,
-            board.rook_bitboard,
-            board.queen_bitboard,
-            !board.black_turn,
-        );
+        let white_king_analysis = board.get_white_king_analysis();
+        let black_king_analysis = board.get_black_king_analysis();
         let mut eval = 0;
 
-        let legal = !((board.black_turn && white_king_analysis.check)
-            || (!board.black_turn && black_king_analysis.check));
+        eval = evaluation::calculate(board, black_king_analysis.pins, white_king_analysis.pins);
 
-        if legal {
-            let move_gen_metrics = MoveGenerationEvalMetrics {
-                white_threatboard: generate_threat_board(false, board.white_occupancy, board),
-                black_threatboard: generate_threat_board(true, board.black_occupancy, board),
-                white_pinned: white_king_analysis.pins,
-                black_pinned: black_king_analysis.pins,
-            };
-            eval = evaluation::calculate(board, move_gen_metrics);
-        }
         Self {
             board,
             white_in_check: white_king_analysis.check,
@@ -113,7 +78,8 @@ impl Position {
     }
 
     pub fn current_in_check(&self) -> bool {
-        return (self.board.black_turn && self.black_in_check) || (!self.board.black_turn && self.white_in_check)
+        return (self.board.black_turn && self.black_in_check)
+            || (!self.board.black_turn && self.white_in_check);
     }
 }
 
@@ -129,14 +95,7 @@ impl Debug for Position {
 impl Default for Position {
     fn default() -> Self {
         let board = BoardRep::default();
-
-        let eval_metrics = MoveGenerationEvalMetrics {
-            white_threatboard: generate_threat_board(false, board.white_occupancy, board),
-            black_threatboard: generate_threat_board(true, board.black_occupancy, board),
-            white_pinned: vec![],
-            black_pinned: vec![],
-        };
-        let eval = evaluation::calculate(board, eval_metrics);
+        let eval = evaluation::calculate(board, Vec::new(), Vec::new());
 
         Self {
             board,

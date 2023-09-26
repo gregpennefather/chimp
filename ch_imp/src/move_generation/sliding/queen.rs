@@ -2,7 +2,7 @@ use crate::{
     board::{
         bitboard::Bitboard,
         board_rep::BoardRep,
-        king_position_analysis::{ThreatRaycastCollision, ThreatSource},
+        king_position_analysis::{ThreatRaycastCollision, ThreatSource}, attack_and_defend_lookups::AttackAndDefendTable,
     },
     move_generation::moveboard_to_moves,
     r#move::Move,
@@ -13,6 +13,7 @@ use crate::{
 pub(crate) fn generate_queen_moves(
     index: u8,
     board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
     opponent_occupancy: u64,
     occupancy: u64,
     king_threat: Option<ThreatSource>,
@@ -42,6 +43,7 @@ pub(crate) fn generate_queen_moves(
         opponent_occupancy,
         occupancy,
         board,
+        ad_table
     )
 }
 

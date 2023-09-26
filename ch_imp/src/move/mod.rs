@@ -24,10 +24,6 @@ pub mod move_segment;
 #[derive(Default, Clone, Copy, Eq)]
 pub struct Move(u16, PieceType, bool, i8);
 
-pub fn calculate_see(a: PieceType, b: PieceType) -> i8 {
-    PIECE_TYPE_EXCHANGE_VALUE[b as usize] - PIECE_TYPE_EXCHANGE_VALUE[a as usize]
-}
-
 impl Move {
     pub fn new(
         from_index: u8,
@@ -50,7 +46,7 @@ impl Move {
         attacked_piece_type: PieceType,
         is_black: bool,
         friendly_attacked_by: AttackedBy,
-        opponent_attacked_by: AttackedBy,
+        opponent_attacked_by: AttackedBy
     ) -> Self {
         let f: u16 = from_index.into();
         let t: u16 = to_index.into();
@@ -200,7 +196,7 @@ impl PartialOrd for Move {
 
         // Captures should be LV first
         if self.is_capture() {
-            return Some(self.1.cmp(&other.1))
+            return Some(self.1.cmp(&other.1));
         }
 
         // Flag priority (Promotion Captures -> Promotions -> EP Capture -> Captures -> Castling -> DPP -> Quiet)
@@ -244,7 +240,7 @@ impl PartialEq for Move {
 #[cfg(test)]
 mod test {
     use crate::{
-        r#move::{calculate_see, Move},
+        r#move::Move,
         shared::{
             constants::{MF_CAPTURE, MF_DOUBLE_PAWN_PUSH, MF_QUEEN_PROMOTION},
             piece_type::PieceType,
@@ -304,20 +300,5 @@ mod test {
         moves.sort();
         assert_eq!(moves[0], rook_capture);
         assert_eq!(moves[1], queen_capture);
-    }
-
-    #[test]
-    pub fn calculate_see_pawn_takes_queen() {
-        assert_eq!(calculate_see(PieceType::Pawn, PieceType::Queen), 4);
-    }
-
-    #[test]
-    pub fn calculate_see_queen_takes_rook() {
-        assert_eq!(calculate_see(PieceType::Queen, PieceType::Rook), -1);
-    }
-
-    #[test]
-    pub fn calculate_see_queen_takes_queen() {
-        assert_eq!(calculate_see(PieceType::Queen, PieceType::Queen), 0);
     }
 }
