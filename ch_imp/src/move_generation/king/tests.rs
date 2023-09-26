@@ -17,6 +17,15 @@ fn is_legal_castling_scenario_0() {
 
     let m = Move::new(index_from_coords("e1"), index_from_coords("c1"), MF_QUEEN_CASTLING, PieceType::King, false, 0);
 
+    assert!(!is_legal_king_move(m, board, &board.get_white_king_analysis()))
+}
+
+#[test]
+fn is_legal_castling_scenario_1() {
+    let board = BoardRep::from_fen("r3k1nr/1p5p/2n1p3/p5B1/2NP2PP/6b1/PP6/R2K2NR b kq - 0 17".into());
+
+    let m = Move::new(index_from_coords("e8"), index_from_coords("c8"), MF_QUEEN_CASTLING, PieceType::King, true, 0);
+
     assert!(!is_legal_king_move(m, board, &board.get_black_king_analysis()))
 }
 

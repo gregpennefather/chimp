@@ -4,7 +4,7 @@ use super::{
     bitboard::Bitboard, board_rep::BoardRep, king_position_analysis::get_pawn_threat_source,
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct AttackedBy {
     pub pawns: u8,
     pub knights: u8,

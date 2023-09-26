@@ -8,6 +8,7 @@ pub fn generate_rook_moves(
     occupancy: u64,
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
+    reveal_attack: Option<ThreatRaycastCollision>
 ) -> Vec<Move> {
     let mut moveboard = match pin {
         Some(p) => p.threat_ray_mask | (1 << p.from),
@@ -28,10 +29,10 @@ pub fn generate_rook_moves(
         opponent_occupancy,
         occupancy,
         board,
-        ad_table
+        ad_table,
+        reveal_attack
     )
 }
-
 
 pub fn is_legal_rook_move(m: Move, board: BoardRep) -> bool {
     if MOVE_DATA.is_slide_legal(m.from(), m.to()).0 {
@@ -43,7 +44,22 @@ pub fn is_legal_rook_move(m: Move, board: BoardRep) -> bool {
 
 #[cfg(test)]
 mod test {
-    use crate::{board::board_rep::BoardRep, shared::{board_utils::index_from_coords, piece_type::PieceType, constants::MF_CAPTURE}, r#move::Move, move_generation::sliding::rook::is_legal_rook_move};
+    use crate::{board::{board_rep::BoardRep, attack_and_defend_lookups::AttackAndDefendTable}, shared::{board_utils::index_from_coords, piece_type::PieceType, constants::MF_CAPTURE}, r#move::Move, move_generation::sliding::rook::{is_legal_rook_move, generate_rook_moves}};
+
+    #[test]
+    fn generate_rook_moves_ignore_opponent_when_calculating_see_when_reveal_check_move() {
+        let board = BoardRep::from_fen("8/3p3k/3pb3/8/4R3/8/2B5/1K6 w - - 0 1".into());
+        let reveal_attack = board.get_black_king_analysis().pins[0];
+
+        let mut moves = generate_rook_moves(index_from_coords("e4"), board, &mut AttackAndDefendTable::new(), board.black_occupancy, board.occupancy, None, None, Some(reveal_attack));
+
+        moves.sort();
+
+        println!("{moves:?}");
+
+        assert_eq!(moves[0].to(), index_from_coords("e6"));
+        assert_eq!(moves[0].see(), 3);
+    }
 
     #[test]
     fn is_legal_rook_move_not_orthog() {

@@ -2,7 +2,7 @@ use log::info;
 
 use crate::{
     board::{
-        attack_and_defend_lookups::AttackAndDefendTable,
+        attack_and_defend_lookups::{AttackAndDefendTable, AttackedBy},
         bitboard::Bitboard,
         board_rep::BoardRep,
         king_position_analysis::{KingPositionAnalysis, ThreatRaycastCollision, ThreatType},
@@ -19,7 +19,11 @@ mod pawn;
 pub(crate) mod sliding;
 mod tests;
 
-fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> Vec<Move> {
+fn generate_moves(
+    king_analysis: &KingPositionAnalysis,
+    opponent_king_analysis: &KingPositionAnalysis,
+    board: BoardRep,
+) -> Vec<Move> {
     let mut friendly_occupancy = if board.black_turn {
         board.black_occupancy
     } else {
@@ -64,6 +68,14 @@ fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> Vec<
         return moves;
     }
 
+    // Check if any of our pieces moving is a reveal attack
+    let reveal_attacks: Vec<ThreatRaycastCollision> = opponent_king_analysis
+        .pins
+        .clone()
+        .into_iter()
+        .filter(|p| p.reveal_attack)
+        .collect();
+
     while friendly_occupancy != 0 {
         let piece_position = friendly_occupancy.trailing_zeros() as u8;
         moves.extend(generate_index_moves(
@@ -71,6 +83,7 @@ fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> Vec<
             &mut ad_table,
             piece_position,
             king_analysis,
+            &reveal_attacks,
         ));
         friendly_occupancy ^= 1 << piece_position;
     }
@@ -80,13 +93,19 @@ fn generate_moves(king_analysis: &KingPositionAnalysis, board: BoardRep) -> Vec<
 }
 
 pub fn generate_moves_for_board(board: BoardRep) -> Vec<Move> {
-    let king_analysis = if board.black_turn {
-        board.get_black_king_analysis()
+    let (king_analysis, opponent_king_analysis) = if board.black_turn {
+        (
+            board.get_black_king_analysis(),
+            board.get_white_king_analysis(),
+        )
     } else {
-        board.get_white_king_analysis()
+        (
+            board.get_white_king_analysis(),
+            board.get_black_king_analysis(),
+        )
     };
 
-    generate_moves(&king_analysis, board)
+    generate_moves(&king_analysis, &opponent_king_analysis, board)
 }
 
 fn generate_index_moves(
@@ -94,6 +113,7 @@ fn generate_index_moves(
     ad_table: &mut AttackAndDefendTable,
     index: u8,
     king_analysis: &KingPositionAnalysis,
+    reveal_attacks: &Vec<ThreatRaycastCollision>,
 ) -> Vec<Move> {
     let piece_type = board.get_piece_type_at_index(index);
     let opponent_occupancy = if board.black_turn {
@@ -104,11 +124,14 @@ fn generate_index_moves(
     let pin = Option::<&ThreatRaycastCollision>::copied(
         king_analysis.pins.iter().find(|p| p.at == index),
     );
-
     // If we're pinned but the king is also threatened we can't help
     if pin != None && king_analysis.threat_source != None {
         return vec![];
     }
+
+    // If we're a reveal attack we can ignore opponent response in a SEE
+    let reveal_attack =
+        Option::<&ThreatRaycastCollision>::copied(reveal_attacks.iter().find(|p| p.at == index));
 
     match piece_type {
         piece_type::PieceType::Pawn => pawn::generate_pawn_moves(
@@ -118,6 +141,7 @@ fn generate_index_moves(
             opponent_occupancy,
             king_analysis.threat_source,
             pin,
+            reveal_attack,
         ),
         piece_type::PieceType::Knight => match pin {
             Some(_) => vec![],
@@ -128,6 +152,7 @@ fn generate_index_moves(
                 king_analysis.threat_source,
                 board,
                 ad_table,
+                reveal_attack,
             ),
         },
         piece_type::PieceType::Bishop => {
@@ -148,6 +173,7 @@ fn generate_index_moves(
                 board.occupancy,
                 king_analysis.threat_source,
                 pin,
+                reveal_attack,
             )
         }
         piece_type::PieceType::Rook => {
@@ -168,6 +194,7 @@ fn generate_index_moves(
                 board.occupancy,
                 king_analysis.threat_source,
                 pin,
+                reveal_attack,
             )
         }
         piece_type::PieceType::Queen => sliding::queen::generate_queen_moves(
@@ -178,6 +205,7 @@ fn generate_index_moves(
             board.occupancy,
             king_analysis.threat_source,
             pin,
+            reveal_attack,
         ),
         piece_type::PieceType::King => Vec::new(),
         _ => panic!(
@@ -195,13 +223,24 @@ fn moveboard_to_moves(
     occupancy: u64,
     board: BoardRep,
     ad_table: &mut AttackAndDefendTable,
+    reveal_attack: Option<ThreatRaycastCollision>,
 ) -> Vec<Move> {
     let mut generated_moves = Vec::new();
     let mut m_b = moveboard;
     while m_b != 0 {
         let lsb = m_b.trailing_zeros() as u8;
         let friendly = ad_table.get_attacked_by(lsb, board, board.black_turn);
-        let opponent = ad_table.get_attacked_by(lsb, board, !board.black_turn);
+        let opponent = match reveal_attack {
+            None => ad_table.get_attacked_by(lsb, board, !board.black_turn),
+            Some(ra) => {
+                if !ra.threat_ray_mask.occupied(lsb) {
+                    AttackedBy::default()
+                } else {
+                    ad_table.get_attacked_by(lsb, board, !board.black_turn)
+                }
+            }
+        };
+
         if opponent_occupancy.occupied(lsb) {
             let attacked_piece_type = board.get_piece_type_at_index(lsb);
 

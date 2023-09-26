@@ -18,6 +18,7 @@ pub(crate) fn generate_queen_moves(
     occupancy: u64,
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
+    reveal_attack: Option<ThreatRaycastCollision>
 ) -> Vec<Move> {
     let mut moveboard = match pin {
         Some(p) => p.threat_ray_mask | (1 << p.from),
@@ -43,7 +44,8 @@ pub(crate) fn generate_queen_moves(
         opponent_occupancy,
         occupancy,
         board,
-        ad_table
+        ad_table,
+        reveal_attack
     )
 }
 

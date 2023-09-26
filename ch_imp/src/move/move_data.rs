@@ -3,9 +3,9 @@ use crate::shared::board_utils::{get_file, get_rank};
 use super::move_magic_bitboards::MagicTable;
 
 pub const KING_CASTLING_CLEARANCE: u64 = 0b110;
-pub const KING_CASTLING_CHECK: u64 = 0b1110;
+pub const KING_CASTLING_CHECK: u64 = 0b110;
 pub const QUEEN_CASTLING_CLEARANCE: u64 = 0b1110000;
-pub const QUEEN_CASTLING_CHECK: u64 = 0b111000;
+pub const QUEEN_CASTLING_CHECK: u64 = 0b110000;
 pub const WHITE_PAWN_PROMOTION_RANK: u64 = 0b11111111 << 56;
 pub const BLACK_PAWN_PROMOTION_RANK: u64 = 0b11111111;
 

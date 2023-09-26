@@ -44,6 +44,7 @@ pub(super) fn generate_king_moves(
         occupancy,
         board,
         ad_table,
+        None
     );
 
     if !king_analysis.check {
@@ -222,7 +223,7 @@ fn any_position_in_check(mut mask: u64, board: BoardRep) -> bool {
     while mask != 0 {
         let lsb = mask.trailing_zeros() as u8;
         if position_is_in_check(lsb, board) {
-            return false;
+            return true;
         }
         mask = mask.flip(lsb);
     }

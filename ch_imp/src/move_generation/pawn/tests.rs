@@ -9,7 +9,7 @@ pub fn pawn_moves_scenario_0() {
     let board = BoardRep::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
     );
-    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.black_occupancy, None, None);
+    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.black_occupancy, None, None, None);
     assert_eq!(moves.len(), 3);
 }
 
@@ -18,7 +18,7 @@ pub fn pawn_moves_scenario_1() {
     let board = BoardRep::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/1N1PN3/1p2P3/5Q2/PPPBBPpP/R3K2R b KQkq - 0 2".into(),
     );
-    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.white_occupancy, None, None);
+    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.white_occupancy, None, None, None);
     assert_eq!(moves.len(), 8);
 }
 

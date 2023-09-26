@@ -8,6 +8,7 @@ pub fn generate_bishop_moves(
     occupancy: u64,
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
+    reveal_attack: Option<ThreatRaycastCollision>
 ) -> Vec<Move> {
     let mut moveboard = match pin {
         Some(p) => p.threat_ray_mask | (1 << p.from),
@@ -28,7 +29,8 @@ pub fn generate_bishop_moves(
         opponent_occupancy,
         occupancy,
         board,
-        ad_table
+        ad_table,
+        reveal_attack
     )
 }
 
@@ -68,7 +70,7 @@ mod test {
 
         let mut ad_table = AttackAndDefendTable::new();
 
-        let moves = generate_bishop_moves(index_from_coords("g2"), board, &mut ad_table, board.get_opponent_occupancy(), board.occupancy, None, None);
+        let moves = generate_bishop_moves(index_from_coords("g2"), board, &mut ad_table, board.get_opponent_occupancy(), board.occupancy, None, None, None);
 
         assert_eq!(moves[0].see(), 0, "{}", moves[0]);
         assert_eq!(moves[1].see(), 0, "{}", moves[0]);

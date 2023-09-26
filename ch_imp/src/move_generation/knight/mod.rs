@@ -1,4 +1,4 @@
-use crate::{board::{king_position_analysis::ThreatSource, board_rep::BoardRep, bitboard::Bitboard, attack_and_defend_lookups::AttackAndDefendTable}, r#move::Move, MOVE_DATA, shared::piece_type::PieceType};
+use crate::{board::{king_position_analysis::{ThreatSource, ThreatRaycastCollision}, board_rep::BoardRep, bitboard::Bitboard, attack_and_defend_lookups::AttackAndDefendTable}, r#move::Move, MOVE_DATA, shared::piece_type::PieceType};
 
 use super::moveboard_to_moves;
 
@@ -8,7 +8,8 @@ pub(super) fn generate_knight_moves(
     occupancy: u64,
     king_threat: Option<ThreatSource>,
     board: BoardRep,
-    ad_table: &mut AttackAndDefendTable
+    ad_table: &mut AttackAndDefendTable,
+    reveal_attack: Option<ThreatRaycastCollision>
 ) -> Vec<Move> {
     let mut moveboard = MOVE_DATA.knight_moves[index as usize];
 
@@ -24,7 +25,8 @@ pub(super) fn generate_knight_moves(
         opponent_occupancy,
         occupancy,
         board,
-        ad_table
+        ad_table,
+        reveal_attack
     )
 }
 

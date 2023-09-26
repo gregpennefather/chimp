@@ -30,6 +30,7 @@ pub(super) fn generate_pawn_moves(
     opponent_occupancy: u64,
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
+    reveal_attack: Option<ThreatRaycastCollision>
 ) -> Vec<Move> {
     if king_threat != None {
         let kt = king_threat.unwrap();

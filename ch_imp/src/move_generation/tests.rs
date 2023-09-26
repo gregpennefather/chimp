@@ -2,7 +2,11 @@ use rand::seq::index;
 
 use crate::{
     board::king_position_analysis::analyze_king_position,
-    shared::{board_utils::index_from_coords, piece_type::{PieceType, PIECE_TYPE_EXCHANGE_VALUE}, constants::MF_CAPTURE},
+    shared::{
+        board_utils::index_from_coords,
+        constants::MF_CAPTURE,
+        piece_type::{PieceType, PIECE_TYPE_EXCHANGE_VALUE},
+    },
 };
 
 use super::*;
@@ -11,7 +15,11 @@ use super::*;
 pub fn startpos_move_generation() {
     let board = BoardRep::default();
     let white_king_analysis = board.get_white_king_analysis();
-    let moves = generate_moves(&white_king_analysis, board);
+    let moves = generate_moves(
+        &white_king_analysis,
+        &board.get_black_king_analysis(),
+        board,
+    );
     assert_eq!(moves.len(), 20);
 }
 
@@ -20,7 +28,11 @@ pub fn king_double_checked() {
     let board =
         BoardRep::from_fen("rnbqk1nr/pppp1pNp/2Pb4/8/1B6/4Q3/PP1PPPPP/RN2KB1R b KQkq - 0 1".into());
     let black_king_analysis = board.get_black_king_analysis();
-    let moves = generate_moves(&black_king_analysis, board);
+    let moves = generate_moves(
+        &black_king_analysis,
+        &board.get_white_king_analysis(),
+        board,
+    );
     assert!(moves.len() <= 2);
 }
 
@@ -31,7 +43,11 @@ pub fn move_generation_capture_the_threat_with_knight_or_move_the_king() {
     );
 
     let black_king_analysis = board.get_black_king_analysis();
-    let moves = generate_moves(&black_king_analysis, board);
+    let moves = generate_moves(
+        &black_king_analysis,
+        &board.get_white_king_analysis(),
+        board,
+    );
 
     assert_eq!(moves.len(), 4);
 }
@@ -43,7 +59,11 @@ pub fn move_generation_capture_the_threat_with_bishop_or_move_the_king() {
     );
 
     let black_king_analysis = board.get_black_king_analysis();
-    let moves = generate_moves(&black_king_analysis, board);
+    let moves = generate_moves(
+        &black_king_analysis,
+        &board.get_white_king_analysis(),
+        board,
+    );
 
     assert_eq!(moves.len(), 2);
 }
@@ -54,7 +74,11 @@ pub fn move_generation_capture_the_threat_with_rook_to_avoid_smother() {
         "3nkb1r/p1Npqp2/4pnp1/1b1PN3/1p2P3/5Q1p/PPrBBPPP/R3K2R b KQk - 0 2".into(),
     );
     let black_king_analysis = board.get_black_king_analysis();
-    let moves = generate_moves(&black_king_analysis, board);
+    let moves = generate_moves(
+        &black_king_analysis,
+        &board.get_white_king_analysis(),
+        board,
+    );
 
     assert_eq!(moves.len(), 1);
 }
@@ -65,7 +89,11 @@ pub fn move_generation_block_threat_with_bishop() {
         "r3kb2/pp3ppp/2n2n1r/1Bpp4/4b3/2N1PP2/PPPP2PP/R1B1q1KR w q - 0 11".into(),
     );
     let white_king_analysis = board.get_white_king_analysis();
-    let moves = generate_moves(&white_king_analysis, board);
+    let moves = generate_moves(
+        &white_king_analysis,
+        &board.get_black_king_analysis(),
+        board,
+    );
 
     assert_eq!(moves.len(), 1);
 }
@@ -75,7 +103,11 @@ pub fn move_generation_capture_the_threat_with_pawn_to_avoid_smother() {
     let board = BoardRep::from_fen(
         "3nkb1r/p1pbnp2/3Np1p1/q3N3/1p2P3/2q2Q1p/PPPBBPPP/R3K2R b KQk - 0 2".into(),
     );
-    let moves = generate_moves(&board.get_black_king_analysis(), board);
+    let moves = generate_moves(
+        &board.get_black_king_analysis(),
+        &board.get_white_king_analysis(),
+        board,
+    );
 
     assert_eq!(moves.len(), 1);
 }
@@ -85,7 +117,11 @@ pub fn move_generation_block_with_pawn_or_move_king() {
     let board = BoardRep::from_fen(
         "r3kb2/pp3ppp/2n2n1r/1Bpp4/3qb3/2N2P2/PPPPP1PP/R1B3K1 w q - 0 11".into(),
     );
-    let moves = generate_moves(&board.get_white_king_analysis(), board);
+    let moves = generate_moves(
+        &board.get_white_king_analysis(),
+        &board.get_black_king_analysis(),
+        board,
+    );
     assert_eq!(moves.len(), 3);
 }
 
@@ -94,7 +130,11 @@ pub fn move_generation_block_or_capture_with_bishop() {
     let board = BoardRep::from_fen(
         "r3k2R/p1ppqpb1/bn2pn2/3PN1p1/1p2P3/2N5/PPPBBPPP/R3K3 b Qq - 0 2".into(),
     );
-    let moves = generate_moves(&board.get_black_king_analysis(), board);
+    let moves = generate_moves(
+        &board.get_black_king_analysis(),
+        &board.get_white_king_analysis(),
+        board,
+    );
     assert_eq!(moves.len(), 4);
 }
 
@@ -111,6 +151,7 @@ pub fn pawn_move_gen_threatened_block_with_double_pawn_push() {
         &mut ad_table,
         index_from_coords("d7"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{:?}", moves);
     assert_eq!(moves.len(), 1);
@@ -127,6 +168,7 @@ pub fn pawn_move_gen_threatened_take_ep() {
         &mut ad_table,
         index_from_coords("b5"),
         &board.get_white_king_analysis(),
+        &Vec::new(),
     );
     println!("{:?}", moves);
     assert_eq!(moves.len(), 1);
@@ -143,6 +185,7 @@ pub fn pawn_move_gen_threatened_take_threat() {
         &mut ad_table,
         index_from_coords("d6"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{:?}", moves);
     assert_eq!(moves.len(), 2);
@@ -154,7 +197,11 @@ pub fn move_generation_scenario_pawn_wrap_around_king_threat() {
         "r4rk1/p1ppqpb1/bn2pnp1/P2PN3/1p2P3/2N2Q1p/1PPBBPPP/R3K2R b KQ - 0 2".into(),
     );
 
-    let moves = generate_moves(&board.get_black_king_analysis(), board);
+    let moves = generate_moves(
+        &board.get_black_king_analysis(),
+        &board.get_white_king_analysis(),
+        board,
+    );
     assert!(moves.contains(&Move::new(
         index_from_coords("g8"),
         index_from_coords("h7"),
@@ -195,6 +242,7 @@ pub fn generate_pawn_moves_when_pinned_bishop() {
         &mut ad_table,
         index_from_coords("d7"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(pawn_moves.len(), 0);
 }
@@ -212,6 +260,7 @@ pub fn generate_pawn_moves_when_pinned_bishop_that_can_be_captured() {
         &mut ad_table,
         index_from_coords("d7"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(pawn_moves.len(), 1);
     assert_eq!(pawn_moves[0].to(), index_from_coords("c6"));
@@ -230,6 +279,7 @@ pub fn generate_pawn_moves_when_pinned_on_e_file() {
         &mut ad_table,
         index_from_coords("e7"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(pawn_moves.len(), 2);
 }
@@ -247,6 +297,7 @@ pub fn generate_pawn_moves_pinned_and_threatened_where_threat_captureable_no_leg
         &mut ad_table,
         index_from_coords("d7"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(pawn_moves.len(), 0);
 }
@@ -262,6 +313,7 @@ pub fn generate_pawn_moves_pinned_and_right_ep_capture_available_disallow_the_ca
         &mut ad_table,
         index_from_coords("f4"),
         &board.get_black_king_analysis(),
+        &Vec::new()
     );
     println!("{pawn_moves:?}");
     assert_eq!(pawn_moves.len(), 1);
@@ -278,6 +330,7 @@ pub fn generate_pawn_moves_pinned_and_left_ep_capture_available_disallow_the_cap
         &mut ad_table,
         index_from_coords("f4"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{pawn_moves:?}");
     assert_eq!(pawn_moves.len(), 1);
@@ -295,6 +348,7 @@ pub fn generate_knight_moves_when_king_threatened_can_not_block_or_capture() {
         &mut ad_table,
         index_from_coords("g8"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(knight_moves.len(), 0);
 }
@@ -311,6 +365,7 @@ pub fn generate_knight_moves_when_king_threatened_can_block_or_capture() {
         &mut ad_table,
         index_from_coords("f4"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(knight_moves.len(), 2);
 }
@@ -327,6 +382,7 @@ pub fn generate_knight_moves_when_king_threatened_can_only_block() {
         &mut ad_table,
         index_from_coords("g5"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     assert_eq!(knight_moves.len(), 1);
 }
@@ -344,6 +400,7 @@ pub fn generate_knight_moves_when_knight_pinned_no_moves() {
         &mut ad_table,
         index_from_coords("d5"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 0);
@@ -361,6 +418,7 @@ pub fn generate_bishop_moves_when_bishop_pinned_diagonally_should_include_captur
         &mut ad_table,
         index_from_coords("e6"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 3);
@@ -379,6 +437,7 @@ pub fn generate_bishop_moves_when_bishop_pinned_diagonally_should_include_captur
         &mut ad_table,
         index_from_coords("d5"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 4);
@@ -396,6 +455,7 @@ pub fn generate_bishop_moves_when_bishop_pinned_orthogonally_should_return_0() {
         &mut ad_table,
         index_from_coords("f5"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 0);
@@ -414,6 +474,7 @@ pub fn generate_rook_moves_when_rook_pinned_orthogonally_should_include_capture_
         &mut ad_table,
         index_from_coords("e5"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 4);
@@ -431,6 +492,7 @@ pub fn generate_rook_moves_when_rook_pinned_diagonally_should_return_none() {
         &mut ad_table,
         index_from_coords("f7"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 0);
@@ -447,7 +509,8 @@ pub fn generate_queen_moves_when_pinned_orthogonally() {
         board,
         &mut ad_table,
         index_from_coords("e3"),
-        &&board.get_white_king_analysis(),
+        &board.get_white_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 5);
@@ -466,6 +529,7 @@ pub fn generate_queen_moves_when_pinned_and_king_threatened_by_capturable_piece(
         &mut ad_table,
         index_from_coords("d2"),
         &board.get_black_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 0);
@@ -482,7 +546,8 @@ pub fn generate_queen_moves_when_pinned_orthogonally_and_forked_with_knight() {
         board,
         &mut ad_table,
         index_from_coords("e3"),
-        &&board.get_white_king_analysis(),
+        &board.get_white_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 0);
@@ -499,10 +564,33 @@ pub fn generate_queen_moves_when_pinned_diagonally() {
         board,
         &mut ad_table,
         index_from_coords("f4"),
-        &&board.get_white_king_analysis(),
+        &board.get_white_king_analysis(),
+        &Vec::new(),
     );
     println!("{moves:?}");
     assert_eq!(moves.len(), 3);
+}
+
+#[test]
+pub fn generate_sliding_move_when_piece_has_reveal_check_should_ignore_defender_for_see() {
+    let board = BoardRep::from_fen("7k/3p4/4b3/4R3/8/2B5/8/1K6 w - - 0 1".into());
+
+    let mut ad_table = AttackAndDefendTable::new();
+
+    let reveal_attacks = board.get_black_king_analysis().pins;
+
+    let mut moves = generate_index_moves(
+        board,
+        &mut ad_table,
+        index_from_coords("e5"),
+        &board.get_white_king_analysis(),
+        &reveal_attacks,
+    );
+
+    moves.sort();
+    println!("{moves:?}");
+    assert_eq!(moves[0].to(), index_from_coords("e6"));
+    assert_eq!(moves[0].see(), PIECE_TYPE_EXCHANGE_VALUE[3]);
 }
 
 #[test]

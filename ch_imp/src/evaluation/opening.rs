@@ -243,7 +243,7 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
 // King openness is a penalty for each square the king could reach if they were a queen
 fn king_openness(king_pos: u8, board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i32 {
     let possible_queen_moves =
-        generate_queen_moves(king_pos, board, ad_table, 0, board.occupancy, None, None);
+        generate_queen_moves(king_pos, board, ad_table, 0, board.occupancy, None, None, None);
     possible_queen_moves.len() as i32
 }
 

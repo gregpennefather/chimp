@@ -190,8 +190,8 @@ fn main() {
     // target_depth_test();
 
 
-    let pos = Position::from_fen("1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - -".into());
-    println!("{:? }", generate_moves_for_board(pos.board))
+    // let pos = Position::from_fen("7k/3p4/4b3/4R3/8/2B5/8/1K6 w - - 0 1".into());
+    // println!("{:? }", generate_moves_for_board(pos.board))
 
 
     //    test_ab_search(
@@ -216,7 +216,7 @@ fn main() {
     // println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
 
     //perfts();
-    //park_table();
+    park_table();
     //test_engine();
 }
 
