@@ -217,12 +217,12 @@ impl PartialOrd for Move {
             return Some(Ordering::Less);
         }
 
-        if self.1 == PieceType::King {
-            return Some(Ordering::Greater)
-        }
-        if other.1 == PieceType::King {
-            return Some(Ordering::Less)
-        }
+        // if self.1 == PieceType::King {
+        //     return Some(Ordering::Greater)
+        // }
+        // if other.1 == PieceType::King {
+        //     return Some(Ordering::Less)
+        // }
 
         // Else check high value pieces first
         Some(other.1.cmp(&self.1))
@@ -309,14 +309,14 @@ mod test {
         assert_eq!(moves[1], queen_capture);
     }
 
-    #[test]
-    pub fn order_moves_case_equal_see_king_last() {
-        let king_move = Move::new(0, 1, 0b0, PieceType::King, true, 0);
-        let pawn_move = Move::new(0, 1, 0b0, PieceType::Pawn, true, 0);
-        let mut moves = vec![king_move, pawn_move];
+    // #[test]
+    // pub fn order_moves_case_equal_see_king_last() {
+    //     let king_move = Move::new(0, 1, 0b0, PieceType::King, true, 0);
+    //     let pawn_move = Move::new(0, 1, 0b0, PieceType::Pawn, true, 0);
+    //     let mut moves = vec![king_move, pawn_move];
 
-        moves.sort();
-        assert_eq!(moves[0], pawn_move);
-        assert_eq!(moves[1], king_move);
-    }
+    //     moves.sort();
+    //     assert_eq!(moves[0], pawn_move);
+    //     assert_eq!(moves[1], king_move);
+    // }
 }
