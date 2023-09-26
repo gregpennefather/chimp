@@ -10,6 +10,9 @@ pub struct PlyKillers {
 
 impl PlyKillers {
     fn set(&mut self, m: Move) {
+        if self.moves[(self.index as usize + 1)%3] == Some(m) || self.moves[(self.index as usize + 2)%3] == Some(m) {
+            return{}
+        }
         self.moves[self.index as usize] = Some(m);
         self.index = (self.index + 1) % 3;
     }

@@ -14,10 +14,11 @@ use ch_imp::{
     },
     evaluation::pawn_structure::build_pawn_frontspan_board,
     match_state::game_state::{self, GameState, MatchResultState},
+    move_generation::generate_moves_for_board,
     r#move::move_data::MoveData,
     shared::board_utils::{get_index_from_file_and_rank, index_from_coords},
     testing::test_engine,
-    MOVE_DATA, move_generation::generate_moves_for_board,
+    MOVE_DATA,
 };
 use log::{info, LevelFilter};
 use log4rs::{
@@ -189,24 +190,26 @@ fn main() {
     //timed_depth_test();
     // target_depth_test();
 
-
     // let pos = Position::from_fen("7k/3p4/4b3/4R3/8/2B5/8/1K6 w - - 0 1".into());
     // println!("{:? }", generate_moves_for_board(pos.board))
 
+    // println!("{}", Position::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1".into()).eval);
 
-    //    test_ab_search(
-    //       "rnbqkbnr/pp1p3p/2p2pp1/4p3/2B1P1QP/8/PPPP1PP1/RNB1K1NR w KQkq - 0 5".to_string(),
-    //       5,
-    //   );
-
-    // println!("{}", Position::from_fen("6q1/5k2/8/4p3/3p4/4P1Q1/4K3/8 w - - 0 1".into()).eval);
 
     // println!("Q takes: {}", Position::from_fen("1q2rnk1/5rb1/bp1p1np1/pNpP2Bp/P1P1PQ1P/3B2P1/4NRR1/7K b - - 0 1".into()).eval);
     // println!("P takes: {}", Position::from_fen("1q2rnk1/5rb1/bp1p1np1/pNpP2Bp/P1P1PP1P/3B4/3QNRR1/7K b - - 0 1".into()).eval);
 
     // println!("r takes: {}", Position::from_fen("1q3nk1/5rb1/bp1p1np1/pNpP2Bp/P1P1rQ1P/3B2P1/4NRR1/7K w - - 0 2".into()).eval);
 
-    // test_it_deep_search("1q2rnk1/5rb1/bp1p1np1/pNpP2Bp/P1P1Pp1P/3B2P1/3QNRR1/7K w - -".into());
+    test_it_deep_search("4r1k1/4r1pp/p7/3n4/2p1P3/2P1BPN1/P1P4P/1K2R3 w - -".into(), 2000);
+
+
+
+    //test_ab_search("4r1k1/4r1pp/p7/3n4/2p1P3/2P1BPN1/P1P4P/1K2R3 w - -".into(), 5);
+
+    // test_ab_search("4r1k1/4r1pp/p7/8/2pBP3/2n2PN1/P1P4P/1K2R3 w - - 0 2".into(), 5);
+
+
 
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
@@ -216,7 +219,7 @@ fn main() {
     // println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
 
     //perfts();
-    park_table();
+    //park_table();
     //test_engine();
 }
 
@@ -261,7 +264,7 @@ fn test_ab_search(fen: String, depth: u8) {
     );
 }
 
-fn test_it_deep_search(fen: String) {
+fn test_it_deep_search(fen: String, ms: u64) {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
@@ -271,7 +274,7 @@ fn test_it_deep_search(fen: String) {
 
     let mut engine = ChimpEngine::from_position(fen);
     println!("Eval before: {}", engine.current_game_state.position.eval);
-    let timeout = Instant::now().checked_add(Duration::from_secs(2)).unwrap();
+    let timeout = Instant::now().checked_add(Duration::from_millis(ms)).unwrap();
     let cutoff = || Instant::now() > timeout;
     let o = engine.iterative_deepening(&cutoff, vec![]);
     println!("{o:?}");

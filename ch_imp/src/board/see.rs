@@ -24,6 +24,7 @@ pub fn see_from_capture(
     }
 }
 
+// Calculates if a piece is safe from an opponent winning capture - should not be used to evaluate square control
 pub fn piece_safety(piece_type: PieceType, is_move: bool, mut attacked_by: AttackedBy, mut defended_by: AttackedBy) -> i8 {
     // If this is a move we need to remove the moving piece from the defenders list if its not a pawn - as it cannot defend itself
     if is_move && piece_type != PieceType::Pawn {
@@ -37,6 +38,47 @@ pub fn piece_safety(piece_type: PieceType, is_move: bool, mut attacked_by: Attac
             None => 0
         }
     }
+}
+
+// See who controls an unoccupied square with the lowest value piece. Returns 1 if friendly controls, 0 if equal or no control, -1 if opponent controls
+pub fn square_control(friendly: AttackedBy, opponent: AttackedBy) -> i8 {
+    if !friendly.any() && !opponent.any() {
+        return 0
+    }
+    if friendly.any() && !opponent.any() {
+        return 1
+    }
+    if !friendly.any() && opponent.any() {
+        return -1
+    }
+
+    let pawn_diff = friendly.pawns as i8 - opponent.pawns as i8;
+    match pawn_diff {
+        -2 | -1 => return -1,
+        1 | 2 => return 1,
+        _ => {}
+    }
+    let knight_and_bishop_dif = friendly.knights as i8 - opponent.knights as i8 + if friendly.bishop { 1} else { 0} - if opponent.bishop { 1} else { 0 };
+    match knight_and_bishop_dif {
+        -3| -2 | -1 => return -1,
+        1 | 2 | 3 => return 1,
+        _ => {}
+    }
+
+    let rook_dif = friendly.rooks as i8 - opponent.rooks as i8;
+    match rook_dif {
+        -2 | -1 => return -1,
+        1 | 2  => return 1,
+        _ => {}
+    }
+
+    match (friendly.queen, opponent.queen) {
+        (true, false) => return 1,
+        (false, true)  => return -1,
+        _ => {}
+    }
+
+    return 0
 }
 
 pub fn see(

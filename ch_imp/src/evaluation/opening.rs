@@ -2,12 +2,18 @@ use rand::seq::index;
 
 use crate::{
     board::{
-        self, attack_and_defend_lookups::{AttackedBy, AttackAndDefendTable}, bitboard::Bitboard, board_rep::BoardRep,
+        self,
+        attack_and_defend_lookups::{AttackAndDefendTable, AttackedBy},
+        bitboard::Bitboard,
+        board_rep::BoardRep,
         king_position_analysis::ThreatRaycastCollision,
+        see::{square_control, piece_safety},
     },
     move_generation::sliding::queen::generate_queen_moves,
     shared::{
-        board_utils::{chebyshev_distance, get_coords_from_index, get_file, get_rank},
+        board_utils::{
+            chebyshev_distance, get_coords_from_index, get_file, get_rank, index_from_coords,
+        },
         piece_type::PieceType,
     },
     MOVE_DATA,
@@ -15,6 +21,7 @@ use crate::{
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
+    get_piece_safety,
     utils::*,
     PieceSafetyInfo,
 };
@@ -54,10 +61,13 @@ const BISHOP_SQUARE_SCORE: PieceValueBoard = [
 ];
 const BISHOP_SQUARE_FACTOR: i32 = 3;
 
-const BOARD_CONTROL_SQUARE_REWARD: PieceValueBoard = [
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 3, 3, 3, 2, 1, 1, 2, 3, 6, 6, 3, 2, 1,
-    1, 2, 3, 6, 6, 3, 2, 1, 1, 2, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+const CENTER_CONTROL_REWARD: PieceValueBoard = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 5, 3, 0, 0, 0, 0, 5, 10, 10, 5, 0,
+    0, 0, 0, 5, 10, 10, 5, 0, 0, 0, 0, 3, 5, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0,
 ];
+const CENTER_FIRST: usize = 18; // F3
+const CENTER_LAST: usize = 64 - 18; // C6
 
 const SAFETY_TABLE: [i32; 100] = [
     0, 0, 1, 2, 3, 5, 7, 9, 12, 15, 18, 22, 26, 30, 35, 39, 44, 50, 56, 62, 68, 75, 82, 85, 89, 97,
@@ -66,8 +76,6 @@ const SAFETY_TABLE: [i32; 100] = [
     500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
     500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
 ];
-
-const BOARD_CONTROL_SQUARES_PER_POINT: i32 = 6;
 
 const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Knight, 1),
@@ -87,7 +95,7 @@ pub fn calculate(
     black_pinned: &Vec<ThreatRaycastCollision>,
     pawn_structure_eval: i16,
     piece_safety_results: &Vec<PieceSafetyInfo>,
-    ad_table: &mut AttackAndDefendTable
+    ad_table: &mut AttackAndDefendTable,
 ) -> i32 {
     let mut eval = pawn_structure_eval as i32;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
@@ -142,17 +150,7 @@ pub fn calculate(
     eval += under_developed_penalty(board, board.white_occupancy);
     eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
 
-    // eval += piece_square_score(
-    //     white_threatboard | board.white_occupancy,
-    //     BOARD_CONTROL_SQUARE_REWARD,
-    // ) / BOARD_CONTROL_SQUARES_PER_POINT;
-    // eval -= piece_square_score(
-    //     black_threatboard | board.black_occupancy,
-    //     BOARD_CONTROL_SQUARE_REWARD,
-    // ) / BOARD_CONTROL_SQUARES_PER_POINT;
-
-    // eval += king_tropism(board.white_king_position, board.black_occupancy, board);
-    // eval -= king_tropism(board.black_king_position, board.white_occupancy, board);
+    eval += get_center_control_score(ad_table, board);
 
     eval -= king_openness(board.white_king_position, board, ad_table);
     eval += king_openness(board.black_king_position, board, ad_table);
@@ -220,30 +218,18 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
     score * UNDER_DEVELOPED_PENALTY_FACTOR
 }
 
-// // https://www.chessprogramming.org/King_Safety
-// // The higher the safer the king is
-// fn king_tropism(king_pos: u8, opponent_occupancy: u64, board: BoardRep) -> i32 {
-//     let mut occ = opponent_occupancy;
-//     let mut score = 0;
-//     while occ != 0 {
-//         let pos = occ.trailing_zeros() as u8;
-//         let sc = match board.get_piece_type_at_index(pos) {
-//             PieceType::Knight => chebyshev_distance(pos as i8, king_pos as i8),
-//             PieceType::Bishop | PieceType::Rook => chebyshev_distance(pos as i8, king_pos as i8),
-//             PieceType::Queen => chebyshev_distance(pos as i8, king_pos as i8) * 2,
-//             PieceType::Pawn | PieceType::King => 0, // Should never happen
-//             PieceType::None => panic!("Unknown piece type"),
-//         } as i32;
-//         score += sc;
-//         occ ^= 1 << pos;
-//     }
-//     score
-// }
-
 // King openness is a penalty for each square the king could reach if they were a queen
 fn king_openness(king_pos: u8, board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i32 {
-    let possible_queen_moves =
-        generate_queen_moves(king_pos, board, ad_table, 0, board.occupancy, None, None, None);
+    let possible_queen_moves = generate_queen_moves(
+        king_pos,
+        board,
+        ad_table,
+        0,
+        board.occupancy,
+        None,
+        None,
+        None,
+    );
     possible_queen_moves.len() as i32
 }
 
@@ -297,4 +283,151 @@ fn get_neighbourhood_mask(king_pos: u8, is_black: bool) -> u64 {
         0b111
     };
     neigbourhood | mask << offset
+}
+
+fn get_center_control_score(ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i32 {
+    let mut r = 0;
+    for i in CENTER_FIRST..CENTER_LAST {
+        if CENTER_CONTROL_REWARD[i] != 0 {
+            let control = get_square_control(i as u8, ad_table, board);
+            r += control * CENTER_CONTROL_REWARD[i];
+            // println!(
+            //     "{}:{control}*{}",
+            //     get_coords_from_index(i as u8),
+            //     CENTER_CONTROL_REWARD[i]
+            // )
+        }
+    }
+    r
+}
+
+fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i32 {
+    let white = ad_table.get_attacked_by(index, board, false);
+    let black = ad_table.get_attacked_by(index, board, true);
+
+    // If white control the square through occupancy, confirm its safe
+    if board.white_occupancy.occupied(index) {
+        let piece_type = board.get_piece_type_at_index(index);
+        let piece_safety = piece_safety(piece_type, false, black, white);
+        if piece_safety == 0 {
+            return 1
+        } else {
+            return -1
+        }
+    }
+
+    // If black control the square through occupancy, confirm its safe
+    if board.black_occupancy.occupied(index) {
+        let piece_type = board.get_piece_type_at_index(index);
+        let piece_safety = -1*piece_safety(piece_type, false, white, black);
+        if piece_safety == 0 {
+            return -1
+        } else {
+            return 1
+        }
+    }
+
+    // Else see who controls the square with the least valuable piece
+    square_control(white, black) as i32
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        board::{attack_and_defend_lookups::AttackAndDefendTable, board_rep::BoardRep},
+        evaluation::opening::get_square_control,
+        shared::board_utils::index_from_coords,
+    };
+
+    #[test]
+    fn get_square_control_center_square_controlled_by_pawn_due_to_threat() {
+        let board =
+            BoardRep::from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1".into());
+
+        let control = get_square_control(
+            index_from_coords("d5"),
+            &mut AttackAndDefendTable::new(),
+            board,
+        );
+
+        assert_eq!(control, 1)
+    }
+
+    #[test]
+    fn get_square_control_center_square_controlled_by_white_because_threatening_unoccupied_with_lower_value_piece(
+    ) {
+        let board = BoardRep::from_fen(
+            "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+
+        let control = get_square_control(
+            index_from_coords("d5"),
+            &mut AttackAndDefendTable::new(),
+            board,
+        );
+
+        assert_eq!(control, 1)
+    }
+
+    #[test]
+    fn get_square_control_center_square_controlled_by_neither_because_threatening_unoccupied_with_same_value_pieces(
+    ) {
+        let board = BoardRep::from_fen(
+            "rnbqkbnr/pp1ppppp/2p5/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+
+        let control = get_square_control(
+            index_from_coords("d5"),
+            &mut AttackAndDefendTable::new(),
+            board,
+        );
+
+        assert_eq!(control, 0)
+    }
+
+    #[test]
+    fn get_square_control_center_square_controlled_by_black_due_to_multiple_threats() {
+        let board = BoardRep::from_fen(
+            "rnbqkb1r/pp1ppppp/2p2n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+
+        let control = get_square_control(
+            index_from_coords("d5"),
+            &mut AttackAndDefendTable::new(),
+            board,
+        );
+
+        assert_eq!(control, -1)
+    }
+
+    #[test]
+    fn get_square_control_center_square_controlled_by_white_due_to_occupied_plus_winning_see() {
+        let board = BoardRep::from_fen(
+            "r1bqkbnr/pppppppp/2n5/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+
+        let control = get_square_control(
+            index_from_coords("d4"),
+            &mut AttackAndDefendTable::new(),
+            board,
+        );
+
+        assert_eq!(control, 1)
+    }
+
+    #[test]
+    fn get_square_control_center_square_controlled_by_black_because_capturing_white_piece_is_winning(
+    ) {
+        let board = BoardRep::from_fen(
+            "r1bqkbnr/pppp1ppp/2n5/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1".into(),
+        );
+
+        let control = get_square_control(
+            index_from_coords("d4"),
+            &mut AttackAndDefendTable::new(),
+            board,
+        );
+
+        assert_eq!(control, -1)
+    }
 }

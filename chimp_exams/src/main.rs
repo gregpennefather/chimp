@@ -35,11 +35,11 @@ const STRATEGIC_TEST_SUITE_FILES: [(&str, &str); 15] = [
 ];
 
 const RECORD: bool = true;
-const TEST_TIME_MILLISECONDS: i32 = 2500;
+const TEST_TIME_MILLISECONDS: i32 = 2000;
 
 fn main() {
     full_exam();
-    // quick_test(STRATEGIC_TEST_SUITE_FILES[1]);
+    //quick_test(STRATEGIC_TEST_SUITE_FILES[3]);
 }
 
 fn quick_test(test_suite_file_info: (&str, &str)) {
@@ -54,7 +54,7 @@ fn quick_test(test_suite_file_info: (&str, &str)) {
     let _handle = log4rs::init_config(config).unwrap();
 
     let test_suite = read_file(test_suite_file_info.0, test_suite_file_info.1);
-    run_suite(test_suite, 5000);
+    run_suite(test_suite, 1000);
 }
 
 fn full_exam() {
