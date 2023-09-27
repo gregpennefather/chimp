@@ -106,7 +106,7 @@ fn full_exam() {
     }
 
     for i in 0..15 {
-        println!("{} : {}\\1000", result[i].0, result[i].1)
+        info!("{} : {}\\1000", result[i].0, result[i].1)
     }
     info!(
         ">> Final result {}/{} ({}%)",
