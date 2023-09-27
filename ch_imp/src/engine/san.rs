@@ -52,6 +52,9 @@ impl GameState {
             let cm_to = c_m.to();
             if cm_to == m.to() {
                 let cm_from = c_m.from();
+                if cm_from == m.from() {
+                    continue;
+                }
                 if cm_from == from_file {
                     duplicate_files = true;
                 }
@@ -65,9 +68,12 @@ impl GameState {
             }
         }
 
+        // println!("df : {duplicate_files}\ndp : {duplicate_pawns}\ndpt : {duplicate_piece_type}\n");
+
         match (duplicate_files, duplicate_pawns, duplicate_piece_type) {
-            (true, false, true) => r = format!("{r}{}", from_rank),
+            (true, false, true) => r = format!("{r}{}", char_from_file(from_file)),
             (false, true, true) => r = format!("{r}{}", char_from_file(from_file)),
+            (false, false, true) => r = format!("{r}{}", char_from_file(from_file)),
             _ => {}
         };
 
@@ -230,5 +236,50 @@ mod test {
             0,
         );
         assert_eq!(game_state.to_san(m), "f5");
+    }
+
+    #[test]
+    fn case_0() {
+        let game_state =
+            GameState::new("1k1r1r2/p1p5/Bpnbb3/3p2pp/3P4/P1N1NPP1/1PP4P/2KR1R2 w - - 0 1".into());
+        let m = Move::new(
+            index_from_coords("c3"),
+            index_from_coords("d5"),
+            MF_CAPTURE,
+            PieceType::Knight,
+            false,
+            0,
+        );
+        assert_eq!(game_state.to_san(m), "Ncxd5");
+    }
+
+    #[test]
+    fn case_1() {
+        let game_state =
+            GameState::new("1qrr3k/6p1/1p1pp2p/pNn5/Pn1bP1PP/5Q2/1PP1N3/1K1R2R1 w - -".into());
+        let m = Move::new(
+            index_from_coords("e2"),
+            index_from_coords("d4"),
+            MF_CAPTURE,
+            PieceType::Knight,
+            false,
+            0,
+        );
+        assert_eq!(game_state.to_san(m), "Nexd4");
+    }
+
+    #[test]
+    fn case_2() {
+        let game_state =
+            GameState::new("r3r1k1/pp2q3/2b1pp2/6pN/Pn1P4/6R1/1P3PP1/3QRBK1 w - -".into());
+        let m = Move::new(
+            index_from_coords("f2"),
+            index_from_coords("f4"),
+            MF_DOUBLE_PAWN_PUSH,
+            PieceType::Pawn,
+            false,
+            0,
+        );
+        assert_eq!(game_state.to_san(m), "f4");
     }
 }
