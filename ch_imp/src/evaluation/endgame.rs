@@ -40,16 +40,16 @@ const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-const PAWN_SQUARE_FACTOR: i32 = 5;
+const PAWN_SQUARE_FACTOR: i16 = 5;
 
 const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-const KNIGHT_SQUARE_FACTOR: i32 = 2;
+const KNIGHT_SQUARE_FACTOR: i16 = 2;
 
-const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
+const DOUBLE_BISHOP_REWARD: i16 = MATERIAL_VALUES[0] / 2;
 
 pub fn calculate(
     board: BoardRep,
@@ -57,8 +57,8 @@ pub fn calculate(
     black_pinned: &Vec<ThreatRaycastCollision>,
     pawn_structure: i16,
     piece_safety_results: &Vec<PieceSafetyInfo>,
-) -> i32 {
-    let mut eval = pawn_structure as i32;
+) -> i16 {
+    let mut eval = pawn_structure;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
@@ -118,8 +118,8 @@ pub fn calculate(
     eval
 }
 
-fn mop_up_score(king_pos: u8, b_king_pos: u8) -> i32 {
+fn mop_up_score(king_pos: u8, b_king_pos: u8) -> i16 {
     let cmd = manhattan_distance_to_center(king_pos);
-    let md = manhattan_distance(king_pos as i8, b_king_pos as i8) as i32;
+    let md = manhattan_distance(king_pos as i8, b_king_pos as i8) as i16;
     (4 * cmd) + (14 - md)
 }

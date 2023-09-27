@@ -1,5 +1,5 @@
-pub(super) type PieceValues = [i32; 6];
-pub(super) type PieceValueBoard  = [i32; 64];
+pub(super) type PieceValues = [i16; 6];
+pub(super) type PieceValueBoard  = [i16; 64];
 
 pub(super) static PHASE_MATERIAL_VALUES: PieceValues = [
     0,

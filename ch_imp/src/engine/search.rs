@@ -266,12 +266,12 @@ impl ChimpEngine {
             return (0, vec![]); // TODO: Confirm this
         }
 
-        if game_state.subjective_eval >= beta {
+        if game_state.position.eval >= beta {
             return (beta, vec![]);
         }
 
-        if game_state.subjective_eval > alpha {
-            alpha = game_state.subjective_eval;
+        if game_state.position.eval > alpha {
+            alpha = game_state.position.eval;
         }
 
         let mut line = vec![];

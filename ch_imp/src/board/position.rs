@@ -15,7 +15,7 @@ pub struct Position {
     pub white_in_check: bool,
     pub black_in_check: bool,
     pub double_check: bool,
-    pub eval: i32,
+    pub eval: i16,
 }
 
 impl Position {
@@ -60,9 +60,9 @@ impl Position {
         }
         let white_king_analysis = board.get_white_king_analysis();
         let black_king_analysis = board.get_black_king_analysis();
-        let mut eval = 0;
+        let mut eval = if board.black_turn { -1 } else { 1 };
 
-        eval = evaluation::calculate(board, black_king_analysis.pins, white_king_analysis.pins);
+        eval *= evaluation::calculate(board, black_king_analysis.pins, white_king_analysis.pins);
 
         Self {
             board,

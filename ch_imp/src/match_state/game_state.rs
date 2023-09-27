@@ -30,7 +30,6 @@ pub struct GameState {
     pub full_moves: u32,
     pub result_state: MatchResultState,
     pub entry_move: Move,
-    pub subjective_eval: i16,
     recent_moves: [Move; 6],
 }
 
@@ -54,7 +53,6 @@ impl GameState {
         };
         let recent_moves = [Move::default(); 6];
         let result_state = result_state(half_moves, recent_moves, &position);
-        let subjective_eval = get_subjective_eval(&position);
         Self {
             position,
             half_moves,
@@ -62,7 +60,6 @@ impl GameState {
             result_state,
             recent_moves,
             entry_move: Move::default(),
-            subjective_eval,
         }
     }
 
@@ -94,7 +91,6 @@ impl GameState {
         ];
 
         let result_state = result_state(half_moves, recent_moves, &new_position); // TODO: Might need to add in some extra logic here
-        let subjective_eval = get_subjective_eval(&new_position);
 
         Self {
             position: new_position,
@@ -103,7 +99,6 @@ impl GameState {
             recent_moves,
             result_state,
             entry_move: m,
-            subjective_eval,
         }
     }
 
@@ -131,7 +126,6 @@ impl GameState {
         ];
 
         let result_state = result_state(half_moves, recent_moves, &position); // TODO: Might need to add in some extra logic here
-        let subjective_eval = get_subjective_eval(&position);
 
         Some(Self {
             position: position,
@@ -140,7 +134,6 @@ impl GameState {
             recent_moves,
             result_state,
             entry_move: m,
-            subjective_eval,
         })
     }
 
@@ -258,15 +251,6 @@ fn result_state(half_moves: u8, recent_moves: [Move; 6], position: &Position) ->
     //     return MatchResultState::Draw;
     // }
     MatchResultState::Active
-}
-
-// Gets the eval from the POV of the current player
-pub fn get_subjective_eval(position: &Position) -> i16 {
-    if position.board.black_turn {
-        -position.eval as i16
-    } else {
-        position.eval as i16
-    }
 }
 
 fn has_player_moves(moves: &Vec<Move>, is_black: bool) -> bool {

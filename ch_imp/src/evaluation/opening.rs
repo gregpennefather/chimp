@@ -45,21 +45,21 @@ const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     2, 2, 2, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0,
 ];
-const PAWN_SQUARE_FACTOR: i32 = 6;
+const PAWN_SQUARE_FACTOR: i16 = 6;
 
 const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-const KNIGHT_SQUARE_FACTOR: i32 = 3;
+const KNIGHT_SQUARE_FACTOR: i16 = 3;
 
 const BISHOP_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2,
     0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 3, 0, 0, 0, 0, 3, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-const BISHOP_SQUARE_FACTOR: i32 = 3;
+const BISHOP_SQUARE_FACTOR: i16 = 3;
 
 const CENTER_CONTROL_REWARD: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 5, 3, 0, 0, 0, 0, 5, 10, 10, 5, 0,
@@ -69,7 +69,7 @@ const CENTER_CONTROL_REWARD: PieceValueBoard = [
 const CENTER_FIRST: usize = 18; // F3
 const CENTER_LAST: usize = 64 - 18; // C6
 
-const SAFETY_TABLE: [i32; 100] = [
+const SAFETY_TABLE: [i16; 100] = [
     0, 0, 1, 2, 3, 5, 7, 9, 12, 15, 18, 22, 26, 30, 35, 39, 44, 50, 56, 62, 68, 75, 82, 85, 89, 97,
     105, 113, 122, 131, 140, 150, 169, 180, 191, 202, 213, 225, 237, 248, 260, 272, 283, 295, 307,
     319, 330, 342, 354, 366, 377, 389, 401, 412, 424, 436, 448, 459, 471, 483, 494, 500, 500, 500,
@@ -83,11 +83,11 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Bishop, 5),
     (PieceType::Knight, 6),
 ];
-const UNDER_DEVELOPED_PENALTY_FACTOR: i32 = 10;
+const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 10;
 
-const DOUBLE_BISHOP_REWARD: i32 = MATERIAL_VALUES[0] / 2;
+const DOUBLE_BISHOP_REWARD: i16 = MATERIAL_VALUES[0] / 2;
 
-const CAN_NOT_CASTLE_PENALTY: i32 = 5;
+const CAN_NOT_CASTLE_PENALTY: i16 = 5;
 
 pub fn calculate(
     board: BoardRep,
@@ -96,8 +96,8 @@ pub fn calculate(
     pawn_structure_eval: i16,
     piece_safety_results: &Vec<PieceSafetyInfo>,
     ad_table: &mut AttackAndDefendTable,
-) -> i32 {
-    let mut eval = pawn_structure_eval as i32;
+) -> i16 {
+    let mut eval = pawn_structure_eval as i16;
     eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
     eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
@@ -193,7 +193,7 @@ pub fn calculate(
     eval
 }
 
-fn piece_centralization_score(side_occupancy: u64) -> i32 {
+fn piece_centralization_score(side_occupancy: u64) -> i16 {
     let mut occ = side_occupancy;
     let mut score = 0;
     while occ != 0 {
@@ -204,7 +204,7 @@ fn piece_centralization_score(side_occupancy: u64) -> i32 {
     score
 }
 
-fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i32 {
+fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i16 {
     let mut score = 0;
 
     for penalty in UNDER_DEVELOPED_PENALTY_POSITIONS {
@@ -219,7 +219,7 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
 }
 
 // King openness is a penalty for each square the king could reach if they were a queen
-fn king_openness(king_pos: u8, board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i32 {
+fn king_openness(king_pos: u8, board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
     let possible_queen_moves = generate_queen_moves(
         king_pos,
         board,
@@ -230,10 +230,10 @@ fn king_openness(king_pos: u8, board: BoardRep, ad_table: &mut AttackAndDefendTa
         None,
         None,
     );
-    possible_queen_moves.len() as i32
+    possible_queen_moves.len() as i16
 }
 
-fn king_neighbourhood_treat_level(king_pos: u8, is_black: bool, board: BoardRep) -> i32 {
+fn king_neighbourhood_treat_level(king_pos: u8, is_black: bool, board: BoardRep) -> i16 {
     let mut neigbourhood = get_neighbourhood_mask(king_pos, is_black);
     let mut score: usize = 0;
 
@@ -285,7 +285,7 @@ fn get_neighbourhood_mask(king_pos: u8, is_black: bool) -> u64 {
     neigbourhood | mask << offset
 }
 
-fn get_center_control_score(ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i32 {
+fn get_center_control_score(ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i16 {
     let mut r = 0;
     for i in CENTER_FIRST..CENTER_LAST {
         if CENTER_CONTROL_REWARD[i] != 0 {
@@ -301,7 +301,7 @@ fn get_center_control_score(ad_table: &mut AttackAndDefendTable, board: BoardRep
     r
 }
 
-fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i32 {
+fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i16 {
     let white = ad_table.get_attacked_by(index, board, false);
     let black = ad_table.get_attacked_by(index, board, true);
 
@@ -328,7 +328,7 @@ fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: Boa
     }
 
     // Else see who controls the square with the least valuable piece
-    square_control(white, black) as i32
+    square_control(white, black) as i16
 }
 
 #[cfg(test)]
