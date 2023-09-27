@@ -196,6 +196,16 @@ impl PartialOrd for Move {
 
         // Captures should be LV first
         if self.is_capture() {
+            if !other.is_capture() {
+                return Some(Ordering::Less);
+            }
+            return Some(self.1.cmp(&other.1));
+        }
+
+        if other.is_capture() {
+            if !self.is_capture() {
+                return Some(Ordering::Greater);
+            }
             return Some(self.1.cmp(&other.1));
         }
 
@@ -308,6 +318,20 @@ mod test {
         assert_eq!(moves[0], rook_capture);
         assert_eq!(moves[1], queen_capture);
     }
+
+
+
+    #[test]
+    pub fn order_equal_see_capture_over_dpp() {
+        let pawn_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 0);
+        let dpp = Move::new(0, 1, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, true, 0);
+        let mut moves = vec![dpp, pawn_capture];
+
+        moves.sort();
+        assert_eq!(moves[0], pawn_capture);
+        assert_eq!(moves[1], dpp);
+    }
+
 
     // #[test]
     // pub fn order_moves_case_equal_see_king_last() {

@@ -5,14 +5,13 @@ use std::{
 };
 
 use ch_imp::{
-    board::{bitboard::Bitboard, position::Position},
+    board::{bitboard::Bitboard, position::Position, board_rep::BoardRep},
     engine::{
         perft::perft,
         san::build_san,
         search::{AB_MAX, AB_MIN},
         ChimpEngine,
     },
-    evaluation::pawn_structure::build_pawn_frontspan_board,
     match_state::game_state::{self, GameState, MatchResultState},
     move_generation::generate_moves_for_board,
     r#move::move_data::MoveData,
@@ -201,7 +200,16 @@ fn main() {
 
     // println!("r takes: {}", Position::from_fen("1q3nk1/5rb1/bp1p1np1/pNpP2Bp/P1P1rQ1P/3B2P1/4NRR1/7K w - - 0 2".into()).eval);
 
-    test_it_deep_search("4r1k1/4r1pp/p7/3n4/2p1P3/2P1BPN1/P1P4P/1K2R3 w - -".into(), 2000);
+    // test_it_deep_search("rnb1kb1r/pp1p1ppp/2p2n2/q3p3/3PP3/2N5/PPPQ1PPP/R1B1KBNR w KQkq - 2 5".into(), 2000);
+
+    let board = Position::from_fen("r1bqkbnr/ppp2ppp/2np4/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1".into());
+
+    // println!("{:?}", generate_moves_for_board(board));
+
+    // println!("p take: {}", Position::from_fen("rnb1kb1r/pp1p1ppp/2p2n2/4q3/4P3/2N5/PPPQ1PPP/R1B1KBNR w KQkq - 0 6".into()).eval);
+    // println!("k move: {}", Position::from_fen("rnb1kb1r/pp3ppp/2pp1n2/q3p3/3PP3/2N5/PPPQKPPP/R1B2BNR w kq - 0 6".into()).eval);
+    // println!("k move: {}", Position::from_fen("rnb1kb1r/pp1p1ppp/2p2n2/4q3/4P3/2N2N2/PPPQ1PPP/R1B1KB1R b KQkq - 1 6".into()).eval);
+
 
 
 

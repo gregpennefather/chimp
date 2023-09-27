@@ -23,15 +23,6 @@ const MATERIAL_VALUES: PieceValues = [
     0,   // King
 ];
 
-const HANGING_PIECE_VALUE: PieceValues = [
-    MATERIAL_VALUES[0] / 2, // Pawn
-    MATERIAL_VALUES[1] / 2, // Knight
-    MATERIAL_VALUES[2] / 2, // Bishop
-    MATERIAL_VALUES[3] / 2, // Rook
-    MATERIAL_VALUES[4] / 2, // Queen
-    0,                      // King
-];
-
 const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
     4, 4, 4, 4, 4, 4, 4, 4, 6, 6, 6, 6, 6, 6, 6, 6, 8, 8, 8, 8, 8, 8, 8, 8, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -113,7 +104,7 @@ pub fn calculate(
         }
     }
 
-    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES);
+    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES, board.black_turn);
 
     eval
 }

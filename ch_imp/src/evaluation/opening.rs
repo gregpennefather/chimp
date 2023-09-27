@@ -6,8 +6,8 @@ use crate::{
         attack_and_defend_lookups::{AttackAndDefendTable, AttackedBy},
         bitboard::Bitboard,
         board_rep::BoardRep,
-        king_position_analysis::ThreatRaycastCollision,
-        see::{square_control, piece_safety},
+        king_position_analysis::{KingPositionAnalysis, ThreatRaycastCollision},
+        see::{piece_safety, square_control},
     },
     move_generation::sliding::queen::generate_queen_moves,
     shared::{
@@ -61,11 +61,8 @@ const BISHOP_SQUARE_SCORE: PieceValueBoard = [
 ];
 const BISHOP_SQUARE_FACTOR: i16 = 3;
 
-const CENTER_CONTROL_REWARD: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 5, 3, 0, 0, 0, 0, 5, 10, 10, 5, 0,
-    0, 0, 0, 5, 10, 10, 5, 0, 0, 0, 0, 3, 5, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0,
-];
+const CENTER_CONTROL_REWARD: PieceValueBoard = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,1,0,0,0,0,2,4,4,2,0,0,0,0,2,4,4,2,0,0,0,0,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+const CENTER_SCALE_FACTOR: i16 = 10;
 const CENTER_FIRST: usize = 18; // F3
 const CENTER_LAST: usize = 64 - 18; // C6
 
@@ -86,8 +83,11 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
 const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 10;
 
 const DOUBLE_BISHOP_REWARD: i16 = MATERIAL_VALUES[0] / 2;
+const DOUBLE_KNIGHT_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
+const DOUBLE_ROOK_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
+const CENTRAL_PAWN_DEFICIT_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
 
-const CAN_NOT_CASTLE_PENALTY: i16 = 5;
+const CAN_NOT_CASTLE_PENALTY: i16 = 25;
 
 pub fn calculate(
     board: BoardRep,
@@ -98,108 +98,90 @@ pub fn calculate(
     ad_table: &mut AttackAndDefendTable,
 ) -> i16 {
     let mut eval = pawn_structure_eval as i16;
-    eval += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
-    eval -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
 
-    eval += piece_square_score(
-        board.white_occupancy & board.pawn_bitboard,
-        WHITE_PAWN_SQUARE_SCORE,
-    ) * PAWN_SQUARE_FACTOR;
-    eval -= piece_square_score(
-        board.black_occupancy & board.pawn_bitboard,
-        BLACK_PAWN_SQUARE_SCORE,
-    ) * PAWN_SQUARE_FACTOR;
+    // Material
+    eval += material_score(board);
 
-    eval += piece_square_score(
-        board.white_occupancy & board.knight_bitboard,
-        KNIGHT_SQUARE_SCORE,
-    ) * KNIGHT_SQUARE_FACTOR;
-    eval -= piece_square_score(
-        board.black_occupancy & board.knight_bitboard,
-        KNIGHT_SQUARE_SCORE,
-    ) * KNIGHT_SQUARE_FACTOR;
+    // Piece Positioning
+    eval += piece_positioning_score(board);
 
-    eval += piece_square_score(
-        board.white_occupancy & board.bishop_bitboard,
-        BISHOP_SQUARE_SCORE,
-    ) * BISHOP_SQUARE_FACTOR;
-    eval -= piece_square_score(
-        board.black_occupancy & board.bishop_bitboard,
-        BISHOP_SQUARE_SCORE,
-    ) * BISHOP_SQUARE_FACTOR;
-
-    eval += piece_centralization_score(
-        board.white_occupancy & board.pawn_bitboard & board.knight_bitboard,
-    );
-    eval -= piece_centralization_score(
-        board.black_occupancy & board.pawn_bitboard & board.knight_bitboard,
-    );
-
-    // Double Bishop reward
-    eval += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 {
-        DOUBLE_BISHOP_REWARD
-    } else {
-        0
-    };
-    eval -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 {
-        DOUBLE_BISHOP_REWARD
-    } else {
-        0
-    };
-
-    eval += under_developed_penalty(board, board.white_occupancy);
-    eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
-
+    // Board control
     eval += get_center_control_score(ad_table, board);
 
-    eval -= king_openness(board.white_king_position, board, ad_table);
-    eval += king_openness(board.black_king_position, board, ad_table);
+    // King Safety
+    eval += king_safety(board, ad_table);
 
-    eval -= king_neighbourhood_treat_level(board.white_king_position, false, board);
-    eval += king_neighbourhood_treat_level(board.black_king_position, true, board);
+    // Turn order advantages
+    eval += turn_order_advantage(board, white_pinned, black_pinned);
 
-    if !board.white_king_side_castling {
-        eval -= CAN_NOT_CASTLE_PENALTY;
-    }
-    if !board.white_queen_side_castling {
-        eval -= CAN_NOT_CASTLE_PENALTY;
-    }
-    if !board.black_king_side_castling {
-        eval += CAN_NOT_CASTLE_PENALTY;
-    }
-    if !board.black_queen_side_castling {
-        eval += CAN_NOT_CASTLE_PENALTY;
-    }
-
-    for white_pin in white_pinned {
-        if white_pin.reveal_attack == false {
-            let piece: PieceType = board.get_piece_type_at_index(white_pin.at);
-            eval -= MATERIAL_VALUES[piece as usize - 1] / 2
-        } else {
-            eval -= 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
-        }
-    }
-    for black_pin in black_pinned {
-        if black_pin.reveal_attack == false {
-            let piece = board.get_piece_type_at_index(black_pin.at);
-            eval += MATERIAL_VALUES[piece as usize - 1] / 2
-        } else {
-            eval += 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
-        }
-    }
-
-    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES);
+    // Piece Safety
+    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES, board.black_turn);
 
     eval
 }
 
-fn piece_centralization_score(side_occupancy: u64) -> i16 {
-    let mut occ = side_occupancy;
+fn material_score(board: BoardRep) -> i16 {
     let mut score = 0;
-    while occ != 0 {
-        let pos = occ.trailing_zeros();
-        score += 3 - distance_to_center(pos as u8);
-        occ ^= 1 << pos;
+    score += piece_aggregate_score(board, board.white_occupancy, MATERIAL_VALUES);
+    score -= piece_aggregate_score(board, board.black_occupancy, MATERIAL_VALUES);
+
+    // Double Bishop reward
+    score += if (board.white_occupancy & board.bishop_bitboard).count_ones() == 2 {
+        DOUBLE_BISHOP_REWARD
+    } else {
+        0
+    };
+    score -= if (board.black_occupancy & board.bishop_bitboard).count_ones() == 2 {
+        DOUBLE_BISHOP_REWARD
+    } else {
+        0
+    };
+
+    // Double Knight penalty
+    score += if (board.white_occupancy & board.knight_bitboard).count_ones() == 2 {
+        DOUBLE_KNIGHT_PENALTY
+    } else {
+        0
+    };
+    score -= if (board.black_occupancy & board.knight_bitboard).count_ones() == 2 {
+        DOUBLE_KNIGHT_PENALTY
+    } else {
+        0
+    };
+
+    // Double Rook penalty
+    score += if (board.white_occupancy & board.rook_bitboard).count_ones() == 2 {
+        DOUBLE_ROOK_PENALTY
+    } else {
+        0
+    };
+    score -= if (board.black_occupancy & board.rook_bitboard).count_ones() == 2 {
+        DOUBLE_ROOK_PENALTY
+    } else {
+        0
+    };
+    score
+}
+
+fn king_safety(board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
+    let mut score = 0;
+    score -= king_openness(board.white_king_position, board, ad_table);
+    score += king_openness(board.black_king_position, board, ad_table);
+
+    score -= king_neighbourhood_treat_level(board.white_king_position, false, board);
+    score += king_neighbourhood_treat_level(board.black_king_position, true, board);
+
+    if !board.white_king_side_castling {
+        score -= CAN_NOT_CASTLE_PENALTY;
+    }
+    if !board.white_queen_side_castling {
+        score -= CAN_NOT_CASTLE_PENALTY;
+    }
+    if !board.black_king_side_castling {
+        score += CAN_NOT_CASTLE_PENALTY;
+    }
+    if !board.black_queen_side_castling {
+        score += CAN_NOT_CASTLE_PENALTY;
     }
     score
 }
@@ -216,6 +198,31 @@ fn under_developed_penalty(board: BoardRep, orientated_side_occupancy: u64) -> i
     }
 
     score * UNDER_DEVELOPED_PENALTY_FACTOR
+}
+
+fn turn_order_advantage(
+    board: BoardRep,
+    white_pinned: &[ThreatRaycastCollision],
+    black_pinned: &[ThreatRaycastCollision],
+) -> i16 {
+    let mut score = 0;
+    for white_pin in white_pinned {
+        if white_pin.reveal_attack == false {
+            let piece: PieceType = board.get_piece_type_at_index(white_pin.at);
+            score -= MATERIAL_VALUES[piece as usize - 1] / 2
+        } else {
+            score -= 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
+        }
+    }
+    for black_pin in black_pinned {
+        if black_pin.reveal_attack == false {
+            let piece = board.get_piece_type_at_index(black_pin.at);
+            score += MATERIAL_VALUES[piece as usize - 1] / 2
+        } else {
+            score += 25; // Todo improve this - currently a flat penalty for opponent having a possible reveal attack
+        }
+    }
+    score
 }
 
 // King openness is a penalty for each square the king could reach if they were a queen
@@ -244,6 +251,7 @@ fn king_neighbourhood_treat_level(king_pos: u8, is_black: bool, board: BoardRep)
 
         neigbourhood ^= 1 << i;
     }
+    // println!("{} king safety: {score}", if is_black { "black"} else {"white"});
     score = usize::min(100, score);
     SAFETY_TABLE[score]
 }
@@ -298,7 +306,8 @@ fn get_center_control_score(ad_table: &mut AttackAndDefendTable, board: BoardRep
             // )
         }
     }
-    r
+    // println!("center control: {r}");
+    r * CENTER_SCALE_FACTOR
 }
 
 fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: BoardRep) -> i16 {
@@ -310,25 +319,60 @@ fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: Boa
         let piece_type = board.get_piece_type_at_index(index);
         let piece_safety = piece_safety(piece_type, false, black, white);
         if piece_safety == 0 {
-            return 1
+            return 1;
         } else {
-            return -1
+            return -1;
         }
     }
 
     // If black control the square through occupancy, confirm its safe
     if board.black_occupancy.occupied(index) {
         let piece_type = board.get_piece_type_at_index(index);
-        let piece_safety = -1*piece_safety(piece_type, false, white, black);
+        let piece_safety = -1 * piece_safety(piece_type, false, white, black);
         if piece_safety == 0 {
-            return -1
+            return -1;
         } else {
-            return 1
+            return 1;
         }
     }
 
     // Else see who controls the square with the least valuable piece
     square_control(white, black) as i16
+}
+
+fn piece_positioning_score(board: BoardRep) -> i16 {
+    let mut eval = 0;
+    eval += piece_square_score(
+        board.white_occupancy & board.pawn_bitboard,
+        WHITE_PAWN_SQUARE_SCORE,
+    ) * PAWN_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.pawn_bitboard,
+        BLACK_PAWN_SQUARE_SCORE,
+    ) * PAWN_SQUARE_FACTOR;
+
+    eval += piece_square_score(
+        board.white_occupancy & board.knight_bitboard,
+        KNIGHT_SQUARE_SCORE,
+    ) * KNIGHT_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.knight_bitboard,
+        KNIGHT_SQUARE_SCORE,
+    ) * KNIGHT_SQUARE_FACTOR;
+
+    eval += piece_square_score(
+        board.white_occupancy & board.bishop_bitboard,
+        BISHOP_SQUARE_SCORE,
+    ) * BISHOP_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.bishop_bitboard,
+        BISHOP_SQUARE_SCORE,
+    ) * BISHOP_SQUARE_FACTOR;
+
+    eval += under_developed_penalty(board, board.white_occupancy);
+    eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
+
+    eval
 }
 
 #[cfg(test)]

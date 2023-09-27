@@ -50,11 +50,14 @@ pub(super) fn piece_square_score(piece_bitboard: u64, piece_value_board: PieceVa
 pub fn sum_piece_safety_penalties(
     piece_safety_results: &Vec<PieceSafetyInfo>,
     piece_values: PieceValues,
+    black_turn: bool
 ) -> i16 {
     let mut r = 0;
 
+    let unsafe_friendly = piece_safety_results.iter().filter(|r| r.is_black == black_turn).count();
+
     for &result in piece_safety_results {
-        if result.score < 0 {
+        if result.score < 0 && (result.is_black != black_turn || unsafe_friendly > 1) {
             if result.is_black {
                 r += piece_values[result.piece_type as usize - 1] / 2;
             } else {
@@ -62,6 +65,8 @@ pub fn sum_piece_safety_penalties(
             }
         }
     }
+
+    // println!("piece safety: {r}");
 
     r
 }

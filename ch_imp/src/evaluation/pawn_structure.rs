@@ -19,6 +19,8 @@ const BOARD_FILES: [u64; 8] = [
     72340172838076673,
 ];
 
+const CENTER_FILES: u64 = BOARD_FILES[2] | BOARD_FILES[3] | BOARD_FILES[4] | BOARD_FILES[5];
+
 const PAWN_SHIELD_RANK_2_MASK: [u64; 8] = [57344, 57344, 57344, 0, 0, 1792, 1792, 1792];
 
 const PAWN_SHIELD_RANK_3_MASK: [u64; 8] = [14680064, 14680064, 14680064, 0, 0, 458752, 458752, 458752];
@@ -42,6 +44,8 @@ const OPENING_PASSED_REWARD: i16 = 5;
 const ENDGAME_PASSED_REWARD: i16 = 10;
 
 const PAWN_SHIELD_REWARD : i16 = 50;
+
+const PAWN_CENTER_ADVANTAGE_REWARD: i16 = 15;
 
 #[derive(Clone, Copy, Debug, Default)]
 
@@ -210,6 +214,9 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     opening += get_pawn_shield(w_pawns, w_king);
     opening -= get_pawn_shield(b_pawns_mirrored, b_king_mirrored);
 
+    // == Central Pawn Balance
+    opening += get_central_pawn_balance(w_open_pawns, b_open_pawns);
+
     PawnStructureEval { opening, endgame, p_count: p_count as u8 }
 }
 
@@ -329,17 +336,6 @@ fn get_pawn_shield(pawn_occupancy: u64, king_position: u8) -> i16 {
     PAWN_SHIELD_REWARD / 6 * (score as i16)
 }
 
-pub fn build_pawn_frontspan_board() {
-    for sq in 8..9 {
-        for offset_1 in 0..2 {
-            let mut b: u64 = 1 << sq;
-            for p_count in 1..8 {
-                b |= 1 << sq + p_count + offset_1;
-            }
-        }
-    }
-}
-
 pub fn get_backward_pawns(a_pawns: u64, a_attack_frontspan: u64, b_attack_frontspan: u64) -> u64 {
     let stops = a_pawns << 8; // Move each pawn 1 push to its stop
     (stops & b_attack_frontspan & !a_attack_frontspan) >> 8
@@ -356,6 +352,12 @@ pub fn get_straggler_pawns(backward_pawns: u64, open_pawns: u64) -> u64 {
 pub fn get_passed_pawns(a_pawns: u64, b_front_span: u64, b_attack_frontspan: u64) -> u64 {
     let b_control = b_front_span | b_attack_frontspan;
     a_pawns & !b_control
+}
+
+fn get_central_pawn_balance(w_open_pawns: u64, b_open_pawns: u64) -> i16 {
+    let c_w = w_open_pawns & CENTER_FILES;
+    let c_b = b_open_pawns & CENTER_FILES;
+    i16::clamp(c_w.count_ones() as i16 - c_b.count_ones() as i16, -1, 1) * PAWN_CENTER_ADVANTAGE_REWARD
 }
 
 #[cfg(test)]
@@ -413,10 +415,27 @@ mod test {
         assert_eq!(doubles, 2);
     }
 
+    #[test]
     fn get_starting_position_eval() {
         let pos = Position::default();
         let eval = build_pawn_pawn_structure_eval(pos.board.white_occupancy & pos.board.pawn_bitboard, pos.board.black_occupancy & pos.board.pawn_bitboard, pos.board.white_king_position, pos.board.black_king_position, 16);
         assert_eq!(eval.opening, 0);
         assert_eq!(eval.endgame, 0);
+    }
+
+    #[test]
+    fn white_pawn_advantage_in_center() {
+        let w = 0.flip(index_from_coords("d2"));
+        let b = 0;
+        let eval = get_central_pawn_balance(w,b);
+        assert_eq!(eval, PAWN_CENTER_ADVANTAGE_REWARD);
+    }
+
+    #[test]
+    fn white_pawn_advantage_in_center_black_adv_outside_center() {
+        let w = 0.flip(index_from_coords("d2"));
+        let b = 0.flip(index_from_coords("b7")).flip(index_from_coords("h6"));
+        let eval = get_central_pawn_balance(w,b);
+        assert_eq!(eval, PAWN_CENTER_ADVANTAGE_REWARD);
     }
 }

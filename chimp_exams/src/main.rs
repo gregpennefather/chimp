@@ -14,7 +14,6 @@ use test_suite::{ResultScore, TestInstance, TestSuite};
 
 mod test_suite;
 
-
 // https://www.chessprogramming.org/Strategic_Test_Suite
 const STRATEGIC_TEST_SUITE_FILES: [(&str, &str); 15] = [
     ("Open Files and Diagonals", "STS2.epd"),
@@ -35,7 +34,7 @@ const STRATEGIC_TEST_SUITE_FILES: [(&str, &str); 15] = [
 ];
 
 const RECORD: bool = true;
-const TEST_TIME_MILLISECONDS: i32 = 2000;
+const TEST_TIME_MILLISECONDS: i32 = 250;
 
 fn main() {
     full_exam();
@@ -93,12 +92,21 @@ fn full_exam() {
     };
     let _handle = log4rs::init_config(config).unwrap();
     let mut total_score = 0;
-    let mut max_score = 0;
+    let mut max_score: usize = 0;
+    let mut result: [(String, usize); 15] = Default::default();
 
+    let mut i = 0;
     for test_suite_file_info in STRATEGIC_TEST_SUITE_FILES {
         let test_suite = read_file(test_suite_file_info.0, test_suite_file_info.1);
         max_score += test_suite.max_score;
-        total_score += run_suite(test_suite, time_ms);
+        let r = run_suite(test_suite, time_ms);
+        result[i] = (test_suite_file_info.0.to_string(), r);
+        total_score += r;
+        i += 1;
+    }
+
+    for i in 0..15 {
+        println!("{} : {}\\1000", result[i].0, result[i].1)
     }
     info!(
         ">> Final result {}/{} ({}%)",
