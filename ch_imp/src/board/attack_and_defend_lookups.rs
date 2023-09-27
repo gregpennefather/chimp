@@ -165,6 +165,8 @@ impl BoardRep {
             index,
             attacker_occupancy & self.queen_bitboard,
             self.occupancy,
+            attacker_occupancy & self.bishop_bitboard,
+            attacker_occupancy & self.rook_bitboard
         );
         let king = has_king_threat(
             index,
@@ -221,6 +223,8 @@ impl BoardRep {
                 index,
                 attacker_occupancy & self.queen_bitboard,
                 occupancy,
+                attacker_occupancy & self.bishop_bitboard,
+                attacker_occupancy & self.rook_bitboard
             )
             || has_king_threat(
                 index,
@@ -258,7 +262,9 @@ fn has_bishop_threat(index: u8, att_b_occ: u64, occupancy: u64) -> bool {
     moveboard & att_b_occ != 0
 }
 
-fn has_queen_threat(index: u8, att_q_occ: u64, occupancy: u64) -> bool {
+fn has_queen_threat(index: u8, att_q_occ: u64, occupancy: u64, b_occupancy: u64, r_occupancy: u64) -> bool {
+    let occupancy = occupancy & !b_occupancy & !r_occupancy;
+
     let moveboard = MOVE_DATA
         .magic_bitboard_table
         .get_bishop_attacks(index as usize, occupancy)
@@ -345,5 +351,29 @@ mod test {
         assert_eq!(r.queen, false);
         assert_eq!(r.king, false);
         assert!(!board.has_at_least_one_attacker(index_from_coords("f3"), true, true));
+    }
+
+    #[test]
+    pub fn queen_behind_bishop_counts_as_attacker() {
+        let board = BoardRep::from_fen("1rq2rk1/4bp2/2np2p1/p1p1p3/P1PNP1P1/1PB2P2/1Q4P1/R2R1NK1 b - - 0 1".into());
+        let r = board.get_attacked_by(index_from_coords("d4"), false);
+        assert_eq!(r.pawns, 0);
+        assert_eq!(r.knights, 0);
+        assert_eq!(r.bishop, true);
+        assert_eq!(r.rooks, 1);
+        assert_eq!(r.queen, true);
+        assert_eq!(r.king, false);
+    }
+
+    #[test]
+    pub fn queen_behind_rook_counts_as_attacker() {
+        let board = BoardRep::from_fen("1rq2rk1/4bp2/2np2p1/p1p1p3/P1PNP1P1/1PB2P2/3R2P1/R2Q1NK1 b - - 0 1".into());
+        let r = board.get_attacked_by(index_from_coords("d4"), false);
+        assert_eq!(r.pawns, 0);
+        assert_eq!(r.knights, 0);
+        assert_eq!(r.bishop, true);
+        assert_eq!(r.rooks, 1);
+        assert_eq!(r.queen, true);
+        assert_eq!(r.king, false);
     }
 }
