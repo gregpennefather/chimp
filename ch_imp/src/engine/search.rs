@@ -117,6 +117,7 @@ impl ChimpEngine {
             self.transposition_table.record(
                 game_state.position.board.zorb_key,
                 depth,
+                ply,
                 q_result.0,
                 crate::shared::transposition_table::NodeType::PVNode,
                 Some(game_state.entry_move),
@@ -228,6 +229,7 @@ impl ChimpEngine {
                 self.transposition_table.record(
                     new_game_state.position.board.zorb_key,
                     depth,
+                    ply,
                     beta,
                     NodeType::CutNode,
                     Some(m),
@@ -257,6 +259,7 @@ impl ChimpEngine {
             self.transposition_table.record(
                 game_state.position.board.zorb_key,
                 depth,
+                ply,
                 alpha,
                 node_type,
                 if node_type == NodeType::AllNode {

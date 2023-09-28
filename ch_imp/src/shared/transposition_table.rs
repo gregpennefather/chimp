@@ -99,13 +99,13 @@ impl TranspositionTable {
         }
     }
 
-    pub fn record(&mut self, zorb_key: u64, depth: u8, mut value: i16, t: NodeType, m: Option<Move>) {
+    pub fn record(&mut self, zorb_key: u64, depth: u8, ply: u8, mut value: i16, t: NodeType, m: Option<Move>) {
         let index = (zorb_key as usize) % TRANSPOSITION_TABLE_SIZE;
         if value == AB_MAX {
-            value -= depth as i16;
+            value -= ply as i16;
         }
         if value == AB_MIN {
-            value += depth as i16;
+            value += ply as i16;
         }
         self.table[index] = Some(TransTableEntry {
             zorb_key,

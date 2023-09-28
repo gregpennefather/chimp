@@ -416,7 +416,7 @@ fn park_table() {
     let _handle = log4rs::init_config(config).unwrap();
 
     let start = Instant::now();
-    let position: String = "8/8/8/8/8/7R/4K1k1/8 w - - 22 12".into();
+    let position: String = "1R6/R7/8/7K/8/5k2/8/8 b - - 1 1".into();
     let mut w_engine: ChimpEngine = ChimpEngine::from_position(position.clone());
     let mut b_engine: ChimpEngine = ChimpEngine::from_position(position.clone());
     let mut white_turn = !w_engine.black_turn();
