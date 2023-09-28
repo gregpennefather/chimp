@@ -1,3 +1,5 @@
+use log::trace;
+
 use crate::{board::{bitboard::Bitboard, board_rep::BoardRep, position::Position}, shared::board_utils::get_coords_from_index};
 
 use super::{
@@ -66,7 +68,7 @@ pub fn sum_piece_safety_penalties(
         }
     }
 
-    // println!("piece safety: {r}");
+    trace!("piece safety: {r}");
 
     r
 }

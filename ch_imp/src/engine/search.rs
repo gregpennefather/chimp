@@ -1,22 +1,27 @@
 use std::{cell::OnceCell, time::Instant};
 
-use log::{debug, info, trace, error};
+use log::{debug, error, info, trace};
 
 use crate::{
+    board::board_rep::BoardRep,
     match_state::game_state::{self, GameState},
     move_generation::generate_moves_for_board,
     move_ordering::move_orderer::{MoveOrderer, MOVE_CACHE},
     r#move::Move,
     shared::{
         board_utils::{get_rank, index_from_coords},
+        constants::MF_KNIGHT_CAPTURE_PROMOTION,
         piece_type::PieceType,
-        transposition_table::NodeType, constants::MF_KNIGHT_CAPTURE_PROMOTION,
-    }, board::board_rep::BoardRep,
+        transposition_table::NodeType,
+    }, evaluation::calculate_game_phase,
 };
 
 const MAX_EXTENSIONS: u8 = 12;
-pub const AB_MIN: i16 = -32767;
-pub const AB_MAX: i16 = 32767;
+pub const AB_MIN: i16 = -32766;
+pub const AB_MAX: i16 = 32766;
+
+pub const MATE_MAX_CUTOFF: i16 = AB_MAX - 16;
+pub const MATE_MIN_CUTOFF: i16 = AB_MIN + 16;
 
 use super::{move_orderer, ChimpEngine};
 
@@ -61,8 +66,8 @@ impl ChimpEngine {
                 cutoff,
                 depth,
                 0,
-                AB_MIN,
-                AB_MAX,
+                AB_MIN - 1,
+                AB_MAX + 1,
                 &output.1,
                 0,
             );
@@ -75,6 +80,10 @@ impl ChimpEngine {
 
             let dur = timer.elapsed();
             debug!("{depth}: {} \t{:?} \t {:?}", output.0, dur, output.1);
+
+            if output.0 >= MATE_MAX_CUTOFF || output.0 <= MATE_MIN_CUTOFF {
+                break;
+            }
         }
         output.1
     }
@@ -130,13 +139,21 @@ impl ChimpEngine {
             .transposition_table
             .get_move(game_state.position.board.zorb_key);
         let board = game_state.position.board;
-        let move_orderer = MoveOrderer::new(pv, hm, game_state.position, self.killer_store.get_ply(ply as usize));
+        let move_orderer = MoveOrderer::new(
+            pv,
+            hm,
+            game_state.position,
+            self.killer_store.get_ply(ply as usize),
+        );
 
         let mut move_index = -1;
         let legal_moves = get_moves(board);
         // for &m in &legal_moves {
         //     println!("{m:?}")
         // }
+
+        let phase = calculate_game_phase(board);
+
         for m in move_orderer {
             move_index += 1;
             if !legal_moves.contains(&m) {
@@ -163,7 +180,7 @@ impl ChimpEngine {
             let extension = get_extensions(new_game_state, m, total_extensions);
 
             // Reduce late moves if possible
-            let shallow_eval = if extension == 0 && depth > 2 && move_index > 3 && m.is_quiet() {
+            let shallow_eval = if extension == 0 && depth > 2 && move_index > 3 && m.is_quiet() && phase < 200 {
                 let (opponent_val, moves) = self.alpha_beta_search(
                     new_game_state,
                     cutoff,

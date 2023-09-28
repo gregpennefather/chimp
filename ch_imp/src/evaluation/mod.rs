@@ -31,7 +31,7 @@ pub fn calculate(
     black_pins: Vec<ThreatRaycastCollision>,
     white_pins: Vec<ThreatRaycastCollision>,
 ) -> i16 {
-    let phase = phase(board) as i32;
+    let phase = calculate_game_phase(board) as i32;
     let mut ad_table = AttackAndDefendTable::new();
 
     let piece_safety_results = generate_piece_safety(&mut ad_table, board);
@@ -58,6 +58,7 @@ pub fn calculate(
         pawn_structure_eval.endgame,
         &piece_safety_results,
     ) as i32;
+
     let result = ((opening * (256 - phase)) + (endgame * phase)) / 256;
 
     trace!(
@@ -68,7 +69,7 @@ pub fn calculate(
     result as i16
 }
 
-fn phase(board: BoardRep) -> i16 {
+pub fn calculate_game_phase(board: BoardRep) -> i16 {
     let material_score = MAX_PHASE_MATERIAL_SCORE
         - piece_aggregate_score(board, board.occupancy, PHASE_MATERIAL_VALUES);
     return (material_score * 256 + (MAX_PHASE_MATERIAL_SCORE / 2)) / MAX_PHASE_MATERIAL_SCORE;

@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-use crate::r#move::Move;
+use crate::{r#move::Move, engine::search::{AB_MAX, AB_MIN}};
 
 const TRANSPOSITION_TABLE_MB_SIZE: usize = 64;
 
@@ -99,8 +99,14 @@ impl TranspositionTable {
         }
     }
 
-    pub fn record(&mut self, zorb_key: u64, depth: u8, value: i16, t: NodeType, m: Option<Move>) {
+    pub fn record(&mut self, zorb_key: u64, depth: u8, mut value: i16, t: NodeType, m: Option<Move>) {
         let index = (zorb_key as usize) % TRANSPOSITION_TABLE_SIZE;
+        if value == AB_MAX {
+            value -= depth as i16;
+        }
+        if value == AB_MIN {
+            value += depth as i16;
+        }
         self.table[index] = Some(TransTableEntry {
             zorb_key,
             depth,

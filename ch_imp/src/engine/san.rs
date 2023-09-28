@@ -10,10 +10,10 @@ use crate::{
     },
 };
 
-pub fn build_san(moves: Vec<Move>) -> String {
+pub fn build_san(moves: Vec<Move>, starting_fen: String) -> String {
     let mut r = String::default();
 
-    let mut game_state = GameState::default();
+    let mut game_state = GameState::new(starting_fen);
 
     for m in moves {
         r += &format!(" {}", game_state.to_san_lichess(m));

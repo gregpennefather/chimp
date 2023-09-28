@@ -202,7 +202,7 @@ fn main() {
 
     // test_it_deep_search("rnb1kb1r/pp1p1ppp/2p2n2/q3p3/3PP3/2N5/PPPQ1PPP/R1B1KBNR w KQkq - 2 5".into(), 2000);
 
-    let board = Position::from_fen("r1bqkbnr/ppp2ppp/2np4/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1".into());
+    //let board = Position::from_fen("r1bqkbnr/ppp2ppp/2np4/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 1".into());
 
     // println!("{:?}", generate_moves_for_board(board));
 
@@ -210,14 +210,9 @@ fn main() {
     // println!("k move: {}", Position::from_fen("rnb1kb1r/pp3ppp/2pp1n2/q3p3/3PP3/2N5/PPPQKPPP/R1B2BNR w kq - 0 6".into()).eval);
     // println!("k move: {}", Position::from_fen("rnb1kb1r/pp1p1ppp/2p2n2/4q3/4P3/2N2N2/PPPQ1PPP/R1B1KB1R b KQkq - 1 6".into()).eval);
 
+    //test_ab_search("7K/8/8/6rk/8/8/8/8 b - - 11 6".into(), 10);
 
-
-
-    //test_ab_search("4r1k1/4r1pp/p7/3n4/2p1P3/2P1BPN1/P1P4P/1K2R3 w - -".into(), 5);
-
-    // test_ab_search("4r1k1/4r1pp/p7/8/2pBP3/2n2PN1/P1P4P/1K2R3 w - - 0 2".into(), 5);
-
-
+    //test_ab_search("8/8/8/8/8/7R/4K1k1/8 w - - 22 12".into(), 10);
 
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
@@ -225,9 +220,21 @@ fn main() {
     // println!("{}", MOVE_DATA.get_slide_inbetween(1, 17).to_board_format());
     // println!("{}", MOVE_DATA.get_slide_inbetween(1, 28).to_board_format());
     // println!("{}", MOVE_DATA.get_slide_inbetween(index_from_coords("e2"), index_from_coords("e8")).to_board_format());
+    // println!("start: {}\n", Position::from_fen("8/8/8/6K1/8/8/8/kr6 b - - 1 1".into()).eval);
+    // println!("w moves left: {}\n", Position::from_fen("8/8/8/5K2/8/8/8/kr6 b - - 1 1".into()).eval);
+    // println!("w moves right: {}\n", Position::from_fen("8/8/8/7K/8/8/8/kr6 b - - 1 1".into()).eval);
+    // println!("close black king: {}\n", Position::from_fen("8/8/8/5k1K/8/8/8/1r6 b - - 1 1".into()).eval);
+    // println!("black king in center: {}\n", Position::from_fen("8/8/8/4k2K/8/8/8/1r6 b - - 1 1".into()).eval);
+
+
+    // println!("1: {}", Position::from_fen("7K/8/8/6rk/8/8/8/8 b - - 11 6".into()).eval);
+    // println!("2: {}", Position::from_fen("7K/8/6k1/6r1/8/8/8/8 w - - 12 7".into()).eval);
+    // println!("3: {}", Position::from_fen("6K1/8/6k1/6r1/8/8/8/8 b - - 13 7".into()).eval);
+    // println!("4: {}", Position::from_fen("6K1/8/6k1/5r2/8/8/8/8 w - - 14 8".into()).eval);
+    // println!("5: {}", Position::from_fen("7K/8/6k1/5r2/8/8/8/8 b - - 15 8".into()).eval);
 
     //perfts();
-    //park_table();
+    park_table();
     //test_engine();
 }
 
@@ -253,8 +260,8 @@ fn test_ab_search(fen: String, depth: u8) {
             &cutoff,
             i,
             0,
-            AB_MIN,
-            AB_MAX,
+            AB_MIN - 1,
+            AB_MAX + 1,
             &priority_line,
             0,
         );
@@ -409,16 +416,17 @@ fn park_table() {
     let _handle = log4rs::init_config(config).unwrap();
 
     let start = Instant::now();
-    let mut w_engine: ChimpEngine = ChimpEngine::new();
-    let mut b_engine: ChimpEngine = ChimpEngine::new();
-    let mut white_turn = true;
+    let position: String = "8/8/8/8/8/7R/4K1k1/8 w - - 22 12".into();
+    let mut w_engine: ChimpEngine = ChimpEngine::from_position(position.clone());
+    let mut b_engine: ChimpEngine = ChimpEngine::from_position(position.clone());
+    let mut white_turn = !w_engine.black_turn();
     let mut moves = Vec::new();
     let mut move_ucis = Vec::new();
     let mut white_ms = 5000;
     let mut black_ms = 5000;
     let inc_ms = 1000;
     info!("Park Table:");
-    for _i in 0..200 {
+    for _i in 0..30 {
         let timer = Instant::now();
         if white_turn {
             w_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());
@@ -476,7 +484,7 @@ fn park_table() {
     let duration = start.elapsed();
     info!("Result: {:?}", b_engine.current_game_state.result_state);
     info!("Runtime: {:?}", duration);
-    info!("SAN: {}", build_san(moves));
+    info!("SAN: {}", build_san(moves, position));
     info!("Final state: {:?}", b_engine.current_game_state);
 }
 
