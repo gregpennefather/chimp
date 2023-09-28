@@ -37,7 +37,7 @@ const ENDGAME_OPEN_REWARD: i16 = 10;
 const OPENING_PASSED_REWARD: i16 = 5;
 const ENDGAME_PASSED_REWARD: i16 = 10;
 
-const PAWN_SHIELD_REWARD: i16 = 50;
+const PAWN_SHIELD_REWARD: i16 = 100;
 
 const PAWN_CENTER_ADVANTAGE_REWARD: i16 = 15;
 
@@ -400,6 +400,34 @@ fn get_central_pawn_balance(w_open_pawns: u64, b_open_pawns: u64) -> i16 {
     let c_b = b_open_pawns & CENTER_FILES;
     i16::clamp(c_w.count_ones() as i16 - c_b.count_ones() as i16, -1, 1)
         * PAWN_CENTER_ADVANTAGE_REWARD
+}
+pub(super) fn get_open_files(pawns: u64) -> u8 {
+    let mut r = 0;
+    if pawns & BOARD_FILES[0] == 0 {
+        r |= 1<<7;
+    }
+    if pawns & BOARD_FILES[1] == 0 {
+        r |= 1<<6;
+    }
+    if pawns & BOARD_FILES[2] == 0 {
+        r |= 1<<5;
+    }
+    if pawns & BOARD_FILES[3] == 0 {
+        r |= 1<<4;
+    }
+    if pawns & BOARD_FILES[4] == 0 {
+        r |= 1<<3;
+    }
+    if pawns & BOARD_FILES[5] == 0 {
+        r |= 1<<2;
+    }
+    if pawns & BOARD_FILES[6] == 0 {
+        r |= 1<<1;
+    }
+    if pawns & BOARD_FILES[7] == 0 {
+        r |= 1;
+    }
+    r
 }
 
 #[cfg(test)]

@@ -1,15 +1,18 @@
 use crate::{
     board::{
-        attack_and_defend_lookups::AttackAndDefendTable, bitboard::Bitboard, board_rep::BoardRep,
-        king_position_analysis::get_pawn_threat_source, see::piece_safety,
+        self, attack_and_defend_lookups::AttackAndDefendTable, bitboard::Bitboard,
+        board_rep::BoardRep, king_position_analysis::get_pawn_threat_source, see::piece_safety,
     },
     evaluation::pawn_structure::calculate_attack_frontspan,
     move_generation::pawn::get_pawn_threat_positions,
-    shared::{board_utils::{index_from_coords, get_coords_from_index}, piece_type::PieceType},
+    shared::{
+        board_utils::{get_coords_from_index, index_from_coords},
+        piece_type::PieceType,
+    },
     MOVE_DATA,
 };
 
-use super::{eval_precomputed_data::PieceValues, pawn_structure::calculate_frontspan};
+use super::{eval_precomputed_data::PieceValues, pawn_structure::{calculate_frontspan, get_open_files}};
 
 pub(super) const BOARD_FILES: [u64; 8] = [
     9259542123273814144,
@@ -39,6 +42,9 @@ pub(super) const BLACK_RANKS: u64 =
     BOARD_RANKS[7] | BOARD_RANKS[6] | BOARD_RANKS[5] | BOARD_RANKS[4];
 pub(super) const WHITE_RANKS: u64 =
     BOARD_RANKS[0] | BOARD_RANKS[1] | BOARD_RANKS[2] | BOARD_RANKS[3];
+
+const SPACE_WHITE_CENTER: u64 = 1010580480;
+const SPACE_BLACK_CENTER: u64 = 16954726998343680;
 
 pub(super) fn count_knight_outposts(
     is_black: bool,
@@ -91,19 +97,88 @@ pub(super) fn get_fork_wins(
         board.black_occupancy
     } else {
         board.white_occupancy
-    } & (board.pawn_bitboard
-        | board.knight_bitboard);
+    } & (board.pawn_bitboard | board.knight_bitboard);
 
     while occupancy != 0 {
         let lsb = occupancy.trailing_zeros() as u8;
         r += match detect_fork(lsb, board, white_king_check, black_king_check, ad_table) {
             None => 0,
-            Some(lvp) => material_values[lvp as usize] / 4 * 3
+            Some(lvp) => material_values[lvp as usize] / 4 * 3,
         };
         occupancy = occupancy.flip(lsb);
     }
 
     r
+}
+
+// Adapted from Stockfish
+pub(super) fn calculate_controlled_space_score(
+    is_black: bool,
+    board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
+) -> i16 {
+    let piece_count =  1 + if is_black {
+        board.black_occupancy.count_ones()
+    } else {
+        board.white_occupancy.count_ones()
+    } as i16;
+
+    let friendly_pawns = board.pawn_bitboard & if is_black { board.black_occupancy } else { board.white_occupancy};
+    let open_files = get_open_files(friendly_pawns).count_ones() as i16;
+
+    let weight = piece_count - (2*open_files);
+    let controlled_area = calculate_controlled_space_area_for_player(is_black, board, ad_table);
+    controlled_area * weight * weight / 16
+}
+
+// https://www.chessprogramming.org/Space
+pub fn calculate_controlled_space_area_for_player(
+    is_black: bool,
+    board: BoardRep,
+    ad_table: &mut AttackAndDefendTable,
+) -> i16 {
+    let mut count = 0;
+    let mut space = 0;
+
+    let mut test_space = if is_black {
+        SPACE_BLACK_CENTER
+    } else {
+        SPACE_WHITE_CENTER
+    };
+
+    let friendly_pawns = board.pawn_bitboard
+        & if is_black {
+            board.black_occupancy
+        } else {
+            board.white_occupancy
+        };
+    let pawn_check_offset: i8 = if is_black { -8 } else { 8 };
+
+    // Remove squares occupied by pawns
+    test_space = test_space & !friendly_pawns;
+
+    while test_space != 0 {
+        let lsb = test_space.trailing_zeros() as u8;
+
+        let attacks = ad_table.get_attacked_by(lsb as u8, board, !is_black);
+
+        if attacks.pawns == 0 {
+            space = space.flip(lsb);
+            count += 1;
+        }
+        let lsb_i8 = lsb as i8;
+
+        let behind_pawn_mask = 0
+            .flip((lsb_i8 + pawn_check_offset) as u8)
+            .flip((lsb_i8 + (2 * pawn_check_offset)) as u8)
+            .flip((lsb_i8 + (3 * pawn_check_offset)) as u8);
+        if behind_pawn_mask & friendly_pawns != 0 && !attacks.any() {
+            count += 1;
+        }
+        test_space = test_space.flip(lsb);
+    }
+
+    count
 }
 
 pub(super) fn detect_fork(
@@ -179,7 +254,7 @@ mod test {
         shared::{board_utils::index_from_coords, piece_type::PieceType},
     };
 
-    use super::{count_knight_outposts, detect_fork};
+    use super::{calculate_controlled_space_area_for_player, count_knight_outposts, detect_fork};
 
     #[test]
     fn white_knight_with_no_pawn_support() {
@@ -365,5 +440,28 @@ mod test {
         );
 
         assert_eq!(r, None)
+    }
+
+    #[test]
+    fn calculate_controlled_space_case_0() {
+        let board = BoardRep::from_fen(
+            "rn1qk2r/pp5p/1b1bP1p1/1Pp2pn1/1QP2P2/P7/7P/RNB1K2R w KQkq - 1 9
+        "
+            .into(),
+        );
+
+        let white: i16 = calculate_controlled_space_area_for_player(
+            false,
+            board,
+            &mut AttackAndDefendTable::new(),
+        );
+        let black: i16 = calculate_controlled_space_area_for_player(
+            true,
+            board,
+            &mut AttackAndDefendTable::new(),
+        );
+
+        assert_eq!(white, 12);
+        assert_eq!(black, 7);
     }
 }

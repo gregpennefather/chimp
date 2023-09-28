@@ -23,17 +23,17 @@ use crate::{
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
     get_piece_safety,
-    shared::{count_knight_outposts, get_fork_wins},
+    shared::{count_knight_outposts, get_fork_wins, calculate_controlled_space_score},
     utils::*,
     PieceSafetyInfo,
 };
 
 const MATERIAL_VALUES: PieceValues = [
     100, // Pawn
-    300, // Knight
-    300, // Bishop
-    500, // Rook
-    900, // Queen
+    400, // Knight
+    450, // Bishop
+    1000, // Rook
+    1800, // Queen
     0,   // King
 ];
 
@@ -43,31 +43,31 @@ const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0,
 ];
 const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 3, 3, 2, 2, 2,
-    2, 2, 2, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 2, 2, 4, 4, 2, 2, 2,
+    2, 2, 2, 6, 6, 2, 2, 2, 4, 4, 4, 8, 8, 4, 4, 4, 5, 5, 5, 10, 10, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
     0,
 ];
-const PAWN_SQUARE_FACTOR: i16 = 6;
+const PAWN_SQUARE_FACTOR: i16 = 3;
 
 const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
     0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-const KNIGHT_SQUARE_FACTOR: i16 = 3;
+const KNIGHT_SQUARE_FACTOR: i16 = 10;
 
 const BISHOP_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2,
     0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 3, 0, 0, 0, 0, 3, -1,
     -1, -1, -1, -1, -1, -1, -1, -1,
 ];
-const BISHOP_SQUARE_FACTOR: i16 = 3;
+const BISHOP_SQUARE_FACTOR: i16 = 10;
 
 const CENTER_CONTROL_REWARD: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 2, 4, 4, 2, 0, 0,
     0, 0, 2, 4, 4, 2, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-const CENTER_SCALE_FACTOR: i16 = 10;
+const CENTER_SCALE_FACTOR: i16 = 15;
 const CENTER_FIRST: usize = 18; // F3
 const CENTER_LAST: usize = 64 - 18; // C6
 
@@ -87,12 +87,14 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
 ];
 const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 25;
 
-const DOUBLE_BISHOP_REWARD: i16 = MATERIAL_VALUES[0] / 2;
-const DOUBLE_KNIGHT_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
-const DOUBLE_ROOK_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
+const DOUBLE_BISHOP_REWARD: i16 = 33;
+const DOUBLE_KNIGHT_PENALTY: i16 = 50;
+const DOUBLE_ROOK_PENALTY: i16 = 25;
 const KNIGHT_OUTPOST_REWARD: i16 = 50;
+const TEMPO_REWARD: i16 = 25;
 
 const CAN_NOT_CASTLE_PENALTY: i16 = 25;
+
 
 pub fn calculate(
     board: BoardRep,
@@ -123,6 +125,12 @@ pub fn calculate(
 
     // Piece Safety
     eval += get_piece_safety_penalty(piece_safety_results, MATERIAL_VALUES, board.black_turn);
+
+    // Space Control
+    eval += space_control(board, ad_table);
+
+    // Tempo
+    eval += if board.black_turn { -TEMPO_REWARD } else { TEMPO_REWARD };
 
     eval
 }
@@ -304,6 +312,12 @@ fn turn_order_advantage(
         }
     }
     score
+}
+
+fn space_control(board:BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
+    let w = calculate_controlled_space_score(false, board, ad_table);
+    let b = calculate_controlled_space_score(true, board, ad_table);
+    w-b
 }
 
 // King openness is a penalty for each square the king could reach if they were a queen

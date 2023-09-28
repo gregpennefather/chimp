@@ -19,11 +19,11 @@ use super::{
 };
 
 const MATERIAL_VALUES: PieceValues = [
-    200, // Pawn
-    300, // Knight
-    300, // Bishop
-    500, // Rook
-    900, // Queen
+    180, // Pawn
+    420, // Knight
+    500, // Bishop
+    1300, // Rook
+    2300, // Queen
     0,   // King
 ];
 
