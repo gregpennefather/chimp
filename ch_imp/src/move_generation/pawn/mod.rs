@@ -4,11 +4,11 @@ use crate::{
         bitboard::Bitboard,
         board_rep::BoardRep,
         king_position_analysis::{ThreatRaycastCollision, ThreatSource},
-        see::{see_from_capture, piece_safety},
+        see::{piece_safety, see_from_capture},
     },
     r#move::Move,
     shared::{
-        board_utils::get_rank,
+        board_utils::{get_file, get_rank},
         constants::{
             MF_BISHOP_CAPTURE_PROMOTION, MF_BISHOP_PROMOTION, MF_CAPTURE, MF_DOUBLE_PAWN_PUSH,
             MF_EP_CAPTURE, MF_KNIGHT_CAPTURE_PROMOTION, MF_KNIGHT_PROMOTION,
@@ -30,16 +30,30 @@ pub(super) fn generate_pawn_moves(
     opponent_occupancy: u64,
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
-    reveal_attack: Option<ThreatRaycastCollision>
+    reveal_attack: Option<ThreatRaycastCollision>,
 ) -> Vec<Move> {
     if king_threat != None {
         let kt = king_threat.unwrap();
-        return generate_pawn_moves_when_threatened(index, kt.from, kt.threat_ray_mask, board, ad_table, reveal_attack);
+        return generate_pawn_moves_when_threatened(
+            index,
+            kt.from,
+            kt.threat_ray_mask,
+            board,
+            ad_table,
+            reveal_attack,
+        );
     }
 
     if pin != None && pin.unwrap().reveal_attack == false {
         let pin = pin.unwrap();
-        return generate_pawn_moves_when_threatened(index, pin.from, pin.threat_ray_mask, board, ad_table, reveal_attack);
+        return generate_pawn_moves_when_threatened(
+            index,
+            pin.from,
+            pin.threat_ray_mask,
+            board,
+            ad_table,
+            reveal_attack,
+        );
     }
 
     let mut moves = Vec::new();
@@ -186,7 +200,7 @@ fn generate_pawn_moves_when_threatened(
     threat_ray_mask: u64,
     board: BoardRep,
     ad_table: &mut AttackAndDefendTable,
-    reveal_attack: Option<ThreatRaycastCollision>
+    reveal_attack: Option<ThreatRaycastCollision>,
 ) -> Vec<Move> {
     let mut moves = Vec::new();
     let offset_file: i8 = if board.black_turn { -1 } else { 1 };
@@ -367,7 +381,7 @@ fn get_see(
     board: BoardRep,
     index: u8,
     is_capture: bool,
-    reveal_attack: Option<ThreatRaycastCollision>
+    reveal_attack: Option<ThreatRaycastCollision>,
 ) -> i8 {
     let attacked_piece_type = board.get_piece_type_at_index(index);
     let friendly = ad_table.get_attacked_by(index, board, board.black_turn);
@@ -383,13 +397,21 @@ fn get_see(
     };
 
     if is_capture {
-        see_from_capture(
-            PieceType::Pawn,
-            friendly,
-            attacked_piece_type,
-            opponent,
-        )
+        see_from_capture(PieceType::Pawn, friendly, attacked_piece_type, opponent)
     } else {
         piece_safety(PieceType::Pawn, true, opponent, friendly)
     }
+}
+
+pub(crate) fn get_pawn_threat_positions(index: u8, is_black: bool) -> u64 {
+    let file = get_file(index);
+    let offset_file: i8 = if is_black { -1 } else { 1 };
+    let mut r = 0;
+    if file != 0 {
+        r |= 1 << ((index as i8 + (offset_file * 8)) + 1)
+    }
+    if file != 7 {
+        r |= 1 << ((index as i8 + (offset_file * 8)) - 1)
+    }
+    r
 }

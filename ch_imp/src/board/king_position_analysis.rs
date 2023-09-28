@@ -199,7 +199,7 @@ fn is_pawn_check(
     (check, double_check, Some(threat))
 }
 
-pub(super) fn get_pawn_threat_source(pos: u8, piece_is_black: bool) -> u64 {
+pub(crate) fn get_pawn_threat_source(pos: u8, piece_is_black: bool) -> u64 {
     let rank = get_rank(pos);
     if (rank == 0 && piece_is_black) || (rank == 7 && !piece_is_black) {
         return 0

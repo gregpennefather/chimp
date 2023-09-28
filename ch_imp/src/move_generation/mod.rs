@@ -15,7 +15,7 @@ use crate::{
 mod king;
 mod knight;
 pub mod legal_move;
-mod pawn;
+pub(crate) mod pawn;
 pub(crate) mod sliding;
 mod tests;
 

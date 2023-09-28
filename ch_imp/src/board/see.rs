@@ -355,6 +355,36 @@ mod test {
     }
 
     #[test]
+    fn see_from_capture_scenario_4() {
+        // 1r1q1rk1/1b1n1p1p/p2b1np1/3pN3/3P1P2/P1N5/3BB1PP/1R1Q1RK1 b - - 0 1
+        // attacking e5
+        // pawns defending knight attacked by knight and bishop should be equal terminating after pawn count take
+        let friendly = AttackedBy {
+            pawns: 0,
+            knights: 1,
+            rooks: 0,
+            bishop: true,
+            queen: true,
+            king: false,
+        };
+
+        let opponent = AttackedBy {
+            pawns: 2,
+            knights: 0,
+            rooks: 0,
+            bishop: false,
+            queen: false,
+            king: false,
+        };
+
+        assert_eq!(
+            see_from_capture(PieceType::Knight, friendly, PieceType::Bishop, opponent),
+            0
+        )
+    }
+
+
+    #[test]
     fn piece_safety_bishop_safe_move() {
         // 1r1n1rk1/3qp2p/P2p2p1/1p6/5pP1/1p3P1P/5PB1/R1QR2K1 w - - 0 1
         // retreating to h1
@@ -381,6 +411,22 @@ mod test {
         assert_eq!(
             piece_safety(PieceType::Queen, true, opponent, friendly),
             -PIECE_TYPE_EXCHANGE_VALUE[5]
+        )
+    }
+
+    #[test]
+
+    fn piece_safety_scenario_0() {
+        // 1r1q1rk1/1b1n1p1p/p4np1/3pN3/Q2P1P2/b1N5/3BB1PP/1R3RK1 b - - 1
+        // pawn threatened by queen and bishop but defended by bishop would be a negative exchange of a single pawn
+        let board = BoardRep::from_fen("1r1q1rk1/1b1n1p1p/p4np1/3pN3/Q2P1P2/b1N5/3BB1PP/1R3RK1 b - - 1 2 ".into());
+
+        let friendly: AttackedBy = board.get_attacked_by(index_from_coords("a6"), true);
+        let opponent = board.get_attacked_by(index_from_coords("a6"), false);
+
+        assert_eq!(
+            piece_safety(PieceType::Pawn, false, opponent, friendly),
+            -PIECE_TYPE_EXCHANGE_VALUE[1]
         )
     }
 }

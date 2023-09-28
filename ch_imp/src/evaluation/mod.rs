@@ -2,7 +2,8 @@ use log::trace;
 
 use crate::{
     board::{
-        board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision, see::piece_safety, attack_and_defend_lookups::AttackAndDefendTable,
+        attack_and_defend_lookups::AttackAndDefendTable, board_rep::BoardRep,
+        king_position_analysis::ThreatRaycastCollision, see::piece_safety,
     },
     evaluation::pawn_structure::get_pawn_structure_eval,
     shared::piece_type::PieceType,
@@ -14,11 +15,12 @@ mod endgame;
 mod eval_precomputed_data;
 mod opening;
 pub mod pawn_structure;
+mod shared;
 mod utils;
 
 const MAX_PHASE_MATERIAL_SCORE: i16 = 24;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PieceSafetyInfo {
     pub index: u8,
     pub score: i8,
@@ -28,6 +30,8 @@ pub struct PieceSafetyInfo {
 
 pub fn calculate(
     board: BoardRep,
+    white_in_check: bool,
+    black_in_check: bool,
     black_pins: Vec<ThreatRaycastCollision>,
     white_pins: Vec<ThreatRaycastCollision>,
 ) -> i16 {
@@ -49,7 +53,9 @@ pub fn calculate(
         &black_pins,
         pawn_structure_eval.opening,
         &piece_safety_results,
-        &mut ad_table
+        &mut ad_table,
+        white_in_check,
+        black_in_check,
     ) as i32;
     let endgame = endgame::calculate(
         board,
@@ -75,7 +81,10 @@ pub fn calculate_game_phase(board: BoardRep) -> i16 {
     return (material_score * 256 + (MAX_PHASE_MATERIAL_SCORE / 2)) / MAX_PHASE_MATERIAL_SCORE;
 }
 
-fn generate_piece_safety(ad_table: &mut  AttackAndDefendTable, board: BoardRep) -> Vec<PieceSafetyInfo> {
+fn generate_piece_safety(
+    ad_table: &mut AttackAndDefendTable,
+    board: BoardRep,
+) -> Vec<PieceSafetyInfo> {
     let mut r = Vec::new();
     let mut w_o = board.white_occupancy;
     while w_o != 0 {
@@ -92,7 +101,12 @@ fn generate_piece_safety(ad_table: &mut  AttackAndDefendTable, board: BoardRep) 
     r
 }
 
-fn get_piece_safety(ad_table: &mut AttackAndDefendTable, board: BoardRep, index: u8, is_black: bool) -> PieceSafetyInfo {
+fn get_piece_safety(
+    ad_table: &mut AttackAndDefendTable,
+    board: BoardRep,
+    index: u8,
+    is_black: bool,
+) -> PieceSafetyInfo {
     let attacked_by = ad_table.get_attacked_by(index, board, !is_black);
     let defended_by = ad_table.get_attacked_by(index, board, is_black);
     let piece_type = board.get_piece_type_at_index(index);

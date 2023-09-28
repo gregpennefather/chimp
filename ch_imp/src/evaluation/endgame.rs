@@ -7,14 +7,14 @@ use crate::{
         board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision, position::Position,
     },
     r#move::Move,
-    shared::piece_type::PieceType,
+    shared::piece_type::PieceType, evaluation::shared::count_knight_outposts,
 };
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
     utils::{
         distance_to_center, manhattan_distance, manhattan_distance_to_center,
-        piece_aggregate_score, piece_square_score, sum_piece_safety_penalties,
+        piece_aggregate_score, piece_square_score, get_piece_safety_penalty,
     }, PieceSafetyInfo,
 };
 
@@ -47,6 +47,7 @@ const KNIGHT_SQUARE_FACTOR: i16 = 2;
 const DOUBLE_BISHOP_REWARD: i16 = MATERIAL_VALUES[0] / 2;
 const DOUBLE_KNIGHT_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
 const DOUBLE_ROOK_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
+const KNIGHT_OUTPOST_REWARD: i16 = 15;
 
 pub fn calculate(
     board: BoardRep,
@@ -67,7 +68,7 @@ pub fn calculate(
 
     eval += turn_order_advantage(board, &white_pinned, &black_pinned);
 
-    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES, board.black_turn);
+    eval += get_piece_safety_penalty(piece_safety_results, MATERIAL_VALUES, board.black_turn);
 
     eval
 }
@@ -134,6 +135,11 @@ fn piece_positioning_score(board: BoardRep) -> i16 {
         board.black_occupancy & board.knight_bitboard,
         KNIGHT_SQUARE_SCORE,
     ) * KNIGHT_SQUARE_FACTOR;
+
+    // Knight Outpost
+    score += count_knight_outposts(false, board.white_occupancy & board.knight_bitboard, board.white_occupancy & board.pawn_bitboard, board.black_occupancy & board.pawn_bitboard) * KNIGHT_OUTPOST_REWARD;
+    score -= count_knight_outposts(false, board.white_occupancy & board.knight_bitboard, board.white_occupancy & board.pawn_bitboard, board.black_occupancy & board.pawn_bitboard) * KNIGHT_OUTPOST_REWARD;
+
     trace!("piece_positioning_score: {score}");
     score
 }

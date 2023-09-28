@@ -1,6 +1,6 @@
 use crate::{
-    board::{board_rep::BoardRep, attack_and_defend_lookups::AttackAndDefendTable},
-    move_generation::pawn::{ep_leads_to_orthogonal_check, generate_pawn_moves, legal_move::is_legal_pawn_move},
+    board::{board_rep::BoardRep, attack_and_defend_lookups::AttackAndDefendTable, bitboard::Bitboard},
+    move_generation::pawn::{ep_leads_to_orthogonal_check, generate_pawn_moves, legal_move::is_legal_pawn_move, get_pawn_threat_positions},
     shared::{board_utils::index_from_coords, constants::MF_ROOK_CAPTURE_PROMOTION, piece_type::PieceType}, r#move::Move,
 };
 
@@ -51,4 +51,16 @@ fn is_legal_capture_promotion_scenario_0() {
     let board = BoardRep::from_fen("3n2k1/P4r1p/3qp1p1/1r1p4/1p3pP1/1Q3P1P/R4P2/2R2BK1 w - - 1 1".into());
     let m = Move::new(index_from_coords("a7"), index_from_coords("b8"), MF_ROOK_CAPTURE_PROMOTION, PieceType::Pawn, false, 3);
     assert!(!is_legal_pawn_move(m, board));
+}
+
+#[test]
+fn get_pawn_threat_positions_a_file() {
+    assert_eq!(get_pawn_threat_positions(index_from_coords("a3"), false), 1 << index_from_coords("b4"));
+    assert_eq!(get_pawn_threat_positions(index_from_coords("a6"), true), 1 << index_from_coords("b5"));
+}
+
+#[test]
+fn get_pawn_threat_positions_h_file() {
+    assert_eq!(get_pawn_threat_positions(index_from_coords("h6"), false), 1 << index_from_coords("g7"));
+    assert_eq!(get_pawn_threat_positions(index_from_coords("h4"), true), 1 << index_from_coords("g3"));
 }

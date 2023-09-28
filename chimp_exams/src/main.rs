@@ -38,7 +38,7 @@ const TEST_TIME_MILLISECONDS: i32 = 250;
 
 fn main() {
     full_exam();
-    //quick_test(STRATEGIC_TEST_SUITE_FILES[3]);
+    //quick_test(STRATEGIC_TEST_SUITE_FILES[5]);
 }
 
 fn quick_test(test_suite_file_info: (&str, &str)) {

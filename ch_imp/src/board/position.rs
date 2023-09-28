@@ -62,7 +62,7 @@ impl Position {
         let black_king_analysis = board.get_black_king_analysis();
         let mut eval = if board.black_turn { -1 } else { 1 };
 
-        eval *= evaluation::calculate(board, black_king_analysis.pins, white_king_analysis.pins);
+        eval *= evaluation::calculate(board, white_king_analysis.check,black_king_analysis.check,black_king_analysis.pins, white_king_analysis.pins);
 
         Self {
             board,
@@ -95,7 +95,7 @@ impl Debug for Position {
 impl Default for Position {
     fn default() -> Self {
         let board = BoardRep::default();
-        let eval = evaluation::calculate(board, Vec::new(), Vec::new());
+        let eval = evaluation::calculate(board,  false, false, Vec::new(), Vec::new());
 
         Self {
             board,

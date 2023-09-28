@@ -1,6 +1,9 @@
 use log::trace;
 
-use crate::{board::{bitboard::Bitboard, board_rep::BoardRep, position::Position}, shared::board_utils::get_coords_from_index};
+use crate::{
+    board::{bitboard::Bitboard, board_rep::BoardRep, position::Position},
+    shared::board_utils::get_coords_from_index,
+};
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
@@ -49,23 +52,58 @@ pub(super) fn piece_square_score(piece_bitboard: u64, piece_value_board: PieceVa
     r
 }
 
-pub fn sum_piece_safety_penalties(
+// Calculates the score penalty for hanging pieces
+// For active players turn the penalty is:
+// - 75% of second least valuable piece
+// - + 5 per unsafe piece  > 2
+// For inactive player the penalty is:
+// - 75% of most valuable piece
+// - +10 per unsafe piece > 1
+pub fn get_piece_safety_penalty(
     piece_safety_results: &Vec<PieceSafetyInfo>,
     piece_values: PieceValues,
-    black_turn: bool
+    black_turn: bool,
 ) -> i16 {
     let mut r = 0;
 
-    let unsafe_friendly = piece_safety_results.iter().filter(|r| r.is_black == black_turn).count();
+    let mut unsafe_active: Vec<PieceSafetyInfo> = piece_safety_results
+        .clone()
+        .into_iter()
+        .filter(|r| r.is_black == black_turn && r.score < 0)
+        .collect();
 
-    for &result in piece_safety_results {
-        if result.score < 0 && (result.is_black != black_turn || unsafe_friendly > 1) {
-            if result.is_black {
-                r += piece_values[result.piece_type as usize - 1] / 2;
-            } else {
-                r -= piece_values[result.piece_type as usize - 1] / 2;
-            }
+    if unsafe_active.len() > 1 {
+        unsafe_active.sort_by(|a, b| b.piece_type.cmp(&a.piece_type));
+        let second_lvp = unsafe_active[1].piece_type;
+        if black_turn {
+            r += piece_values[second_lvp as usize - 1] / 4 * 3;
+            r += (unsafe_active.len() as i16 - 2) * 5;
+        } else {
+            r -= piece_values[second_lvp as usize - 1] / 4 * 3;
+            r -= (unsafe_active.len() as i16 - 2) * 5;
         }
+
+        trace!("active {r}: {second_lvp:?} {:?}", unsafe_active);
+    }
+
+    let mut unsafe_inactive: Vec<PieceSafetyInfo> = piece_safety_results
+        .clone()
+        .into_iter()
+        .filter(|r| r.is_black != black_turn && r.score < 0)
+        .collect();
+
+    if unsafe_inactive.len() > 0 {
+        unsafe_inactive.sort_by(|a, b| b.piece_type.cmp(&a.piece_type));
+        let second_lvp = unsafe_inactive[0].piece_type;
+        if black_turn {
+            r -= piece_values[second_lvp as usize - 1] / 8 * 7;
+            r -= (unsafe_inactive.len() as i16 - 1) * 10;
+        } else {
+            r += piece_values[second_lvp as usize - 1] / 8 * 7;
+            r += (unsafe_inactive.len() as i16 - 1) * 10;
+        }
+
+        trace!("inactive {r}: {second_lvp:?} {:?}", unsafe_active);
     }
 
     trace!("piece safety: {r}");

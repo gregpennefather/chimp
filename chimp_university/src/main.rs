@@ -214,6 +214,11 @@ fn main() {
 
     //test_ab_search("8/8/8/8/8/7R/4K1k1/8 w - - 22 12".into(), 10);
 
+    println!("xe5 xe5: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p4np1/3pP3/3P4/P1N5/3BB1PP/1R1Q1RK1 b - - 0 2".into()).eval);
+    println!("xa3 Qa4: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p4np1/3pN3/Q2P1P2/b1N5/3BB1PP/1R3RK1 b - - 1 2".into()).eval);
+    println!("Ke4 xe4: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p2b2p1/3pN3/3PNP2/P7/3BB1PP/1R1Q1RK1 b - - 0 2".into()).eval);
+    // test_it_deep_search("1r1q1rk1/1b1n1p1p/p2b1np1/3pN3/3P1P2/P1N5/3BB1PP/1R1Q1RK1 b - - 0 1".into(), 500)
+
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 8));
     // println!("{:?}", MOVE_DATA.is_slide_legal(0, 9));
     // println!("{:?}", MOVE_DATA.is_slide_legal(1, 9));
@@ -234,7 +239,7 @@ fn main() {
     // println!("5: {}", Position::from_fen("7K/8/6k1/5r2/8/8/8/8 b - - 15 8".into()).eval);
 
     //perfts();
-    park_table();
+    //park_table();
     //test_engine();
 }
 

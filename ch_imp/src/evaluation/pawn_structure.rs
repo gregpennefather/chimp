@@ -4,26 +4,20 @@ use log::error;
 use rand::RngCore;
 
 use crate::{
-    board::{bitboard::Bitboard, position::Position, board_rep::BoardRep},
+    board::{bitboard::Bitboard, board_rep::BoardRep, position::Position},
     shared::board_utils::{get_file, get_rank, reverse_position_orientation},
 };
 
-const BOARD_FILES: [u64; 8] = [
-    9259542123273814144,
-    4629771061636907072,
-    2314885530818453536,
-    1157442765409226768,
-    578721382704613384,
-    289360691352306692,
-    144680345676153346,
-    72340172838076673,
-];
+use super::shared::{BOARD_FILES, CENTER_FILES};
 
-const CENTER_FILES: u64 = BOARD_FILES[2] | BOARD_FILES[3] | BOARD_FILES[4] | BOARD_FILES[5];
+
+
+
 
 const PAWN_SHIELD_RANK_2_MASK: [u64; 8] = [57344, 57344, 57344, 0, 0, 1792, 1792, 1792];
 
-const PAWN_SHIELD_RANK_3_MASK: [u64; 8] = [14680064, 14680064, 14680064, 0, 0, 458752, 458752, 458752];
+const PAWN_SHIELD_RANK_3_MASK: [u64; 8] =
+    [14680064, 14680064, 14680064, 0, 0, 458752, 458752, 458752];
 
 const OPENING_DOUBLE_PENALTY: i16 = 5;
 const ENDGAME_DOUBLE_PENALTY: i16 = 10;
@@ -43,7 +37,7 @@ const ENDGAME_OPEN_REWARD: i16 = 10;
 const OPENING_PASSED_REWARD: i16 = 5;
 const ENDGAME_PASSED_REWARD: i16 = 10;
 
-const PAWN_SHIELD_REWARD : i16 = 50;
+const PAWN_SHIELD_REWARD: i16 = 50;
 
 const PAWN_CENTER_ADVANTAGE_REWARD: i16 = 15;
 
@@ -52,7 +46,7 @@ const PAWN_CENTER_ADVANTAGE_REWARD: i16 = 15;
 pub struct PawnStructureEval {
     pub opening: i16,
     pub endgame: i16,
-    pub p_count: u8
+    pub p_count: u8,
 }
 
 pub struct PawnZorb {
@@ -64,8 +58,8 @@ impl PawnZorb {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
 
-        let mut pawn_table:  [[u64; 2]; 48] = [[0; 2]; 48];
-        let mut king_table:  [[u64; 2]; 64] = [[0; 2]; 64];
+        let mut pawn_table: [[u64; 2]; 48] = [[0; 2]; 48];
+        let mut king_table: [[u64; 2]; 64] = [[0; 2]; 64];
 
         for i in 0..48 {
             pawn_table[i][0] = rng.next_u64();
@@ -89,7 +83,11 @@ impl PawnZorb {
         while pawn_occupancy != 0 {
             let pos = pawn_occupancy.trailing_zeros();
             assert!(pos >= 8 && pos < 56);
-            let colour = if board.white_occupancy.occupied(pos as u8) { 0 } else { 1 };
+            let colour = if board.white_occupancy.occupied(pos as u8) {
+                0
+            } else {
+                1
+            };
 
             key ^= self.pawn_table[(pos - 8) as usize][colour];
             pawn_occupancy ^= 1 << pos;
@@ -113,10 +111,17 @@ impl PawnZorb {
 }
 
 lazy_static! {
-    static ref PAWN_STRUCTURE_EVAL_HASHMAP: RwLock<HashMap<u64, PawnStructureEval>> = RwLock::new(HashMap::new());
+    static ref PAWN_STRUCTURE_EVAL_HASHMAP: RwLock<HashMap<u64, PawnStructureEval>> =
+        RwLock::new(HashMap::new());
 }
 
-pub fn get_pawn_structure_eval(zorb_key: u64, w_pawns: u64, b_pawns: u64, w_king: u8, b_king: u8) -> PawnStructureEval {
+pub fn get_pawn_structure_eval(
+    zorb_key: u64,
+    w_pawns: u64,
+    b_pawns: u64,
+    w_king: u8,
+    b_king: u8,
+) -> PawnStructureEval {
     let p_count = w_pawns.count_ones() + b_pawns.count_ones();
     if p_count == 0 {
         return PawnStructureEval::default();
@@ -124,7 +129,9 @@ pub fn get_pawn_structure_eval(zorb_key: u64, w_pawns: u64, b_pawns: u64, w_king
     match lookup(zorb_key, p_count as u8) {
         Ok(option) => match option {
             Some(r) => r,
-            None => build_and_store_pawn_structure_eval(zorb_key, w_pawns, b_pawns, w_king, b_king, p_count),
+            None => build_and_store_pawn_structure_eval(
+                zorb_key, w_pawns, b_pawns, w_king, b_king, p_count,
+            ),
         },
         Err(r) => {
             error!("{r}");
@@ -133,13 +140,26 @@ pub fn get_pawn_structure_eval(zorb_key: u64, w_pawns: u64, b_pawns: u64, w_king
     }
 }
 
-fn build_and_store_pawn_structure_eval(zorb_key: u64, w_pawns: u64, b_pawns: u64, w_king: u8, b_king: u8, p_count: u32) -> PawnStructureEval {
+fn build_and_store_pawn_structure_eval(
+    zorb_key: u64,
+    w_pawns: u64,
+    b_pawns: u64,
+    w_king: u8,
+    b_king: u8,
+    p_count: u32,
+) -> PawnStructureEval {
     let eval = build_pawn_pawn_structure_eval(w_pawns, b_pawns, w_king, b_king, p_count);
     store(zorb_key, eval);
     eval
 }
 
-fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king: u8, p_count: u32) -> PawnStructureEval {
+fn build_pawn_pawn_structure_eval(
+    w_pawns: u64,
+    b_pawns: u64,
+    w_king: u8,
+    b_king: u8,
+    p_count: u32,
+) -> PawnStructureEval {
     let mut opening = 0;
     let mut endgame = 0;
 
@@ -150,7 +170,7 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     let w_attack_frontspan = calculate_attack_frontspan(w_pawns);
 
     let b_frontspan = calculate_frontspan(b_pawns_mirrored);
-    let b_attack_frontspan = calculate_frontspan(b_pawns_mirrored);
+    let b_attack_frontspan = calculate_attack_frontspan(b_pawns_mirrored);
 
     // == Doubled ==
     let w_doubles = get_doubled(w_pawns, w_frontspan).count_ones() as i16;
@@ -171,33 +191,51 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     endgame += b_isolated * ENDGAME_ISOLATED_PENALTY;
 
     // == Backward Pawns ==
-    let w_backward_pawns = get_backward_pawns(w_pawns, w_attack_frontspan, b_attack_frontspan.flip_orientation());
-    let w_backward_count =  w_backward_pawns.count_ones() as i16;
+    let w_backward_pawns = get_backward_pawns(
+        w_pawns,
+        w_attack_frontspan,
+        b_attack_frontspan.flip_orientation(),
+    );
+    let w_backward_count = w_backward_pawns.count_ones() as i16;
     opening -= w_backward_count * OPENING_BACKWARD_PENALTY;
     endgame -= w_backward_count * ENDGAME_BACKWARD_PENALTY;
 
-    let b_backward_pawns = get_backward_pawns(b_pawns, b_attack_frontspan, w_attack_frontspan.flip_orientation());
-    let b_backward_count =  b_backward_pawns.count_ones() as i16;
+    let b_backward_pawns = get_backward_pawns(
+        b_pawns,
+        b_attack_frontspan,
+        w_attack_frontspan.flip_orientation(),
+    );
+    let b_backward_count = b_backward_pawns.count_ones() as i16;
     opening += b_backward_count * OPENING_BACKWARD_PENALTY;
     endgame += b_backward_count * ENDGAME_BACKWARD_PENALTY;
 
     // == Open Pawns ==
     let w_open_pawns = get_open_pawns(w_pawns, b_frontspan.flip_orientation());
-    let w_open_count =  w_open_pawns.count_ones() as i16;
+    let w_open_count = w_open_pawns.count_ones() as i16;
     opening += w_open_count * OPENING_OPEN_REWARD;
     endgame += w_open_count * ENDGAME_OPEN_REWARD;
 
     let b_open_pawns = get_open_pawns(b_pawns, w_frontspan);
-    let b_open_count =  b_open_pawns.count_ones() as i16;
+    let b_open_count = b_open_pawns.count_ones() as i16;
     opening -= b_open_count * OPENING_OPEN_REWARD;
     endgame -= b_open_count * ENDGAME_OPEN_REWARD;
 
     // == Passed Pawns ==
-    let w_passed_pawns = get_passed_pawns(w_pawns, b_frontspan.flip_orientation(), b_attack_frontspan.flip_orientation()).count_ones() as i16;
+    let w_passed_pawns = get_passed_pawns(
+        w_pawns,
+        b_frontspan.flip_orientation(),
+        b_attack_frontspan.flip_orientation(),
+    )
+    .count_ones() as i16;
     opening += w_passed_pawns * OPENING_PASSED_REWARD;
     endgame += w_passed_pawns * ENDGAME_PASSED_REWARD;
 
-    let b_passed_pawns = get_passed_pawns(b_pawns_mirrored, w_frontspan.flip_orientation(), w_attack_frontspan.flip_orientation()).count_ones() as i16;
+    let b_passed_pawns = get_passed_pawns(
+        b_pawns_mirrored,
+        w_frontspan.flip_orientation(),
+        w_attack_frontspan.flip_orientation(),
+    )
+    .count_ones() as i16;
     opening -= b_passed_pawns * OPENING_PASSED_REWARD;
     endgame -= b_passed_pawns * ENDGAME_PASSED_REWARD;
 
@@ -217,9 +255,12 @@ fn build_pawn_pawn_structure_eval(w_pawns: u64, b_pawns: u64, w_king: u8, b_king
     // == Central Pawn Balance
     opening += get_central_pawn_balance(w_open_pawns, b_open_pawns);
 
-    PawnStructureEval { opening, endgame, p_count: p_count as u8 }
+    PawnStructureEval {
+        opening,
+        endgame,
+        p_count: p_count as u8,
+    }
 }
-
 
 fn lookup(zorb_key: u64, p_count: u8) -> Result<Option<PawnStructureEval>, String> {
     let binding = PAWN_STRUCTURE_EVAL_HASHMAP.try_read().unwrap();
@@ -260,7 +301,7 @@ pub fn calculate_frontspan(mut pawn_occupancy: u64) -> u64 {
     r
 }
 
-fn calculate_attack_frontspan(mut pawn_occupancy: u64) -> u64 {
+pub(super) fn calculate_attack_frontspan(mut pawn_occupancy: u64) -> u64 {
     let mut r = 0;
     while pawn_occupancy != 0 {
         let pos = pawn_occupancy.trailing_zeros() as u8;
@@ -341,7 +382,7 @@ pub fn get_backward_pawns(a_pawns: u64, a_attack_frontspan: u64, b_attack_fronts
     (stops & b_attack_frontspan & !a_attack_frontspan) >> 8
 }
 
-pub fn get_open_pawns(a_pawns:u64, b_front_span: u64) -> u64 {
+pub fn get_open_pawns(a_pawns: u64, b_front_span: u64) -> u64 {
     a_pawns & !b_front_span
 }
 
@@ -357,7 +398,8 @@ pub fn get_passed_pawns(a_pawns: u64, b_front_span: u64, b_attack_frontspan: u64
 fn get_central_pawn_balance(w_open_pawns: u64, b_open_pawns: u64) -> i16 {
     let c_w = w_open_pawns & CENTER_FILES;
     let c_b = b_open_pawns & CENTER_FILES;
-    i16::clamp(c_w.count_ones() as i16 - c_b.count_ones() as i16, -1, 1) * PAWN_CENTER_ADVANTAGE_REWARD
+    i16::clamp(c_w.count_ones() as i16 - c_b.count_ones() as i16, -1, 1)
+        * PAWN_CENTER_ADVANTAGE_REWARD
 }
 
 #[cfg(test)]
@@ -418,7 +460,13 @@ mod test {
     #[test]
     fn get_starting_position_eval() {
         let pos = Position::default();
-        let eval = build_pawn_pawn_structure_eval(pos.board.white_occupancy & pos.board.pawn_bitboard, pos.board.black_occupancy & pos.board.pawn_bitboard, pos.board.white_king_position, pos.board.black_king_position, 16);
+        let eval = build_pawn_pawn_structure_eval(
+            pos.board.white_occupancy & pos.board.pawn_bitboard,
+            pos.board.black_occupancy & pos.board.pawn_bitboard,
+            pos.board.white_king_position,
+            pos.board.black_king_position,
+            16,
+        );
         assert_eq!(eval.opening, 0);
         assert_eq!(eval.endgame, 0);
     }
@@ -427,15 +475,17 @@ mod test {
     fn white_pawn_advantage_in_center() {
         let w = 0.flip(index_from_coords("d2"));
         let b = 0;
-        let eval = get_central_pawn_balance(w,b);
+        let eval = get_central_pawn_balance(w, b);
         assert_eq!(eval, PAWN_CENTER_ADVANTAGE_REWARD);
     }
 
     #[test]
     fn white_pawn_advantage_in_center_black_adv_outside_center() {
         let w = 0.flip(index_from_coords("d2"));
-        let b = 0.flip(index_from_coords("b7")).flip(index_from_coords("h6"));
-        let eval = get_central_pawn_balance(w,b);
+        let b = 0
+            .flip(index_from_coords("b7"))
+            .flip(index_from_coords("h6"));
+        let eval = get_central_pawn_balance(w, b);
         assert_eq!(eval, PAWN_CENTER_ADVANTAGE_REWARD);
     }
 }

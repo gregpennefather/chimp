@@ -1,3 +1,4 @@
+use log::trace;
 use rand::seq::index;
 
 use crate::{
@@ -22,6 +23,7 @@ use crate::{
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
     get_piece_safety,
+    shared::{count_knight_outposts, get_fork_wins},
     utils::*,
     PieceSafetyInfo,
 };
@@ -61,7 +63,10 @@ const BISHOP_SQUARE_SCORE: PieceValueBoard = [
 ];
 const BISHOP_SQUARE_FACTOR: i16 = 3;
 
-const CENTER_CONTROL_REWARD: PieceValueBoard = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,1,0,0,0,0,2,4,4,2,0,0,0,0,2,4,4,2,0,0,0,0,1,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+const CENTER_CONTROL_REWARD: PieceValueBoard = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 2, 4, 4, 2, 0, 0,
+    0, 0, 2, 4, 4, 2, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
 const CENTER_SCALE_FACTOR: i16 = 10;
 const CENTER_FIRST: usize = 18; // F3
 const CENTER_LAST: usize = 64 - 18; // C6
@@ -80,11 +85,12 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
     (PieceType::Bishop, 5),
     (PieceType::Knight, 6),
 ];
-const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 10;
+const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 25;
 
 const DOUBLE_BISHOP_REWARD: i16 = MATERIAL_VALUES[0] / 2;
 const DOUBLE_KNIGHT_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
 const DOUBLE_ROOK_PENALTY: i16 = MATERIAL_VALUES[0] / 4;
+const KNIGHT_OUTPOST_REWARD: i16 = 50;
 
 const CAN_NOT_CASTLE_PENALTY: i16 = 25;
 
@@ -95,6 +101,8 @@ pub fn calculate(
     pawn_structure_eval: i16,
     piece_safety_results: &Vec<PieceSafetyInfo>,
     ad_table: &mut AttackAndDefendTable,
+    white_in_check: bool,
+    black_in_check: bool,
 ) -> i16 {
     let mut eval = pawn_structure_eval as i16;
 
@@ -102,7 +110,7 @@ pub fn calculate(
     eval += material_score(board);
 
     // Piece Positioning
-    eval += piece_positioning_score(board);
+    eval += piece_positioning_score(board, white_in_check, black_in_check, ad_table);
 
     // Board control
     eval += get_center_control_score(ad_table, board);
@@ -114,7 +122,7 @@ pub fn calculate(
     eval += turn_order_advantage(board, white_pinned, black_pinned);
 
     // Piece Safety
-    eval += sum_piece_safety_penalties(piece_safety_results, MATERIAL_VALUES, board.black_turn);
+    eval += get_piece_safety_penalty(piece_safety_results, MATERIAL_VALUES, board.black_turn);
 
     eval
 }
@@ -160,6 +168,80 @@ fn material_score(board: BoardRep) -> i16 {
         0
     };
     score
+}
+
+fn piece_positioning_score(
+    board: BoardRep,
+    white_in_check: bool,
+    black_in_check: bool,
+    ad_table: &mut AttackAndDefendTable,
+) -> i16 {
+    let mut eval = 0;
+    // Square score
+    eval += piece_square_score(
+        board.white_occupancy & board.pawn_bitboard,
+        WHITE_PAWN_SQUARE_SCORE,
+    ) * PAWN_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.pawn_bitboard,
+        BLACK_PAWN_SQUARE_SCORE,
+    ) * PAWN_SQUARE_FACTOR;
+
+    eval += piece_square_score(
+        board.white_occupancy & board.knight_bitboard,
+        KNIGHT_SQUARE_SCORE,
+    ) * KNIGHT_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.knight_bitboard,
+        KNIGHT_SQUARE_SCORE,
+    ) * KNIGHT_SQUARE_FACTOR;
+
+    eval += piece_square_score(
+        board.white_occupancy & board.bishop_bitboard,
+        BISHOP_SQUARE_SCORE,
+    ) * BISHOP_SQUARE_FACTOR;
+    eval -= piece_square_score(
+        board.black_occupancy & board.bishop_bitboard,
+        BISHOP_SQUARE_SCORE,
+    ) * BISHOP_SQUARE_FACTOR;
+
+    // Development
+    eval += under_developed_penalty(board, board.white_occupancy);
+    eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
+
+    // Knight Outpost
+    eval += count_knight_outposts(
+        false,
+        board.white_occupancy & board.knight_bitboard,
+        board.white_occupancy & board.pawn_bitboard,
+        board.black_occupancy & board.pawn_bitboard,
+    ) * KNIGHT_OUTPOST_REWARD;
+    eval -= count_knight_outposts(
+        false,
+        board.white_occupancy & board.knight_bitboard,
+        board.white_occupancy & board.pawn_bitboard,
+        board.black_occupancy & board.pawn_bitboard,
+    ) * KNIGHT_OUTPOST_REWARD;
+
+    // How much can we win from a fork
+    eval += get_fork_wins(
+        false,
+        board,
+        MATERIAL_VALUES,
+        white_in_check,
+        black_in_check,
+        ad_table,
+    );
+    eval -= get_fork_wins(
+        true,
+        board,
+        MATERIAL_VALUES,
+        white_in_check,
+        black_in_check,
+        ad_table,
+    );
+
+    eval
 }
 
 fn king_safety(board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
@@ -337,41 +419,6 @@ fn get_square_control(index: u8, ad_table: &mut AttackAndDefendTable, board: Boa
 
     // Else see who controls the square with the least valuable piece
     square_control(white, black) as i16
-}
-
-fn piece_positioning_score(board: BoardRep) -> i16 {
-    let mut eval = 0;
-    eval += piece_square_score(
-        board.white_occupancy & board.pawn_bitboard,
-        WHITE_PAWN_SQUARE_SCORE,
-    ) * PAWN_SQUARE_FACTOR;
-    eval -= piece_square_score(
-        board.black_occupancy & board.pawn_bitboard,
-        BLACK_PAWN_SQUARE_SCORE,
-    ) * PAWN_SQUARE_FACTOR;
-
-    eval += piece_square_score(
-        board.white_occupancy & board.knight_bitboard,
-        KNIGHT_SQUARE_SCORE,
-    ) * KNIGHT_SQUARE_FACTOR;
-    eval -= piece_square_score(
-        board.black_occupancy & board.knight_bitboard,
-        KNIGHT_SQUARE_SCORE,
-    ) * KNIGHT_SQUARE_FACTOR;
-
-    eval += piece_square_score(
-        board.white_occupancy & board.bishop_bitboard,
-        BISHOP_SQUARE_SCORE,
-    ) * BISHOP_SQUARE_FACTOR;
-    eval -= piece_square_score(
-        board.black_occupancy & board.bishop_bitboard,
-        BISHOP_SQUARE_SCORE,
-    ) * BISHOP_SQUARE_FACTOR;
-
-    eval += under_developed_penalty(board, board.white_occupancy);
-    eval -= under_developed_penalty(board, board.black_occupancy.flip_orientation());
-
-    eval
 }
 
 #[cfg(test)]
