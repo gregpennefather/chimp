@@ -19,23 +19,23 @@ const PAWN_SHIELD_RANK_2_MASK: [u64; 8] = [57344, 57344, 57344, 0, 0, 1792, 1792
 const PAWN_SHIELD_RANK_3_MASK: [u64; 8] =
     [14680064, 14680064, 14680064, 0, 0, 458752, 458752, 458752];
 
-const OPENING_DOUBLE_PENALTY: i16 = 5;
-const ENDGAME_DOUBLE_PENALTY: i16 = 10;
+const OPENING_DOUBLE_PENALTY: i16 = 10;
+const ENDGAME_DOUBLE_PENALTY: i16 = 50;
 
-const OPENING_ISOLATED_PENALTY: i16 = 5;
-const ENDGAME_ISOLATED_PENALTY: i16 = 10;
+const OPENING_ISOLATED_PENALTY: i16 = 10;
+const ENDGAME_ISOLATED_PENALTY: i16 = 20;
 
-const OPENING_BACKWARD_PENALTY: i16 = 5;
-const ENDGAME_BACKWARD_PENALTY: i16 = 10;
+const OPENING_BACKWARD_PENALTY: i16 = 10;
+const ENDGAME_BACKWARD_PENALTY: i16 = 25;
 
 const OPENING_STRAGGLERS_PENALTY: i16 = 5;
-const ENDGAME_STRAGGLERS_PENALTY: i16 = 10;
+const ENDGAME_STRAGGLERS_PENALTY: i16 = 25;
 
 const OPENING_OPEN_REWARD: i16 = 5;
 const ENDGAME_OPEN_REWARD: i16 = 10;
 
-const OPENING_PASSED_REWARD: i16 = 5;
-const ENDGAME_PASSED_REWARD: i16 = 10;
+const OPENING_PASSED_REWARDS: [i16; 8] = [0, 20, 30, 40, 60, 80, 100, 0];
+const ENDGAME_PASSED_REWARDS: [i16; 8] = [0, 25, 40, 55, 70, 95, 125, 0];
 
 const PAWN_SHIELD_REWARD: i16 = 100;
 
@@ -225,19 +225,17 @@ fn build_pawn_pawn_structure_eval(
         w_pawns,
         b_frontspan.flip_orientation(),
         b_attack_frontspan.flip_orientation(),
-    )
-    .count_ones() as i16;
-    opening += w_passed_pawns * OPENING_PASSED_REWARD;
-    endgame += w_passed_pawns * ENDGAME_PASSED_REWARD;
+    );
+    opening += get_passed_reward(w_passed_pawns, OPENING_PASSED_REWARDS);
+    endgame += get_passed_reward(w_passed_pawns, ENDGAME_PASSED_REWARDS);
 
     let b_passed_pawns = get_passed_pawns(
         b_pawns_mirrored,
         w_frontspan.flip_orientation(),
         w_attack_frontspan.flip_orientation(),
-    )
-    .count_ones() as i16;
-    opening -= b_passed_pawns * OPENING_PASSED_REWARD;
-    endgame -= b_passed_pawns * ENDGAME_PASSED_REWARD;
+    );
+    opening -= get_passed_reward(b_passed_pawns, OPENING_PASSED_REWARDS);
+    endgame -= get_passed_reward(b_passed_pawns, ENDGAME_PASSED_REWARDS);
 
     // == Stragglers ==
     let w_stragglers = get_straggler_pawns(w_backward_pawns, w_open_pawns).count_ones() as i16;
@@ -260,6 +258,17 @@ fn build_pawn_pawn_structure_eval(
         endgame,
         p_count: p_count as u8,
     }
+}
+
+fn get_passed_reward(mut passed_pawns: u64, passed_rewards: [i16;8]) -> i16 {
+    let mut r = 0;
+    while passed_pawns != 0 {
+        let lsb = passed_pawns.trailing_zeros() as u8;
+        let rank = get_rank(lsb);
+        r += passed_rewards[rank as usize];
+        passed_pawns = passed_pawns.flip(lsb);
+    }
+    r
 }
 
 fn lookup(zorb_key: u64, p_count: u8) -> Result<Option<PawnStructureEval>, String> {
