@@ -35,6 +35,10 @@ pub(super) const BOARD_RANKS: [u64; 8] = [
     71776119061217280,
     18374686479671623680,
 ];
+
+pub(super) const ABC_FLANK: u64 = BOARD_FILES[0] | BOARD_FILES[1] | BOARD_FILES [2];
+pub(super) const FGH_FLANK: u64 = BOARD_FILES[5] | BOARD_FILES[6] | BOARD_FILES [7];
+
 pub(super) const CENTER_FILES: u64 =
     BOARD_FILES[2] | BOARD_FILES[3] | BOARD_FILES[4] | BOARD_FILES[5];
 

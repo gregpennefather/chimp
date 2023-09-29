@@ -8,7 +8,7 @@ use crate::{
     shared::board_utils::{get_file, get_rank, reverse_position_orientation},
 };
 
-use super::shared::{BOARD_FILES, CENTER_FILES};
+use super::{shared::{BOARD_FILES, CENTER_FILES}, subcategories::{king::{pawn_distance::get_pawn_distance_penalty, pawnless_files::is_on_pawnless_file}, pawn::{utils::file_fill, files::open_files}}};
 
 
 
@@ -40,6 +40,11 @@ const ENDGAME_PASSED_REWARDS: [i16; 8] = [0, 30, 55, 78, 92, 104, 137, 0];
 const PAWN_SHIELD_REWARD: i16 = 200;
 
 const PAWN_CENTER_ADVANTAGE_REWARD: i16 = 35;
+
+pub const KING_PAWN_DISTANCE_PENALTY: i16 = 11;
+
+const OPENING_KING_PAWNLESS_FILE_PENALTY: i16 = -25;
+const ENDGAME_KING_PAWNLESS_FILE_PENALTY: i16 = -25;
 
 #[derive(Clone, Copy, Debug, Default)]
 
@@ -172,6 +177,11 @@ fn build_pawn_pawn_structure_eval(
     let b_frontspan = calculate_frontspan(b_pawns_mirrored);
     let b_attack_frontspan = calculate_attack_frontspan(b_pawns_mirrored);
 
+    let w_filefill = file_fill(w_pawns);
+    let b_filefill = file_fill(b_pawns);
+
+    let open_files = open_files(w_filefill, b_filefill);
+
     // == Doubled ==
     let w_doubles = get_doubled(w_pawns, w_frontspan).count_ones() as i16;
     opening -= w_doubles * OPENING_DOUBLE_PENALTY;
@@ -252,6 +262,20 @@ fn build_pawn_pawn_structure_eval(
 
     // == Central Pawn Balance
     opening += get_central_pawn_balance(w_open_pawns, b_open_pawns);
+
+    // == King Distance To Friendly Pawn Penalty
+    endgame += get_pawn_distance_penalty(w_king, w_pawns);
+    endgame -= get_pawn_distance_penalty(b_king, b_pawns);
+
+    // == King on pawnless files (king file + adjacents)
+    if is_on_pawnless_file(w_king, open_files) {
+        opening += OPENING_KING_PAWNLESS_FILE_PENALTY;
+        endgame += ENDGAME_KING_PAWNLESS_FILE_PENALTY;
+    }
+    if is_on_pawnless_file(b_king, open_files) {
+        opening -= OPENING_KING_PAWNLESS_FILE_PENALTY;
+        endgame -= ENDGAME_KING_PAWNLESS_FILE_PENALTY;
+    }
 
     PawnStructureEval {
         opening,
