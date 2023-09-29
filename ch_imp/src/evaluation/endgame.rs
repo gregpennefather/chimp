@@ -19,7 +19,7 @@ use super::{
 };
 
 const MATERIAL_VALUES: PieceValues = [
-    180, // Pawn
+    195, // Pawn
     420, // Knight
     500, // Bishop
     1300, // Rook
@@ -35,7 +35,7 @@ const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 4, 4, 4, 4, 4, 4,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-const PAWN_SQUARE_FACTOR: i16 = 5;
+const PAWN_SQUARE_FACTOR: i16 = 10;
 
 const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
     -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0,
@@ -44,10 +44,10 @@ const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
 ];
 const KNIGHT_SQUARE_FACTOR: i16 = 2;
 
-const DOUBLE_BISHOP_REWARD: i16 = 180;
+const DOUBLE_BISHOP_REWARD: i16 = 240;
 const KNIGHT_OUTPOST_REWARD: i16 = 50;
 
-const PAWN_DIFFERENCE_SCORE: [i16; 8] = [0, 18, 36, 54, 72, 90, 108, 116];
+const PAWN_DIFFERENCE_SCORE: [i16; 8] = [0, 18, 36, 56, 78, 102, 130, 155];
 
 pub fn calculate(
     board: BoardRep,
