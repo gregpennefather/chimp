@@ -87,14 +87,13 @@ const UNDER_DEVELOPED_PENALTY_POSITIONS: [(PieceType, u8); 4] = [
 ];
 const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 25;
 
-const DOUBLE_BISHOP_REWARD: i16 = 33;
-const DOUBLE_KNIGHT_PENALTY: i16 = 50;
-const DOUBLE_ROOK_PENALTY: i16 = 25;
-const KNIGHT_OUTPOST_REWARD: i16 = 50;
-const TEMPO_REWARD: i16 = 25;
+const DOUBLE_BISHOP_REWARD: i16 = 100;
+const KNIGHT_OUTPOST_REWARD: i16 = 75;
+const TEMPO_REWARD: i16 = 50;
 
 const CAN_NOT_CASTLE_PENALTY: i16 = 25;
 
+const PAWN_DIFFERENCE_SCORE: [i16; 8] = [0, 12, 26, 38, 50, 62, 74, 86];
 
 pub fn calculate(
     board: BoardRep,
@@ -155,29 +154,11 @@ fn material_score(board: BoardRep) -> i16 {
         0
     };
 
-    // Double Knight penalty
-    score += if (board.white_occupancy & board.knight_bitboard).count_ones() == 2 {
-        DOUBLE_KNIGHT_PENALTY
-    } else {
-        0
-    };
-    score -= if (board.black_occupancy & board.knight_bitboard).count_ones() == 2 {
-        DOUBLE_KNIGHT_PENALTY
-    } else {
-        0
-    };
+    // Pawn advantage
+    let pawn_difference = (board.pawn_bitboard & board.white_occupancy).count_ones() as i16 - (board.pawn_bitboard & board.black_occupancy).count_ones() as i16;
+    let difference_score = i16::signum(pawn_difference) * PAWN_DIFFERENCE_SCORE[i16::abs(pawn_difference) as usize];
+    score += difference_score;
 
-    // Double Rook penalty
-    score += if (board.white_occupancy & board.rook_bitboard).count_ones() == 2 {
-        DOUBLE_ROOK_PENALTY
-    } else {
-        0
-    };
-    score -= if (board.black_occupancy & board.rook_bitboard).count_ones() == 2 {
-        DOUBLE_ROOK_PENALTY
-    } else {
-        0
-    };
     score
 }
 

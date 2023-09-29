@@ -223,7 +223,7 @@ fn main() {
     // }
     // println!("{draw}:\n{}", draw.to_board_format());
 
-    println!("xe5 xe5: {}", Position::from_fen("rrnbqkbnr/1ppppppp/8/8/p7/8/2PPPPPP/RNBQKBNR w KQkq - 0 1".into()).eval);
+    println!("xe5 xe5: {}", Position::from_fen("rnbqkbnr/ppp1pppp/8/8/8/8/PPPPPPPP/RN1QKBNR w KQkq - 0 1".into()).eval);
     // println!("xa3 Qa4: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p4np1/3pN3/Q2P1P2/b1N5/3BB1PP/1R3RK1 b - - 1 2".into()).eval);
     // println!("Ke4 xe4: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p2b2p1/3pN3/3PNP2/P7/3BB1PP/1R1Q1RK1 b - - 0 2".into()).eval);
     // test_it_deep_search("1r1q1rk1/1b1n1p1p/p2b1np1/3pN3/3P1P2/P1N5/3BB1PP/1R1Q1RK1 b - - 0 1".into(), 500)
