@@ -15,7 +15,7 @@ use super::{
     utils::{
         distance_to_center, manhattan_distance, manhattan_distance_to_center,
         piece_aggregate_score, piece_square_score, get_piece_safety_penalty,
-    }, PieceSafetyInfo,
+    }, PieceSafetyInfo, subcategories::mobility::get_mobility,
 };
 
 const MATERIAL_VALUES: PieceValues = [
@@ -69,6 +69,9 @@ pub fn calculate(
     eval += turn_order_advantage(board, &white_pinned, &black_pinned);
 
     eval += get_piece_safety_penalty(piece_safety_results, MATERIAL_VALUES, board.black_turn);
+
+    // Mobility
+    eval += mobility_score(board);
 
     eval
 }
@@ -188,6 +191,14 @@ fn turn_order_advantage(
     trace!("turn_order_advantage: {score}");
     score
 }
+
+
+fn mobility_score(board: BoardRep) -> i16 {
+    let w = get_mobility(false, board) as i16 - 50;
+    let b = get_mobility(true, board) as i16 - 50;
+    (w-b)*3
+}
+
 
 fn mop_up_score(king_pos: u8, b_king_pos: u8) -> i16 {
     let cmd = manhattan_distance_to_center(king_pos);

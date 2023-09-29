@@ -247,6 +247,20 @@ pub(super) fn get_least_valueable_piece_in_mask(mask: u64, board: BoardRep) -> O
     }
 }
 
+pub(super) fn get_pawn_controlled_squares(is_black: bool, board: BoardRep) -> u64 {
+    let mut control = 0;
+
+    let mut pawn_occupancy = board.pawn_bitboard & if is_black { board.black_occupancy } else { board.white_occupancy };
+
+    while pawn_occupancy != 0 {
+        let lsb = pawn_occupancy.trailing_zeros() as u8;
+        control |= get_pawn_threat_positions(lsb, is_black);
+        pawn_occupancy = pawn_occupancy.flip(lsb)
+    }
+
+    control
+}
+
 #[cfg(test)]
 mod test {
     use crate::{

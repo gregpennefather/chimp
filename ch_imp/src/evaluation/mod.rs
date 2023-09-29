@@ -17,6 +17,7 @@ mod opening;
 pub mod pawn_structure;
 mod shared;
 mod utils;
+mod subcategories;
 
 const MAX_PHASE_MATERIAL_SCORE: i16 = 24;
 

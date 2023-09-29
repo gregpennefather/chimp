@@ -25,7 +25,7 @@ use super::{
     get_piece_safety,
     shared::{count_knight_outposts, get_fork_wins, calculate_controlled_space_score},
     utils::*,
-    PieceSafetyInfo,
+    PieceSafetyInfo, subcategories::mobility::get_mobility,
 };
 
 const MATERIAL_VALUES: PieceValues = [
@@ -128,6 +128,9 @@ pub fn calculate(
 
     // Space Control
     eval += space_control(board, ad_table);
+
+    // Mobility
+    eval += mobility_score(board);
 
     // Tempo
     eval += if board.black_turn { -TEMPO_REWARD } else { TEMPO_REWARD };
@@ -318,6 +321,12 @@ fn space_control(board:BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
     let w = calculate_controlled_space_score(false, board, ad_table);
     let b = calculate_controlled_space_score(true, board, ad_table);
     w-b
+}
+
+fn mobility_score(board: BoardRep) -> i16 {
+    let w = get_mobility(false, board) as i16 - 50;
+    let b = get_mobility(true, board) as i16 - 50;
+    (w-b)*2
 }
 
 // King openness is a penalty for each square the king could reach if they were a queen
