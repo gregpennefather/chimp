@@ -8,7 +8,7 @@ use crate::{
     shared::board_utils::{get_file, get_rank, reverse_position_orientation},
 };
 
-use super::{shared::{BOARD_FILES, CENTER_FILES}, subcategories::{king::{pawn_distance::get_pawn_distance_penalty, pawnless_files::is_on_pawnless_file}, pawn::{utils::file_fill, files::open_files}}};
+use super::{shared::{BOARD_FILES, CENTER_FILES}, subcategories::{king::{pawn_distance::get_pawn_distance_penalty, is_on_pawnless_file::is_on_pawnless_file}, pawn::{utils::file_fill, files::open_files}}};
 
 
 
@@ -37,20 +37,21 @@ const ENDGAME_OPEN_REWARD: i16 = 25;
 const OPENING_PASSED_REWARDS: [i16; 8] = [0, 20, 30, 40, 60, 80, 100, 0];
 const ENDGAME_PASSED_REWARDS: [i16; 8] = [0, 30, 55, 78, 92, 104, 137, 0];
 
-const PAWN_SHIELD_REWARD: i16 = 200;
+const PAWN_SHIELD_REWARD: i16 = 150;
 
 const PAWN_CENTER_ADVANTAGE_REWARD: i16 = 35;
 
 pub const KING_PAWN_DISTANCE_PENALTY: i16 = 11;
 
-const OPENING_KING_PAWNLESS_FILE_PENALTY: i16 = -25;
-const ENDGAME_KING_PAWNLESS_FILE_PENALTY: i16 = -25;
+const OPENING_KING_PAWNLESS_FILE_PENALTY: i16 = -22;
+const ENDGAME_KING_PAWNLESS_FILE_PENALTY: i16 = -35;
 
 #[derive(Clone, Copy, Debug, Default)]
 
 pub struct PawnStructureEval {
     pub opening: i16,
     pub endgame: i16,
+    pub open_files: u64,
     pub p_count: u8,
 }
 
@@ -280,6 +281,7 @@ fn build_pawn_pawn_structure_eval(
     PawnStructureEval {
         opening,
         endgame,
+        open_files,
         p_count: p_count as u8,
     }
 }

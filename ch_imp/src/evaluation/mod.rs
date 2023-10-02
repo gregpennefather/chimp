@@ -53,6 +53,7 @@ pub fn calculate(
         &white_pins,
         &black_pins,
         pawn_structure_eval.opening,
+        pawn_structure_eval.open_files,
         &piece_safety_results,
         &mut ad_table,
         white_in_check,
@@ -63,6 +64,7 @@ pub fn calculate(
         &white_pins,
         &black_pins,
         pawn_structure_eval.endgame,
+        pawn_structure_eval.open_files,
         &piece_safety_results,
     ) as i32;
 

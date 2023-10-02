@@ -4,27 +4,37 @@ use log::trace;
 
 use crate::{
     board::{
-        board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision, position::Position,
+        bitboard, board_rep::BoardRep, king_position_analysis::ThreatRaycastCollision,
+        position::Position,
+    },
+    evaluation::{
+        shared::count_knight_outposts,
+        subcategories::{
+            pawn::forts::get_forts,
+            rook::{forts_on_rook_open_file::{get_forts_on_rook_open_file, self}, on_open_file::count_rooks_on_open_file},
+        },
     },
     r#move::Move,
-    shared::piece_type::PieceType, evaluation::shared::count_knight_outposts,
+    shared::piece_type::PieceType,
 };
 
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
+    subcategories::mobility::get_mobility,
     utils::{
-        distance_to_center, manhattan_distance, manhattan_distance_to_center,
-        piece_aggregate_score, piece_square_score, get_piece_safety_penalty,
-    }, PieceSafetyInfo, subcategories::mobility::get_mobility,
+        distance_to_center, get_piece_safety_penalty, manhattan_distance,
+        manhattan_distance_to_center, piece_aggregate_score, piece_square_score,
+    },
+    PieceSafetyInfo,
 };
 
 const MATERIAL_VALUES: PieceValues = [
-    195, // Pawn
-    420, // Knight
-    500, // Bishop
+    195,  // Pawn
+    420,  // Knight
+    500,  // Bishop
     1300, // Rook
     2300, // Queen
-    0,   // King
+    0,    // King
 ];
 
 const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
@@ -45,6 +55,7 @@ const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
 const KNIGHT_SQUARE_FACTOR: i16 = 2;
 
 const DOUBLE_BISHOP_REWARD: i16 = 240;
+const ROOK_ON_OPEN_FILE_REWARD: i16 = 120;
 const KNIGHT_OUTPOST_REWARD: i16 = 50;
 
 const PAWN_DIFFERENCE_SCORE: [i16; 8] = [0, 18, 36, 56, 78, 102, 130, 155];
@@ -54,6 +65,7 @@ pub fn calculate(
     white_pinned: &Vec<ThreatRaycastCollision>,
     black_pinned: &Vec<ThreatRaycastCollision>,
     pawn_structure: i16,
+    open_files: u64,
     piece_safety_results: &Vec<PieceSafetyInfo>,
 ) -> i16 {
     let mut eval = pawn_structure;
@@ -62,7 +74,7 @@ pub fn calculate(
 
     trace!("after mat+ps: {eval}");
 
-    eval += piece_positioning_score(board);
+    eval += piece_positioning_score(board, open_files);
 
     eval += king_positioning_analysis(board);
 
@@ -94,15 +106,16 @@ fn material_score(board: BoardRep) -> i16 {
     };
 
     // Pawn advantage
-    let pawn_difference = (board.pawn_bitboard & board.white_occupancy).count_ones() as i16 - (board.pawn_bitboard & board.black_occupancy).count_ones() as i16;
-    let difference_score = i16::signum(pawn_difference) * PAWN_DIFFERENCE_SCORE[i16::abs(pawn_difference) as usize];
+    let pawn_difference = (board.pawn_bitboard & board.white_occupancy).count_ones() as i16
+        - (board.pawn_bitboard & board.black_occupancy).count_ones() as i16;
+    let difference_score =
+        i16::signum(pawn_difference) * PAWN_DIFFERENCE_SCORE[i16::abs(pawn_difference) as usize];
     score += difference_score;
-
 
     score
 }
 
-fn piece_positioning_score(board: BoardRep) -> i16 {
+fn piece_positioning_score(board: BoardRep, open_files: u64) -> i16 {
     let mut score = 0;
     score += piece_square_score(
         board.white_occupancy & board.pawn_bitboard,
@@ -123,8 +136,44 @@ fn piece_positioning_score(board: BoardRep) -> i16 {
     ) * KNIGHT_SQUARE_FACTOR;
 
     // Knight Outpost
-    score += count_knight_outposts(false, board.white_occupancy & board.knight_bitboard, board.white_occupancy & board.pawn_bitboard, board.black_occupancy & board.pawn_bitboard) * KNIGHT_OUTPOST_REWARD;
-    score -= count_knight_outposts(false, board.white_occupancy & board.knight_bitboard, board.white_occupancy & board.pawn_bitboard, board.black_occupancy & board.pawn_bitboard) * KNIGHT_OUTPOST_REWARD;
+    score += count_knight_outposts(
+        false,
+        board.white_occupancy & board.knight_bitboard,
+        board.white_occupancy & board.pawn_bitboard,
+        board.black_occupancy & board.pawn_bitboard,
+    ) * KNIGHT_OUTPOST_REWARD;
+    score -= count_knight_outposts(
+        false,
+        board.white_occupancy & board.knight_bitboard,
+        board.white_occupancy & board.pawn_bitboard,
+        board.black_occupancy & board.pawn_bitboard,
+    ) * KNIGHT_OUTPOST_REWARD;
+
+    // Rook on open file
+    score += count_rooks_on_open_file(board.rook_bitboard & board.white_occupancy, open_files)
+        * ROOK_ON_OPEN_FILE_REWARD;
+    score -= count_rooks_on_open_file(board.rook_bitboard & board.black_occupancy, open_files)
+        * ROOK_ON_OPEN_FILE_REWARD;
+
+    // Blocking open file rook with minor piece fort
+    score += get_forts_on_rook_open_file(
+        get_forts(
+            false,
+            (board.knight_bitboard | board.bishop_bitboard) & board.white_occupancy,
+            board.pawn_bitboard & board.white_occupancy,
+        ),
+        board.rook_bitboard & board.black_occupancy,
+        open_files,
+    ) * (ROOK_ON_OPEN_FILE_REWARD / 2);
+    score -= get_forts_on_rook_open_file(
+        get_forts(
+            true,
+            (board.knight_bitboard | board.bishop_bitboard) & board.black_occupancy,
+            board.pawn_bitboard & board.black_occupancy,
+        ),
+        board.rook_bitboard & board.white_occupancy,
+        open_files,
+    ) * (ROOK_ON_OPEN_FILE_REWARD / 2);
 
     trace!("piece_positioning_score: {score}");
     score
@@ -133,15 +182,10 @@ fn piece_positioning_score(board: BoardRep) -> i16 {
 fn king_positioning_analysis(board: BoardRep) -> i16 {
     let mut score = 0;
 
-
     score += match orthogonal_piece_difference(board) {
-        1..=i8::MAX => {
-            mop_up_score(board.black_king_position, board.white_king_position)
-        },
-        i8::MIN..=-1 => {
-            -mop_up_score(board.white_king_position, board.black_king_position)
-        },
-        _ => 0
+        1..=i8::MAX => mop_up_score(board.black_king_position, board.white_king_position),
+        i8::MIN..=-1 => -mop_up_score(board.white_king_position, board.black_king_position),
+        _ => 0,
     };
 
     trace!("king_positioning_analysis: {score}");
@@ -175,13 +219,11 @@ fn turn_order_advantage(
     score
 }
 
-
 fn mobility_score(board: BoardRep) -> i16 {
     let w = get_mobility(false, board) as i16 - 50;
     let b = get_mobility(true, board) as i16 - 50;
-    (w-b)*3
+    (w - b) * 3
 }
-
 
 fn mop_up_score(king_pos: u8, b_king_pos: u8) -> i16 {
     let cmd = manhattan_distance_to_center(king_pos);
@@ -194,5 +236,5 @@ fn orthogonal_piece_difference(board: BoardRep) -> i8 {
     let orthog_pieces = board.rook_bitboard | board.queen_bitboard;
     let w = (orthog_pieces & board.white_occupancy).count_ones() as i8;
     let b = (orthog_pieces & board.black_occupancy).count_ones() as i8;
-    w-b
+    w - b
 }

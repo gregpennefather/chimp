@@ -1,3 +1,8 @@
+use crate::board::bitboard::Bitboard;
+
+const NOT_H_FILE :u64 = 18374403900871474942;
+const NOT_A_FILE :u64 = 9187201950435737471;
+
 pub fn south_file_fill(mut pawns: u64) -> u64 {
     pawns |= pawns >> 8;
     pawns |= pawns >> 16;
@@ -14,6 +19,30 @@ pub fn north_file_fill(mut pawns: u64) -> u64 {
 
 pub fn file_fill(mut pawns: u64) -> u64 {
     north_file_fill(pawns) | south_file_fill(pawns)
+}
+
+pub fn get_pawn_attacks(is_black:bool, pawns: u64) -> u64 {
+    if is_black {
+        b_pawn_east_attacks(pawns) | b_pawn_west_attacks(pawns)
+    } else {
+        w_pawn_east_attacks(pawns) | w_pawn_west_attacks(pawns)
+    }
+}
+
+fn w_pawn_east_attacks(pawns: u64) -> u64 {
+    pawns << 9 & NOT_H_FILE
+}
+
+fn w_pawn_west_attacks(pawns: u64) -> u64 {
+    pawns << 7 & NOT_A_FILE
+}
+
+fn b_pawn_east_attacks(pawns: u64) -> u64 {
+    pawns >> 7 & NOT_H_FILE
+}
+
+fn b_pawn_west_attacks(pawns: u64) -> u64 {
+    pawns >> 9 & NOT_A_FILE
 }
 
 #[cfg(test)]

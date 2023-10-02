@@ -223,7 +223,12 @@ fn main() {
     // }
     // println!("{draw}:\n{}", draw.to_board_format());
 
-    println!("xe5 xe5: {}", Position::from_fen("rnbqkbnr/ppp1pppp/8/8/8/8/PPPPPPPP/RN1QKBNR w KQkq - 0 1".into()).eval);
+    let not_h = !((0 as u64).set_file(7));
+    println!("{not_h}:\n{}", not_h.to_board_format());
+    let not_a = !((0 as u64).set_file(0));
+    println!("{not_a}:\n{}", not_a.to_board_format());
+
+    //println!("xe5 xe5: {}", Position::from_fen("rnbqkbnr/ppp1pppp/8/8/8/8/PPPPPPPP/RN1QKBNR w KQkq - 0 1".into()).eval);
     // println!("xa3 Qa4: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p4np1/3pN3/Q2P1P2/b1N5/3BB1PP/1R3RK1 b - - 1 2".into()).eval);
     // println!("Ke4 xe4: {}", Position::from_fen("1r1q1rk1/1b1n1p1p/p2b2p1/3pN3/3PNP2/P7/3BB1PP/1R1Q1RK1 b - - 0 2".into()).eval);
     // test_it_deep_search("1r1q1rk1/1b1n1p1p/p2b1np1/3pN3/3P1P2/P1N5/3BB1PP/1R1Q1RK1 b - - 0 1".into(), 500)
@@ -430,7 +435,7 @@ fn park_table() {
     let _handle = log4rs::init_config(config).unwrap();
 
     let start = Instant::now();
-    let position: String = "1R6/R7/8/7K/8/5k2/8/8 b - - 1 1".into();
+    let position: String = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".into();
     let mut w_engine: ChimpEngine = ChimpEngine::from_position(position.clone());
     let mut b_engine: ChimpEngine = ChimpEngine::from_position(position.clone());
     let mut white_turn = !w_engine.black_turn();
@@ -440,7 +445,7 @@ fn park_table() {
     let mut black_ms = 5000;
     let inc_ms = 1000;
     info!("Park Table:");
-    for _i in 0..30 {
+    for _i in 0..200 {
         let timer = Instant::now();
         if white_turn {
             w_engine.position(get_moves_string(&move_ucis).split_ascii_whitespace());

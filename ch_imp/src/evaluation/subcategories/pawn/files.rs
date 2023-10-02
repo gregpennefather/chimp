@@ -1,3 +1,5 @@
+use crate::board::board_rep::BoardRep;
+
 use super::utils::file_fill;
 
 pub fn closed_files(white_file_fill: u64, black_file_fill: u64) -> u64 {
@@ -14,6 +16,10 @@ pub fn half_open_or_open_files(pawns: u64) -> u64 {
 
 pub fn half_open_files(a_file_fill: u64, b_file_fill: u64) -> u64 {
     !a_file_fill ^ open_files(a_file_fill, b_file_fill)
+}
+
+pub fn board_open_files(board: BoardRep) -> u64 {
+    !file_fill(board.pawn_bitboard)
 }
 
 #[cfg(test)]

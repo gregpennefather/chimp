@@ -25,7 +25,7 @@ use super::{
     get_piece_safety,
     shared::{count_knight_outposts, get_fork_wins, calculate_controlled_space_score},
     utils::*,
-    PieceSafetyInfo, subcategories::mobility::get_mobility,
+    PieceSafetyInfo, subcategories::{mobility::get_mobility, rook::on_open_file::count_rooks_on_open_file},
 };
 
 const MATERIAL_VALUES: PieceValues = [
@@ -89,7 +89,9 @@ const UNDER_DEVELOPED_PENALTY_FACTOR: i16 = 25;
 
 const DOUBLE_BISHOP_REWARD: i16 = 100;
 const KNIGHT_OUTPOST_REWARD: i16 = 75;
+const ROOK_ON_OPEN_FILE_REWARD: i16 = 100;
 const TEMPO_REWARD: i16 = 50;
+
 
 const CAN_NOT_CASTLE_PENALTY: i16 = 25;
 
@@ -100,6 +102,7 @@ pub fn calculate(
     white_pinned: &Vec<ThreatRaycastCollision>,
     black_pinned: &Vec<ThreatRaycastCollision>,
     pawn_structure_eval: i16,
+    open_files: u64,
     piece_safety_results: &Vec<PieceSafetyInfo>,
     ad_table: &mut AttackAndDefendTable,
     white_in_check: bool,
@@ -111,7 +114,7 @@ pub fn calculate(
     eval += material_score(board);
 
     // Piece Positioning
-    eval += piece_positioning_score(board, white_in_check, black_in_check, ad_table);
+    eval += piece_positioning_score(board, white_in_check, black_in_check, open_files, ad_table);
 
     // Board control
     eval += get_center_control_score(ad_table, board);
@@ -166,6 +169,7 @@ fn piece_positioning_score(
     board: BoardRep,
     white_in_check: bool,
     black_in_check: bool,
+    open_files: u64,
     ad_table: &mut AttackAndDefendTable,
 ) -> i16 {
     let mut eval = 0;
@@ -214,6 +218,10 @@ fn piece_positioning_score(
         board.white_occupancy & board.pawn_bitboard,
         board.black_occupancy & board.pawn_bitboard,
     ) * KNIGHT_OUTPOST_REWARD;
+
+    // Rook on open file
+    eval += count_rooks_on_open_file(board.rook_bitboard & board.white_occupancy, open_files) * ROOK_ON_OPEN_FILE_REWARD;
+    eval -= count_rooks_on_open_file(board.rook_bitboard & board.black_occupancy, open_files) * ROOK_ON_OPEN_FILE_REWARD;
 
     // How much can we win from a fork
     eval += get_fork_wins(
