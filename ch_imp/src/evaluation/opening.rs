@@ -23,45 +23,88 @@ use crate::{
 use super::{
     eval_precomputed_data::{PieceValueBoard, PieceValues},
     get_piece_safety,
-    shared::{count_knight_outposts, get_fork_wins, calculate_controlled_space_score},
+    shared::{calculate_controlled_space_score, count_knight_outposts, get_fork_wins},
+    subcategories::{mobility::get_mobility, rook::on_open_file::count_rooks_on_open_file},
     utils::*,
-    PieceSafetyInfo, subcategories::{mobility::get_mobility, rook::on_open_file::count_rooks_on_open_file},
+    PieceSafetyInfo,
 };
 
 const MATERIAL_VALUES: PieceValues = [
-    110, // Pawn
-    400, // Knight
-    450, // Bishop
-    1000, // Rook
-    1800, // Queen
-    0,   // King
+    110,  // Pawn
+    400,  // Knight
+    450,  // Bishop
+    700,  // Rook
+    1250, // Queen
+    0,    // King
 ];
 
 const WHITE_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 2, 2,
-    2, 2, 2, 2, 3, 3, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
-    0,
+    0, 0, 0, 0, 0, 0, 0, 0, -35, -1, -20, -23, -15, 24, 38, -22, -26, -4, -4, -10, 3, 3, 33, -12,
+    -27, -2, -5, 12, 17, 6, 10, -25, -14, 13, 6, 21, 23, 12, 17, -23, -6, 7, 26, 31, 65, 56, 25,
+    -20, 98, 134, 61, 95, 68, 126, 34, -11, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 const BLACK_PAWN_SQUARE_SCORE: PieceValueBoard = [
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 2, 2, 4, 4, 2, 2, 2,
-    2, 2, 2, 6, 6, 2, 2, 2, 4, 4, 4, 8, 8, 4, 4, 4, 5, 5, 5, 10, 10, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0,
-    0,
+    0, 0, 0, 0, 0, 0, 0, 0, 98, 134, 61, 95, 68, 126, 34, -11, -6, 7, 26, 31, 65, 56, 25, -20, -14,
+    13, 6, 21, 23, 12, 17, -23, -27, -2, -5, 12, 17, 6, 10, -25, -26, -4, -4, -10, 3, 3, 33, -12,
+    -35, -1, -20, -23, -15, 24, 38, -22, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
-const PAWN_SQUARE_FACTOR: i16 = 10;
 
-const KNIGHT_SQUARE_SCORE: PieceValueBoard = [
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0,
-    0, 0, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 0, 0, 1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1,
+const WHITE_KNIGHT_SQUARE_SCORE: PieceValueBoard = [
+    -105, -21, -58, -33, -17, -28, -19, -23, -29, -53, -12, -3, -1, 18, -14, -19, -23, -9, 12, 10,
+    19, 17, 25, -16, -13, 4, 16, 13, 28, 19, 21, -8, -9, 17, 19, 53, 37, 69, 18, 22, -47, 60, 37,
+    65, 84, 129, 73, 44, -73, -41, 72, 36, 23, 62, 7, -17, -167, -89, -34, -49, 61, -97, -15, -107,
 ];
-const KNIGHT_SQUARE_FACTOR: i16 = 10;
+const BLACK_KNIGHT_SQUARE_SCORE: PieceValueBoard = [
+    -167, -89, -34, -49, 61, -97, -15, -107, -73, -41, 72, 36, 23, 62, 7, -17, -47, 60, 37, 65, 84,
+    129, 73, 44, -9, 17, 19, 53, 37, 69, 18, 22, -13, 4, 16, 13, 28, 19, 21, -8, -23, -9, 12, 10,
+    19, 17, 25, -16, -29, -53, -12, -3, -1, 18, -14, -19, -105, -21, -58, -33, -17, -28, -19, -23,
+];
 
-const BISHOP_SQUARE_SCORE: PieceValueBoard = [
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, 3, 0, 0, 0, 0, 3, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2,
-    0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 0, 2, 0, 0, 2, 0, -1, -1, 3, 0, 0, 0, 0, 3, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1,
+const WHITE_BISHOP_SQUARE_SCORE: PieceValueBoard = [
+    -33, -3, -14, -21, -13, -12, -39, -21, 4, 15, 16, 0, 7, 21, 33, 1, 0, 15, 15, 15, 14, 27, 18,
+    10, -6, 13, 13, 26, 34, 12, 10, 4, -4, 5, 19, 50, 37, 37, 7, -2, -16, 37, 43, 40, 35, 50, 37,
+    -2, -26, 16, -18, -13, 30, 59, 18, -47, -29, 4, -82, -37, -25, -42, 7, -8,
 ];
-const BISHOP_SQUARE_FACTOR: i16 = 10;
+const BLACK_BISHOP_SQUARE_SCORE: PieceValueBoard = [
+    -29, 4, -82, -37, -25, -42, 7, -8, -26, 16, -18, -13, 30, 59, 18, -47, -16, 37, 43, 40, 35, 50,
+    37, -2, -4, 5, 19, 50, 37, 37, 7, -2, -6, 13, 13, 26, 34, 12, 10, 4, 0, 15, 15, 15, 14, 27, 18,
+    10, 4, 15, 16, 0, 7, 21, 33, 1, -33, -3, -14, -21, -13, -12, -39, -21,
+];
+
+const WHITE_ROOK_SQUARE_SCORE: PieceValueBoard = [
+    -19, -13, 1, 17, 16, 7, -37, -26, -44, -16, -20, -9, -1, 11, -6, -71, -45, -25, -16, -17, 3, 0,
+    -5, -33, -36, -26, -12, -1, 9, -7, 6, -23, -24, -11, 7, 26, 24, 35, -8, -20, -5, 19, 26, 36,
+    17, 45, 61, 16, 27, 32, 58, 62, 80, 67, 26, 44, 32, 42, 32, 51, 63, 9, 31, 43,
+];
+const BLACK_ROOK_SQUARE_SCORE: PieceValueBoard = [
+    32, 42, 32, 51, 63, 9, 31, 43, 27, 32, 58, 62, 80, 67, 26, 44, -5, 19, 26, 36, 17, 45, 61, 16,
+    -24, -11, 7, 26, 24, 35, -8, -20, -36, -26, -12, -1, 9, -7, 6, -23, -45, -25, -16, -17, 3, 0,
+    -5, -33, -44, -16, -20, -9, -1, 11, -6, -71, -19, -13, 1, 17, 16, 7, -37, -26,
+];
+
+const WHITE_QUEEN_SQUARE_SCORE: PieceValueBoard = [
+    -1, -18, -9, 10, -15, -25, -31, -50, -35, -8, 11, 2, 8, 15, -3, 1, -14, 2, -11, -2, -5, 2, 14,
+    5, -9, -26, -9, -10, -2, -4, 3, -3, -27, -27, -16, -16, -1, 17, -2, 1, -13, -17, 7, 8, 29, 56,
+    47, 57, -24, -39, -5, 1, -16, 57, 28, 54, -28, 0, 29, 12, 59, 44, 43, 45,
+];
+const BLACK_QUEEN_SQUARE_SCORE: PieceValueBoard = [
+    -28, 0, 29, 12, 59, 44, 43, 45, -24, -39, -5, 1, -16, 57, 28, 54, -13, -17, 7, 8, 29, 56, 47,
+    57, -27, -27, -16, -16, -1, 17, -2, 1, -9, -26, -9, -10, -2, -4, 3, -3, -14, 2, -11, -2, -5, 2,
+    14, 5, -35, -8, 11, 2, 8, 15, -3, 1, -1, -18, -9, 10, -15, -25, -31, -50,
+];
+
+const WHITE_KING_SQUARE_SCORE: PieceValueBoard = [
+    -15, 36, 12, -54, 8, -28, 24, 14, 1, 7, -8, -64, -43, -16, 9, 8, -14, -14, -22, -46, -44, -30,
+    -15, -27, -49, -1, -27, -39, -46, -44, -33, -51, -17, -20, -12, -27, -30, -25, -14, -36, -9,
+    24, 2, -16, -20, 6, 22, -22, 29, -1, -20, -7, -8, -4, -38, -29, -65, 23, 16, -15, -56, -34, 2,
+    13,
+];
+const BLACK_KING_SQUARE_SCORE: PieceValueBoard = [
+    -65, 23, 16, -15, -56, -34, 2, 13, 29, -1, -20, -7, -8, -4, -38, -29, -9, 24, 2, -16, -20, 6,
+    22, -22, -17, -20, -12, -27, -30, -25, -14, -36, -49, -1, -27, -39, -46, -44, -33, -51, -14,
+    -14, -22, -46, -44, -30, -15, -27, 1, 7, -8, -64, -43, -16, 9, 8, -15, 36, 12, -54, 8, -28, 24,
+    14,
+];
 
 const CENTER_CONTROL_REWARD: PieceValueBoard = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 2, 4, 4, 2, 0, 0,
@@ -91,7 +134,6 @@ const DOUBLE_BISHOP_REWARD: i16 = 100;
 const KNIGHT_OUTPOST_REWARD: i16 = 75;
 const ROOK_ON_OPEN_FILE_REWARD: i16 = 100;
 const TEMPO_REWARD: i16 = 50;
-
 
 const CAN_NOT_CASTLE_PENALTY: i16 = 25;
 
@@ -135,7 +177,11 @@ pub fn calculate(
     eval += mobility_score(board);
 
     // Tempo
-    eval += if board.black_turn { -TEMPO_REWARD } else { TEMPO_REWARD };
+    eval += if board.black_turn {
+        -TEMPO_REWARD
+    } else {
+        TEMPO_REWARD
+    };
 
     eval
 }
@@ -158,8 +204,10 @@ fn material_score(board: BoardRep) -> i16 {
     };
 
     // Pawn advantage
-    let pawn_difference = (board.pawn_bitboard & board.white_occupancy).count_ones() as i16 - (board.pawn_bitboard & board.black_occupancy).count_ones() as i16;
-    let difference_score = i16::signum(pawn_difference) * PAWN_DIFFERENCE_SCORE[i16::abs(pawn_difference) as usize];
+    let pawn_difference = (board.pawn_bitboard & board.white_occupancy).count_ones() as i16
+        - (board.pawn_bitboard & board.black_occupancy).count_ones() as i16;
+    let difference_score =
+        i16::signum(pawn_difference) * PAWN_DIFFERENCE_SCORE[i16::abs(pawn_difference) as usize];
     score += difference_score;
 
     score
@@ -177,29 +225,49 @@ fn piece_positioning_score(
     eval += piece_square_score(
         board.white_occupancy & board.pawn_bitboard,
         WHITE_PAWN_SQUARE_SCORE,
-    ) * PAWN_SQUARE_FACTOR;
+    );
     eval -= piece_square_score(
         board.black_occupancy & board.pawn_bitboard,
         BLACK_PAWN_SQUARE_SCORE,
-    ) * PAWN_SQUARE_FACTOR;
+    );
 
     eval += piece_square_score(
         board.white_occupancy & board.knight_bitboard,
-        KNIGHT_SQUARE_SCORE,
-    ) * KNIGHT_SQUARE_FACTOR;
+        WHITE_KNIGHT_SQUARE_SCORE,
+    );
     eval -= piece_square_score(
         board.black_occupancy & board.knight_bitboard,
-        KNIGHT_SQUARE_SCORE,
-    ) * KNIGHT_SQUARE_FACTOR;
+        BLACK_KNIGHT_SQUARE_SCORE,
+    );
 
     eval += piece_square_score(
         board.white_occupancy & board.bishop_bitboard,
-        BISHOP_SQUARE_SCORE,
-    ) * BISHOP_SQUARE_FACTOR;
+        WHITE_BISHOP_SQUARE_SCORE,
+    );
     eval -= piece_square_score(
         board.black_occupancy & board.bishop_bitboard,
-        BISHOP_SQUARE_SCORE,
-    ) * BISHOP_SQUARE_FACTOR;
+        BLACK_BISHOP_SQUARE_SCORE,
+    );
+
+    eval += piece_square_score(
+        board.white_occupancy & board.rook_bitboard,
+        WHITE_ROOK_SQUARE_SCORE,
+    );
+    eval -= piece_square_score(
+        board.black_occupancy & board.rook_bitboard,
+        BLACK_ROOK_SQUARE_SCORE,
+    );
+
+    eval += piece_square_score(
+        board.white_occupancy & board.queen_bitboard,
+        WHITE_QUEEN_SQUARE_SCORE,
+    );
+    eval -= piece_square_score(
+        board.black_occupancy & board.queen_bitboard,
+        BLACK_QUEEN_SQUARE_SCORE,
+    );
+    eval += WHITE_KING_SQUARE_SCORE[board.white_king_position as usize];
+    eval -= BLACK_KING_SQUARE_SCORE[board.black_king_position as usize];
 
     // Development
     eval += under_developed_penalty(board, board.white_occupancy);
@@ -220,8 +288,10 @@ fn piece_positioning_score(
     ) * KNIGHT_OUTPOST_REWARD;
 
     // Rook on open file
-    eval += count_rooks_on_open_file(board.rook_bitboard & board.white_occupancy, open_files) * ROOK_ON_OPEN_FILE_REWARD;
-    eval -= count_rooks_on_open_file(board.rook_bitboard & board.black_occupancy, open_files) * ROOK_ON_OPEN_FILE_REWARD;
+    eval += count_rooks_on_open_file(board.rook_bitboard & board.white_occupancy, open_files)
+        * ROOK_ON_OPEN_FILE_REWARD;
+    eval -= count_rooks_on_open_file(board.rook_bitboard & board.black_occupancy, open_files)
+        * ROOK_ON_OPEN_FILE_REWARD;
 
     // How much can we win from a fork
     eval += get_fork_wins(
@@ -306,16 +376,16 @@ fn turn_order_advantage(
     score
 }
 
-fn space_control(board:BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
+fn space_control(board: BoardRep, ad_table: &mut AttackAndDefendTable) -> i16 {
     let w = calculate_controlled_space_score(false, board, ad_table);
     let b = calculate_controlled_space_score(true, board, ad_table);
-    w-b
+    w - b
 }
 
 fn mobility_score(board: BoardRep) -> i16 {
     let w = get_mobility(false, board) as i16 - 50;
     let b = get_mobility(true, board) as i16 - 50;
-    (w-b)*2
+    (w - b) * 2
 }
 
 // King openness is a penalty for each square the king could reach if they were a queen
