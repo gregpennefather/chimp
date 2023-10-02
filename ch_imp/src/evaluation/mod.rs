@@ -11,9 +11,9 @@ use crate::{
 
 use self::{eval_precomputed_data::PHASE_MATERIAL_VALUES, utils::piece_aggregate_score};
 
-mod endgame;
+pub mod endgame;
 mod eval_precomputed_data;
-mod opening;
+pub mod opening;
 pub mod pawn_structure;
 mod shared;
 mod utils;

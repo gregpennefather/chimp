@@ -20,6 +20,8 @@ use crate::{
     MOVE_DATA,
 };
 
+use super::square_delta;
+
 pub(super) mod legal_move;
 mod tests;
 
@@ -31,6 +33,7 @@ pub(super) fn generate_pawn_moves(
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
     reveal_attack: Option<ThreatRaycastCollision>,
+    phase: i16,
 ) -> Vec<Move> {
     if king_threat != None {
         let kt = king_threat.unwrap();
@@ -41,6 +44,7 @@ pub(super) fn generate_pawn_moves(
             board,
             ad_table,
             reveal_attack,
+            phase,
         );
     }
 
@@ -53,6 +57,7 @@ pub(super) fn generate_pawn_moves(
             board,
             ad_table,
             reveal_attack,
+            phase,
         );
     }
 
@@ -70,6 +75,13 @@ pub(super) fn generate_pawn_moves(
                 PieceType::Pawn,
                 board.black_turn,
                 get_see(ad_table, board, to, false, reveal_attack),
+                square_delta(
+                    index as usize,
+                    to as usize,
+                    board.black_turn,
+                    PieceType::Pawn,
+                    phase,
+                ),
             ));
 
             if (board.black_turn && rank == 6) || (!board.black_turn && rank == 1) {
@@ -82,6 +94,13 @@ pub(super) fn generate_pawn_moves(
                         PieceType::Pawn,
                         board.black_turn,
                         get_see(ad_table, board, dpp, false, reveal_attack),
+                        square_delta(
+                            index as usize,
+                            to as usize,
+                            board.black_turn,
+                            PieceType::Pawn,
+                            phase,
+                        ),
                     ));
                 }
             }
@@ -92,6 +111,7 @@ pub(super) fn generate_pawn_moves(
                 false,
                 board.black_turn,
                 get_see(ad_table, board, to, false, reveal_attack),
+                phase,
             ));
         }
     }
@@ -113,6 +133,7 @@ pub(super) fn generate_pawn_moves(
                     true,
                     board.black_turn,
                     see,
+                    phase,
                 ));
             } else {
                 moves.push(Move::new(
@@ -126,6 +147,13 @@ pub(super) fn generate_pawn_moves(
                     PieceType::Pawn,
                     board.black_turn,
                     see,
+                    square_delta(
+                        index as usize,
+                        capture_a as usize,
+                        board.black_turn,
+                        PieceType::Pawn,
+                        phase,
+                    ),
                 ));
             }
         }
@@ -149,6 +177,7 @@ pub(super) fn generate_pawn_moves(
                         true,
                         board.black_turn,
                         see,
+                        phase,
                     ));
                 } else {
                     moves.push(Move::new(
@@ -162,6 +191,13 @@ pub(super) fn generate_pawn_moves(
                         PieceType::Pawn,
                         board.black_turn,
                         see,
+                        square_delta(
+                            index as usize,
+                            capture_b as usize,
+                            board.black_turn,
+                            PieceType::Pawn,
+                            phase,
+                        ),
                     ));
                 }
             }
@@ -201,6 +237,7 @@ fn generate_pawn_moves_when_threatened(
     board: BoardRep,
     ad_table: &mut AttackAndDefendTable,
     reveal_attack: Option<ThreatRaycastCollision>,
+    phase: i16,
 ) -> Vec<Move> {
     let mut moves = Vec::new();
     let offset_file: i8 = if board.black_turn { -1 } else { 1 };
@@ -218,6 +255,13 @@ fn generate_pawn_moves_when_threatened(
                     PieceType::Pawn,
                     board.black_turn,
                     0,
+                    square_delta(
+                        index as usize,
+                        to as usize,
+                        board.black_turn,
+                        PieceType::Pawn,
+                        phase,
+                    ),
                 ));
             } else {
                 moves.extend(generate_pawn_promotion_moves(
@@ -226,6 +270,7 @@ fn generate_pawn_moves_when_threatened(
                     false,
                     board.black_turn,
                     0,
+                    phase,
                 ));
             }
         }
@@ -243,6 +288,13 @@ fn generate_pawn_moves_when_threatened(
                     PieceType::Pawn,
                     board.black_turn,
                     see,
+                    square_delta(
+                        index as usize,
+                        to as usize,
+                        board.black_turn,
+                        PieceType::Pawn,
+                        phase,
+                    ),
                 ));
             }
         }
@@ -263,6 +315,7 @@ fn generate_pawn_moves_when_threatened(
                     true,
                     board.black_turn,
                     see,
+                    phase,
                 ));
             } else {
                 moves.push(Move::new(
@@ -276,6 +329,13 @@ fn generate_pawn_moves_when_threatened(
                     PieceType::Pawn,
                     board.black_turn,
                     see,
+                    square_delta(
+                        index as usize,
+                        capture_a as usize,
+                        board.black_turn,
+                        PieceType::Pawn,
+                        phase,
+                    ),
                 ));
             }
         }
@@ -296,6 +356,7 @@ fn generate_pawn_moves_when_threatened(
                         true,
                         board.black_turn,
                         see,
+                        phase,
                     ));
                 } else {
                     moves.push(Move::new(
@@ -309,6 +370,13 @@ fn generate_pawn_moves_when_threatened(
                         PieceType::Pawn,
                         board.black_turn,
                         see,
+                        square_delta(
+                            index as usize,
+                            capture_b as usize,
+                            board.black_turn,
+                            PieceType::Pawn,
+                            phase,
+                        ),
                     ));
                 }
             }
@@ -323,7 +391,15 @@ fn generate_pawn_promotion_moves(
     is_capture: bool,
     is_black: bool,
     see: i8,
+    phase: i16,
 ) -> Vec<Move> {
+    let square_delta = square_delta(
+        from_index as usize,
+        to_index as usize,
+        is_black,
+        PieceType::Pawn,
+        phase,
+    );
     return vec![
         Move::new(
             from_index,
@@ -336,6 +412,7 @@ fn generate_pawn_promotion_moves(
             PieceType::Pawn,
             is_black,
             see,
+            square_delta,
         ), // Knight
         Move::new(
             from_index,
@@ -348,6 +425,7 @@ fn generate_pawn_promotion_moves(
             PieceType::Pawn,
             is_black,
             see,
+            square_delta,
         ), // Bishop
         Move::new(
             from_index,
@@ -360,6 +438,7 @@ fn generate_pawn_promotion_moves(
             PieceType::Pawn,
             is_black,
             see,
+            square_delta,
         ), // Rook
         Move::new(
             from_index,
@@ -372,6 +451,7 @@ fn generate_pawn_promotion_moves(
             PieceType::Pawn,
             is_black,
             see,
+            square_delta,
         ), // Queen
     ];
 }

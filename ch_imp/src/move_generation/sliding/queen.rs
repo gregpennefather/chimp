@@ -1,8 +1,9 @@
 use crate::{
     board::{
+        attack_and_defend_lookups::AttackAndDefendTable,
         bitboard::Bitboard,
         board_rep::BoardRep,
-        king_position_analysis::{ThreatRaycastCollision, ThreatSource}, attack_and_defend_lookups::AttackAndDefendTable,
+        king_position_analysis::{ThreatRaycastCollision, ThreatSource},
     },
     move_generation::moveboard_to_moves,
     r#move::Move,
@@ -18,7 +19,8 @@ pub(crate) fn generate_queen_moves(
     occupancy: u64,
     king_threat: Option<ThreatSource>,
     pin: Option<ThreatRaycastCollision>,
-    reveal_attack: Option<ThreatRaycastCollision>
+    reveal_attack: Option<ThreatRaycastCollision>,
+    phase: i16,
 ) -> Vec<Move> {
     let mut moveboard = match pin {
         Some(p) => p.threat_ray_mask | (1 << p.from),
@@ -45,7 +47,8 @@ pub(crate) fn generate_queen_moves(
         occupancy,
         board,
         ad_table,
-        reveal_attack
+        reveal_attack,
+        phase,
     )
 }
 
@@ -79,6 +82,7 @@ mod test {
             PieceType::Queen,
             false,
             0,
+            0,
         );
 
         assert!(!is_legal_queen_move(m, board))
@@ -95,6 +99,7 @@ mod test {
             0b0,
             PieceType::Queen,
             true,
+            0,
             0,
         );
 

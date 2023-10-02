@@ -844,7 +844,7 @@ mod test {
     #[test]
     pub fn generate_move_segments_start_pos_e4() {
         let position = BoardRep::default();
-        let m = Move::new(11, 27, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false, 0);
+        let m = Move::new(11, 27, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, false, 0,0);
 
         let segments = position.generate_move_segments(&m);
 
@@ -871,7 +871,7 @@ mod test {
         let position = BoardRep::from_fen(
             "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR b KQkq -".to_string(),
         );
-        let m = Move::new(59, 57, MF_KING_CASTLING, PieceType::King, true, 0);
+        let m = Move::new(59, 57, MF_KING_CASTLING, PieceType::King, true, 0,0);
 
         let segments = position.generate_move_segments(&m);
 
@@ -904,7 +904,7 @@ mod test {
         let position = BoardRep::from_fen(
             "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/2NP4/PPP2PPP/R1BQK1NR w KQkq -".to_string(),
         );
-        let m = Move::new(7, 6, 0b0, PieceType::Rook, true, 0);
+        let m = Move::new(7, 6, 0b0, PieceType::Rook, true, 0,0);
 
         let segments = position.generate_move_segments(&m);
 
@@ -929,7 +929,7 @@ mod test {
     #[test]
     pub fn generate_move_segments_white_captures_black_rook_clearing_kingside_castling() {
         let position = BoardRep::from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq -".to_string());
-        let m = Move::new(63, 7, MF_CAPTURE, PieceType::Rook, false, 2);
+        let m = Move::new(63, 7, MF_CAPTURE, PieceType::Rook, false, 2,0);
 
         let segments = position.generate_move_segments(&m);
 
@@ -963,7 +963,7 @@ mod test {
         let position = BoardRep::from_fen(
             "rnbqkbnr/pppp1ppp/4p3/8/2B5/4P3/PPPP1PPP/RNBQK1NR b KQkq -".to_string(),
         );
-        let m = Move::new(56, 48, 0b0, PieceType::King, true, 0);
+        let m = Move::new(56, 48, 0b0, PieceType::King, true, 0,0);
 
         let segments = position.generate_move_segments(&m);
 

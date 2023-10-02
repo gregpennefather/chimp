@@ -8,8 +8,9 @@ use crate::{
         king_position_analysis::{KingPositionAnalysis, ThreatRaycastCollision, ThreatType},
         see::piece_safety,
     },
+    evaluation::{calculate_game_phase, endgame::*, opening::*},
     r#move::Move,
-    shared::piece_type::{self},
+    shared::piece_type::{self, PieceType},
 };
 
 mod king;
@@ -49,6 +50,8 @@ fn generate_moves(
         )
     };
 
+    let phase = calculate_game_phase(board);
+
     let mut ad_table = AttackAndDefendTable::new();
 
     let mut moves = king::generate_king_moves(
@@ -61,6 +64,7 @@ fn generate_moves(
         queen_side_castling,
         board,
         &mut ad_table,
+        0,
     );
 
     // In the event of double king check we can only avoid check by moving the king
@@ -84,6 +88,7 @@ fn generate_moves(
             piece_position,
             king_analysis,
             &reveal_attacks,
+            phase,
         ));
         friendly_occupancy ^= 1 << piece_position;
     }
@@ -114,6 +119,7 @@ fn generate_index_moves(
     index: u8,
     king_analysis: &KingPositionAnalysis,
     reveal_attacks: &Vec<ThreatRaycastCollision>,
+    phase: i16,
 ) -> Vec<Move> {
     let piece_type = board.get_piece_type_at_index(index);
     let opponent_occupancy = if board.black_turn {
@@ -142,6 +148,7 @@ fn generate_index_moves(
             king_analysis.threat_source,
             pin,
             reveal_attack,
+            phase,
         ),
         piece_type::PieceType::Knight => match pin {
             Some(_) => vec![],
@@ -153,6 +160,7 @@ fn generate_index_moves(
                 board,
                 ad_table,
                 reveal_attack,
+                phase,
             ),
         },
         piece_type::PieceType::Bishop => {
@@ -174,6 +182,7 @@ fn generate_index_moves(
                 king_analysis.threat_source,
                 pin,
                 reveal_attack,
+                phase,
             )
         }
         piece_type::PieceType::Rook => {
@@ -195,6 +204,7 @@ fn generate_index_moves(
                 king_analysis.threat_source,
                 pin,
                 reveal_attack,
+                phase,
             )
         }
         piece_type::PieceType::Queen => sliding::queen::generate_queen_moves(
@@ -206,6 +216,7 @@ fn generate_index_moves(
             king_analysis.threat_source,
             pin,
             reveal_attack,
+            phase,
         ),
         piece_type::PieceType::King => Vec::new(),
         _ => panic!(
@@ -224,6 +235,7 @@ fn moveboard_to_moves(
     board: BoardRep,
     ad_table: &mut AttackAndDefendTable,
     reveal_attack: Option<ThreatRaycastCollision>,
+    phase: i16,
 ) -> Vec<Move> {
     let mut generated_moves = Vec::new();
     let mut m_b = moveboard;
@@ -252,6 +264,13 @@ fn moveboard_to_moves(
                 board.black_turn,
                 friendly,
                 opponent,
+                square_delta(
+                    from_index as usize,
+                    lsb as usize,
+                    board.black_turn,
+                    piece_type,
+                    phase,
+                ),
             ));
         } else if !occupancy.occupied(lsb) {
             generated_moves.push(Move::new(
@@ -261,10 +280,78 @@ fn moveboard_to_moves(
                 piece_type,
                 board.black_turn,
                 piece_safety(piece_type, true, opponent, friendly),
+                square_delta(
+                    from_index as usize,
+                    lsb as usize,
+                    board.black_turn,
+                    piece_type,
+                    phase,
+                ),
             ));
         };
         m_b ^= 1 << lsb;
     }
 
     generated_moves
+}
+
+pub fn square_delta(
+    from: usize,
+    to: usize,
+    is_black: bool,
+    piece_type: PieceType,
+    phase: i16,
+) -> i16 {
+    let (open, end) = match (piece_type, is_black) {
+        (PieceType::Pawn, true) => (
+            OPENING_BLACK_PAWN_SQUARE_SCORE[to] - OPENING_BLACK_PAWN_SQUARE_SCORE[from],
+            ENDGAME_BLACK_PAWN_SQUARE_SCORE[to] - ENDGAME_BLACK_PAWN_SQUARE_SCORE[from],
+        ),
+        (PieceType::Pawn, false) => (
+            OPENING_WHITE_PAWN_SQUARE_SCORE[to] - OPENING_WHITE_PAWN_SQUARE_SCORE[from],
+            ENDGAME_WHITE_PAWN_SQUARE_SCORE[to] - ENDGAME_WHITE_PAWN_SQUARE_SCORE[from],
+        ),
+        (PieceType::Knight, true) => (
+            OPENING_BLACK_KNIGHT_SQUARE_SCORE[to] - OPENING_BLACK_KNIGHT_SQUARE_SCORE[from],
+            ENDGAME_BLACK_KNIGHT_SQUARE_SCORE[to] - ENDGAME_BLACK_KNIGHT_SQUARE_SCORE[from],
+        ),
+        (PieceType::Knight, false) => (
+            OPENING_WHITE_KNIGHT_SQUARE_SCORE[to] - OPENING_WHITE_KNIGHT_SQUARE_SCORE[from],
+            ENDGAME_WHITE_KNIGHT_SQUARE_SCORE[to] - ENDGAME_WHITE_KNIGHT_SQUARE_SCORE[from],
+        ),
+        (PieceType::Bishop, true) => (
+            OPENING_BLACK_BISHOP_SQUARE_SCORE[to] - OPENING_BLACK_BISHOP_SQUARE_SCORE[from],
+            ENDGAME_BLACK_BISHOP_SQUARE_SCORE[to] - ENDGAME_BLACK_BISHOP_SQUARE_SCORE[from],
+        ),
+        (PieceType::Bishop, false) => (
+            OPENING_WHITE_BISHOP_SQUARE_SCORE[to] - OPENING_WHITE_BISHOP_SQUARE_SCORE[from],
+            ENDGAME_WHITE_BISHOP_SQUARE_SCORE[to] - ENDGAME_WHITE_BISHOP_SQUARE_SCORE[from],
+        ),
+        (PieceType::Rook, true) => (
+            OPENING_BLACK_ROOK_SQUARE_SCORE[to] - OPENING_BLACK_ROOK_SQUARE_SCORE[from],
+            ENDGAME_BLACK_ROOK_SQUARE_SCORE[to] - ENDGAME_BLACK_ROOK_SQUARE_SCORE[from],
+        ),
+        (PieceType::Rook, false) => (
+            OPENING_WHITE_ROOK_SQUARE_SCORE[to] - OPENING_WHITE_ROOK_SQUARE_SCORE[from],
+            ENDGAME_WHITE_ROOK_SQUARE_SCORE[to] - ENDGAME_WHITE_ROOK_SQUARE_SCORE[from],
+        ),
+        (PieceType::Queen, true) => (
+            OPENING_BLACK_QUEEN_SQUARE_SCORE[to] - OPENING_BLACK_QUEEN_SQUARE_SCORE[from],
+            ENDGAME_BLACK_QUEEN_SQUARE_SCORE[to] - ENDGAME_BLACK_QUEEN_SQUARE_SCORE[from],
+        ),
+        (PieceType::Queen, false) => (
+            OPENING_WHITE_QUEEN_SQUARE_SCORE[to] - OPENING_WHITE_QUEEN_SQUARE_SCORE[from],
+            ENDGAME_WHITE_QUEEN_SQUARE_SCORE[to] - ENDGAME_WHITE_QUEEN_SQUARE_SCORE[from],
+        ),
+        (PieceType::King, true) => (
+            OPENING_BLACK_KING_SQUARE_SCORE[to] - OPENING_BLACK_KING_SQUARE_SCORE[from],
+            ENDGAME_BLACK_KING_SQUARE_SCORE[to] - ENDGAME_BLACK_KING_SQUARE_SCORE[from],
+        ),
+        (PieceType::King, false) => (
+            OPENING_WHITE_KING_SQUARE_SCORE[to] - OPENING_WHITE_KING_SQUARE_SCORE[from],
+            ENDGAME_WHITE_KING_SQUARE_SCORE[to] - ENDGAME_WHITE_KING_SQUARE_SCORE[from],
+        ),
+        _ => (0, 0),
+    };
+    (((open as i32 * (256 - phase as i32)) + (end as i32 * phase as i32)) / 256) as i16
 }

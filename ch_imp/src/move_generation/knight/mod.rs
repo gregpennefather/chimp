@@ -1,4 +1,14 @@
-use crate::{board::{king_position_analysis::{ThreatSource, ThreatRaycastCollision}, board_rep::BoardRep, bitboard::Bitboard, attack_and_defend_lookups::AttackAndDefendTable}, r#move::Move, MOVE_DATA, shared::piece_type::PieceType};
+use crate::{
+    board::{
+        attack_and_defend_lookups::AttackAndDefendTable,
+        bitboard::Bitboard,
+        board_rep::BoardRep,
+        king_position_analysis::{ThreatRaycastCollision, ThreatSource},
+    },
+    r#move::Move,
+    shared::piece_type::PieceType,
+    MOVE_DATA,
+};
 
 use super::moveboard_to_moves;
 
@@ -9,7 +19,8 @@ pub(super) fn generate_knight_moves(
     king_threat: Option<ThreatSource>,
     board: BoardRep,
     ad_table: &mut AttackAndDefendTable,
-    reveal_attack: Option<ThreatRaycastCollision>
+    reveal_attack: Option<ThreatRaycastCollision>,
+    phase: i16,
 ) -> Vec<Move> {
     let mut moveboard = MOVE_DATA.knight_moves[index as usize];
 
@@ -26,7 +37,8 @@ pub(super) fn generate_knight_moves(
         occupancy,
         board,
         ad_table,
-        reveal_attack
+        reveal_attack,
+        phase,
     )
 }
 
@@ -38,7 +50,7 @@ pub(super) fn is_legal_knight_move(m: Move, board: BoardRep) -> bool {
     }
     if m.is_capture() {
         let opponent_occupancy = board.get_opponent_occupancy();
-        return opponent_occupancy.occupied(m.to())
+        return opponent_occupancy.occupied(m.to());
     } else {
         return !board.occupancy.occupied(m.to());
     }

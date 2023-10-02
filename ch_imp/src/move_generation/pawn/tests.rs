@@ -9,7 +9,7 @@ pub fn pawn_moves_scenario_0() {
     let board = BoardRep::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".into(),
     );
-    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.black_occupancy, None, None, None);
+    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.black_occupancy, None, None, None, 0);
     assert_eq!(moves.len(), 3);
 }
 
@@ -18,7 +18,7 @@ pub fn pawn_moves_scenario_1() {
     let board = BoardRep::from_fen(
         "r3k2r/p1ppqpb1/bn2pnp1/1N1PN3/1p2P3/5Q2/PPPBBPpP/R3K2R b KQkq - 0 2".into(),
     );
-    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.white_occupancy, None, None, None);
+    let moves = generate_pawn_moves(board, &mut AttackAndDefendTable::new(), 9, board.white_occupancy, None, None, None, 0);
     assert_eq!(moves.len(), 8);
 }
 
@@ -49,7 +49,7 @@ pub fn ep_leads_to_orthogonal_check_left_true() {
 #[test]
 fn is_legal_capture_promotion_scenario_0() {
     let board = BoardRep::from_fen("3n2k1/P4r1p/3qp1p1/1r1p4/1p3pP1/1Q3P1P/R4P2/2R2BK1 w - - 1 1".into());
-    let m = Move::new(index_from_coords("a7"), index_from_coords("b8"), MF_ROOK_CAPTURE_PROMOTION, PieceType::Pawn, false, 3);
+    let m = Move::new(index_from_coords("a7"), index_from_coords("b8"), MF_ROOK_CAPTURE_PROMOTION, PieceType::Pawn, false, 3, 0);
     assert!(!is_legal_pawn_move(m, board));
 }
 

@@ -22,7 +22,7 @@ pub mod move_magic_bitboards;
 pub mod move_segment;
 
 #[derive(Default, Clone, Copy, Eq)]
-pub struct Move(u16, PieceType, bool, i8);
+pub struct Move(u16, PieceType, bool, i8,i16);
 
 impl Move {
     pub fn new(
@@ -32,11 +32,12 @@ impl Move {
         piece_type: PieceType,
         is_black: bool,
         see_value: i8,
+        square_delta: i16
     ) -> Move {
         let f: u16 = from_index.into();
         let t: u16 = to_index.into();
         let m: u16 = f << 10 | t << 4 | flags;
-        Move(m, piece_type, is_black, see_value)
+        Move(m, piece_type, is_black, see_value, square_delta)
     }
 
     pub fn capture_move(
@@ -46,7 +47,8 @@ impl Move {
         attacked_piece_type: PieceType,
         is_black: bool,
         friendly_attacked_by: AttackedBy,
-        opponent_attacked_by: AttackedBy
+        opponent_attacked_by: AttackedBy,
+        square_delta: i16
     ) -> Self {
         let f: u16 = from_index.into();
         let t: u16 = to_index.into();
@@ -57,7 +59,7 @@ impl Move {
             attacked_piece_type,
             opponent_attacked_by,
         );
-        Move(m, attacker_piece_type, is_black, see_value)
+        Move(m, attacker_piece_type, is_black, see_value, square_delta)
     }
 
     pub fn from(&self) -> u8 {
@@ -227,15 +229,7 @@ impl PartialOrd for Move {
             return Some(Ordering::Less);
         }
 
-        // if self.1 == PieceType::King {
-        //     return Some(Ordering::Greater)
-        // }
-        // if other.1 == PieceType::King {
-        //     return Some(Ordering::Less)
-        // }
-
-        // Else check high value pieces first
-        Some(other.1.cmp(&self.1))
+        Some(other.4.cmp(&self.4))
     }
 }
 
@@ -266,19 +260,8 @@ mod test {
 
     #[test]
     pub fn order_will_prioritize_greater_valued_flags() {
-        let m1 = Move::new(2, 4, MF_DOUBLE_PAWN_PUSH, PieceType::Queen, false, 0);
-        let m2 = Move::new(2, 4, MF_QUEEN_PROMOTION, PieceType::Queen, false, 0);
-
-        let mut vec = vec![m1, m2];
-        vec.sort();
-        assert_eq!(vec[0], m2);
-        assert_eq!(vec[1], m1);
-    }
-
-    #[test]
-    pub fn order_will_prioritize_greater_valued_pieces() {
-        let m1 = Move::new(2, 4, 0b0, PieceType::Pawn, false, 0);
-        let m2 = Move::new(2, 4, 0b0, PieceType::Queen, false, 0);
+        let m1 = Move::new(2, 4, MF_DOUBLE_PAWN_PUSH, PieceType::Queen, false, 0, 0);
+        let m2 = Move::new(2, 4, MF_QUEEN_PROMOTION, PieceType::Queen, false, 0, 0);
 
         let mut vec = vec![m1, m2];
         vec.sort();
@@ -288,8 +271,8 @@ mod test {
 
     #[test]
     pub fn order_moves_case_capture_over_quiet() {
-        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 2);
-        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true, 0);
+        let capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 2, 0);
+        let quiet = Move::new(0, 1, 0b0, PieceType::Pawn, true, 0, 0);
         let mut moves = vec![quiet, capture];
 
         moves.sort();
@@ -299,8 +282,8 @@ mod test {
 
     #[test]
     pub fn order_moves_case_capture_with_higher_see_over_lower() {
-        let major_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 4);
-        let minor_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Queen, true, 1);
+        let major_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 4, 0);
+        let minor_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Queen, true, 1, 0);
         let mut moves = vec![minor_capture, major_capture];
 
         moves.sort();
@@ -310,8 +293,8 @@ mod test {
 
     #[test]
     pub fn order_moves_case_equal_see_captures_check_least_valuable_piece_first() {
-        let rook_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Rook, true, 4);
-        let queen_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Queen, true, 4);
+        let rook_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Rook, true, 4, 0);
+        let queen_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Queen, true, 4, 0);
         let mut moves = vec![queen_capture, rook_capture];
 
         moves.sort();
@@ -319,17 +302,26 @@ mod test {
         assert_eq!(moves[1], queen_capture);
     }
 
-
-
     #[test]
     pub fn order_equal_see_capture_over_dpp() {
-        let pawn_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 0);
-        let dpp = Move::new(0, 1, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, true, 0);
+        let pawn_capture = Move::new(0, 1, MF_CAPTURE, PieceType::Pawn, true, 0, 0);
+        let dpp = Move::new(0, 1, MF_DOUBLE_PAWN_PUSH, PieceType::Pawn, true, 0, 0);
         let mut moves = vec![dpp, pawn_capture];
 
         moves.sort();
         assert_eq!(moves[0], pawn_capture);
         assert_eq!(moves[1], dpp);
+    }
+
+    #[test]
+    pub fn order_better_square_delta_when_moves_quiet() {
+        let better_move = Move::new(0, 1, 0b0, PieceType::Pawn, true, 0, 23);
+        let worse_move = Move::new(0, 1, 0b0, PieceType::Queen, true, 0, 11);
+        let mut moves = vec![worse_move, better_move];
+
+        moves.sort();
+        assert_eq!(moves[0], better_move);
+        assert_eq!(moves[1], worse_move);
     }
 
 

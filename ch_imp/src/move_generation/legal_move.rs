@@ -185,6 +185,7 @@ mod test {
             PieceType::Pawn,
             false,
             2,
+            0
         );
         assert!(!position.is_legal_move(m));
     }
@@ -199,6 +200,7 @@ mod test {
             PieceType::King,
             true,
             0,
+            0,
         );
         assert!(!position.is_legal_move(m));
     }
@@ -212,6 +214,7 @@ mod test {
             0b0,
             PieceType::Knight,
             false,
+            0,
             0,
         );
         assert!(!move_removes_check(
@@ -231,6 +234,7 @@ mod test {
             PieceType::Knight,
             false,
             0,
+            0,
         );
         assert!(move_removes_check(
             m,
@@ -248,6 +252,7 @@ mod test {
             0b0,
             PieceType::Knight,
             false,
+            0,
             0,
         );
         assert!(!move_removes_check(
@@ -267,6 +272,7 @@ mod test {
             PieceType::Knight,
             false,
             0,
+            0,
         );
         assert!(!move_removes_check(
             m,
@@ -285,6 +291,7 @@ mod test {
             PieceType::Bishop,
             true,
             0,
+            0,
         );
         assert!(!position.is_legal_move(m));
     }
@@ -299,6 +306,7 @@ mod test {
             PieceType::Pawn,
             true,
             0,
+            0,
         );
         assert!(!position.is_legal_move(m));
     }
@@ -312,6 +320,7 @@ mod test {
             0b0,
             PieceType::Bishop,
             true,
+            0,
             0,
         );
         assert!(is_legal_pinned_piece_move(
@@ -329,6 +338,7 @@ mod test {
             MF_CAPTURE,
             PieceType::Bishop,
             true,
+            0,
             0,
         );
         assert!(is_legal_pinned_piece_move(
@@ -349,6 +359,7 @@ mod test {
             PieceType::Pawn,
             false,
             0,
+            0,
         );
         assert!(!position.is_legal_move(m));
     }
@@ -363,6 +374,7 @@ mod test {
             0b0,
             PieceType::Bishop,
             false,
+            0,
             0,
         );
         assert!(!position.is_legal_move(m));
@@ -380,6 +392,7 @@ mod test {
             PieceType::King,
             true,
             0,
+            0,
         );
         assert!(!position.is_legal_move(m));
     }
@@ -395,6 +408,7 @@ mod test {
             PieceType::Rook,
             false,
             0,
+            0,
         );
         assert!(!position.is_legal_move(m));
     }
@@ -409,6 +423,7 @@ mod test {
             MF_CAPTURE,
             PieceType::Pawn,
             false,
+            0,
             0,
         );
         assert!(!position.is_legal_move(m));

@@ -210,7 +210,7 @@ impl GameState {
             flags,
             piece_type,
             self.position.board.black_turn,
-            0,
+            0,0,
         ) // See shouldnt be 0 but also theres no real need to calc it
     }
 }
@@ -328,7 +328,7 @@ mod test {
             MF_DOUBLE_PAWN_PUSH,
             PieceType::Pawn,
             true,
-            0,
+            0,0,
         ));
         assert_eq!(
             game_state.to_fen(),
@@ -341,7 +341,7 @@ mod test {
         let mut game_state = GameState::new(
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 2".into(),
         );
-        game_state = game_state.make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true, 0));
+        game_state = game_state.make(Move::new(3, 1, MF_KING_CASTLING, PieceType::King, true, 0,0));
         assert_eq!(
             game_state.to_fen(),
             "rnbq1rk1/ppp2pbp/3p1np1/4p3/2PPP3/2N2N2/PP2BPPP/R1BQ1RK1 b - - 1 2"

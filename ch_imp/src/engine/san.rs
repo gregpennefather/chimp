@@ -173,6 +173,7 @@ mod test {
             PieceType::Pawn,
             false,
             0,
+            0
         );
 
         assert_eq!(game_state.to_san(m), "e4");
@@ -188,6 +189,7 @@ mod test {
             PieceType::Knight,
             false,
             0,
+            0
         );
 
         assert_eq!(game_state.to_san(m), "Nf3");
@@ -204,6 +206,7 @@ mod test {
             PieceType::Knight,
             true,
             0,
+            0
         );
         assert_eq!(game_state.to_san(m), "Nxd4");
     }
@@ -219,6 +222,7 @@ mod test {
             PieceType::Queen,
             true,
             0,
+            0
         );
         assert_eq!(game_state.to_san(m), "Qd1+");
     }
@@ -234,6 +238,7 @@ mod test {
             PieceType::Pawn,
             true,
             0,
+            0
         );
         assert_eq!(game_state.to_san(m), "f5");
     }
@@ -249,6 +254,7 @@ mod test {
             PieceType::Knight,
             false,
             0,
+            0
         );
         assert_eq!(game_state.to_san(m), "Ncxd5");
     }
@@ -264,6 +270,7 @@ mod test {
             PieceType::Knight,
             false,
             0,
+            0
         );
         assert_eq!(game_state.to_san(m), "Nexd4");
     }
@@ -279,6 +286,7 @@ mod test {
             PieceType::Pawn,
             false,
             0,
+            0
         );
         assert_eq!(game_state.to_san(m), "f4");
     }

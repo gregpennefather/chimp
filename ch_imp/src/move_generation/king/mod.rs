@@ -22,7 +22,7 @@ use crate::{
 
 mod tests;
 
-use super::moveboard_to_moves;
+use super::{moveboard_to_moves, square_delta};
 
 pub(super) fn generate_king_moves(
     index: u8,
@@ -34,6 +34,7 @@ pub(super) fn generate_king_moves(
     queen_side_castling: bool,
     board: BoardRep,
     ad_table: &mut AttackAndDefendTable,
+    phase: i16
 ) -> Vec<Move> {
     let moveboard = get_legal_moveboard(index, ad_table, board, is_black);
     let mut moves = moveboard_to_moves(
@@ -44,7 +45,8 @@ pub(super) fn generate_king_moves(
         occupancy,
         board,
         ad_table,
-        None
+        None,
+        phase
     );
 
     if !king_analysis.check {
@@ -58,6 +60,7 @@ pub(super) fn generate_king_moves(
                 KING_CASTLING_CHECK << (index - 3),
                 board,
                 ad_table,
+                phase
             ) {
                 Some(generated_move) => {
                     moves.push(generated_move);
@@ -75,6 +78,7 @@ pub(super) fn generate_king_moves(
                 QUEEN_CASTLING_CHECK << (index - 3),
                 board,
                 ad_table,
+                phase
             ) {
                 Some(generated_move) => {
                     moves.push(generated_move);
@@ -115,6 +119,7 @@ fn generate_king_castling_move(
     mut castling_check_board: u64,
     board: BoardRep,
     ad_table: &AttackAndDefendTable,
+    phase: i16
 ) -> Option<Move> {
     if castling_clearance_board & board.occupancy != 0 {
         return None;
@@ -135,6 +140,7 @@ fn generate_king_castling_move(
         PieceType::King,
         is_black,
         0,
+        square_delta(from_index as usize, to_index as usize, is_black, PieceType::King, phase)
     );
     return Some(m);
 }
